@@ -57,9 +57,9 @@ An increment is accepted only with: stable scenario report IDs; RED and GREEN ou
 
 **Scope:**
 
-- Reconcile early ADR/ER with actual migrations/OpenAPI. Add C4 context/container, DDL links, permission matrix, precision examples, settlement/idempotency state and sequence diagrams, terminal reversal/ledger semantics, operations/runbook, limitations, and requirement→code/test/doc/gap traceability.
+- Reconcile early ADR/ER with actual migrations/OpenAPI. Add C4 context/container, DDL links naming the Flyway migrations as the required DDL-scripts deliverable, permission matrix, precision examples, settlement/idempotency state and sequence diagrams, terminal reversal/ledger semantics, operations/runbook, limitations, and requirement→code/test/doc/gap traceability.
 - Document proposed—not implemented—1M transactions/minute evolution with workload/capacity math, partitioning, outbox/CDC, Kafka ordering/idempotent consumers, materialized reports, strong/eventual consistency boundaries, reconciliation, backpressure/DLQ/replay, SLO, DR/RPO/RTO, and staged extraction criteria.
-- Complete candid `AI_USAGE.md` using actual prompts, hallucinations/corrections, wins/costs only. README begins with full-stack start and deterministic demo.
+- Complete candid `AI_USAGE.md` using actual prompts, hallucinations/corrections, wins/costs only. README begins with full-stack start and deterministic demo, and states and justifies the chosen GitHub Flow branching strategy for this project.
 - Preserve whole-settlement terminal reversal, signed ledger, server simulation/preview, and authorization limitations prominently.
 
 **Non-goals:** Retroactive claims, fabricated AI use, implemented microservices/IaC/scale, new application behavior, remote publication, or release tag.

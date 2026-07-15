@@ -143,7 +143,7 @@ Example: `USD/BRL = 5.20` means `USD 1 = BRL 5.20`.
 
 - An assignor owns receivables.
 - A receivable has one product type, face currency, face value, issue date, due date, and status.
-- A pricing simulation creates a persisted quote for auditability.
+- A pricing simulation is server-authoritative and non-persisted; a separate pricing-quote request creates the persisted, auditable quote.
 - Quotes expire after 15 minutes.
 - A quote records all inputs and calculation snapshots.
 - Settlement must use a valid, unexpired quote and revalidate receivable state.
@@ -258,15 +258,18 @@ All endpoints are versioned under `/api/v1`.
 
 ### Pricing
 
+- `POST /pricing-simulations` (non-persisting)
 - `POST /pricing-quotes`
 - `GET /pricing-quotes/{id}`
 
 ### Settlement
 
+- `POST /settlement-previews` (non-persisting)
 - `POST /settlements`
 - `GET /settlements/{id}`
+- `POST /settlements/{id}/reversals`
 
-`POST /settlements` requires `Idempotency-Key`.
+`POST /settlements` and `POST /settlements/{id}/reversals` require `Idempotency-Key`.
 
 ### Reporting
 

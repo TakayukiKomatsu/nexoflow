@@ -322,7 +322,7 @@ Feature: SETTLE atomic settlement
 - Same reversal key/hash replays original; a different key after reversal → `409 ALREADY_REVERSED`. Reversal, receivable transitions, idempotency outcome, and audit event commit atomically.
 - Append-only audit events capture actor/action/target/time/correlation/safe metadata for reference mutation, quote, settlement, reversal. Audit detail is ADMIN/AUDITOR.
 - `GET /api/v1/settlement-statements` is a ledger: one positive SETTLEMENT entry/item and one negative REVERSAL entry/reversed item; signed amount, `effectiveAt`, original settlement ID, optional reversal ID, immutable item dimensions. Default includes both types.
-- `[from,to)` UTC filters apply to entry `effectiveAt`; deterministic `effectiveAt DESC, entryId DESC`; bounded server pagination; parameterized optimized SQL; no N+1. OPERATOR/ANALYST/ADMIN/AUDITOR have role-wide statement read because no tenant ownership model exists.
+- `[from,to)` UTC filters apply to entry `effectiveAt`; `assignorId`, `assetCurrency`, `settlementCurrency`, and `productType` filters combine with the period; deterministic `effectiveAt DESC, entryId DESC`; bounded server pagination; parameterized optimized SQL; no N+1. OPERATOR/ANALYST/ADMIN/AUDITOR have role-wide statement read because no tenant ownership model exists.
 
 **Module design:** Settlement Reversal extends the Settlement Module through one explicit `reverse(settlementId, reason, idempotencyKey, actor)` Interface; it hides compensation, terminal lifecycle transition, and audit append mechanics. `Reporting` is a read-only deep Module with one ledger-query Interface; its SQL Adapter owns joins, filters, ordering, pagination, and query shape. The reporting SQL Adapter is a real distinct path because report reads deliberately bypass aggregate reconstruction.
 
@@ -546,9 +546,9 @@ Feature: E2E deterministic financial path
 
 **Scope:**
 
-- Reconcile early ADR/ER with actual migrations/OpenAPI. Add C4 context/container, DDL links, permission matrix, precision examples, settlement/idempotency state and sequence diagrams, terminal reversal/ledger semantics, operations/runbook, limitations, and requirement→code/test/doc/gap traceability.
+- Reconcile early ADR/ER with actual migrations/OpenAPI. Add C4 context/container, DDL links naming the Flyway migrations as the required DDL-scripts deliverable, permission matrix, precision examples, settlement/idempotency state and sequence diagrams, terminal reversal/ledger semantics, operations/runbook, limitations, and requirement→code/test/doc/gap traceability.
 - Document proposed—not implemented—1M transactions/minute evolution with workload/capacity math, partitioning, outbox/CDC, Kafka ordering/idempotent consumers, materialized reports, strong/eventual consistency boundaries, reconciliation, backpressure/DLQ/replay, SLO, DR/RPO/RTO, and staged extraction criteria.
-- Complete candid `AI_USAGE.md` using actual prompts, hallucinations/corrections, wins/costs only. README begins with full-stack start and deterministic demo.
+- Complete candid `AI_USAGE.md` using actual prompts, hallucinations/corrections, wins/costs only. README begins with full-stack start and deterministic demo, and states and justifies the chosen GitHub Flow branching strategy for this project.
 - Preserve whole-settlement terminal reversal, signed ledger, server simulation/preview, and authorization limitations prominently.
 
 **Non-goals:** Retroactive claims, fabricated AI use, implemented microservices/IaC/scale, new application behavior, remote publication, or release tag.
