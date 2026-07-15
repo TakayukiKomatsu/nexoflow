@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+message_file="${1:?Git must provide a commit-message file}"
+message="$(head -n 1 "$message_file")"
+pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|test)(\([a-z0-9][a-z0-9-]*\))?! .+'
+
+if [[ ! "$message" =~ $pattern ]]; then
+  cat >&2 <<'EOF'
+Commit message must follow Conventional Commit syntax.
+Expected: type(optional-scope): concise description
+Example: feat(pricing): add invoice strategy
+EOF
+  exit 1
+fi
