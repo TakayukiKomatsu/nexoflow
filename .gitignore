@@ -3,6 +3,7 @@
 .pi-subagents/
 
 # Build and dependency outputs (created by later implementation prompts)
+**/.gradle/
 **/build/
 **/target/
 **/dist/
