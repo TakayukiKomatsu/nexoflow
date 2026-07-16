@@ -19,4 +19,18 @@ class MoneyTest {
         assertThatThrownBy(() -> brl.add(new Money(new BigDecimal("2.00"), "USD")))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void rejectsZeroAmount() {
+        assertThatThrownBy(() -> new Money(new BigDecimal("0.00"), "BRL"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("positive");
+    }
+
+    @Test
+    void rejectsUnsupportedCurrency() {
+        assertThatThrownBy(() -> new Money(new BigDecimal("10.00"), "EUR"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("supported currency");
+    }
 }

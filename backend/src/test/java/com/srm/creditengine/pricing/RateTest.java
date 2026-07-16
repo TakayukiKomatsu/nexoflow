@@ -14,8 +14,10 @@ class RateTest {
     }
 
     @Test
-    void rejectsNegativeRate() {
+    void rejectsNonPositiveRate() {
         assertThatThrownBy(() -> new Rate(new BigDecimal("-0.001")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new Rate(BigDecimal.ZERO))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 }
