@@ -1,4 +1,4 @@
-.PHONY: test-hooks test-unit install-hooks verify-fast validate-workflows validate-architecture-docs
+.PHONY: test-hooks test-unit verify-unit build install-hooks verify-fast validate-workflows validate-architecture-docs
 
 verify-fast: test-hooks test-unit
 	./scripts/tests/test_frontend_quality.sh
@@ -19,6 +19,12 @@ test-hooks:
 test-unit:
 	./scripts/with-java21.sh ./backend/gradlew -p backend test
 	npm --prefix frontend run test -- --run
+
+verify-unit: test-unit
+
+build:
+	./scripts/with-java21.sh ./backend/gradlew -p backend build
+	npm --prefix frontend run build
 
 install-hooks:
 	./scripts/install-git-hooks.sh

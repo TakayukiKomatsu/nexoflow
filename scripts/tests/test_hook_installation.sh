@@ -23,4 +23,9 @@ for hook in commit-msg pre-commit pre-push; do
   fi
 done
 
-echo "HOOK-INSTALL-001 passed: all local hooks are installed"
+if ! make -C "$repo_root" -n verify-unit >/dev/null; then
+  echo "expected the pre-push hook's verify-unit target to exist" >&2
+  exit 1
+fi
+
+echo "HOOK-INSTALL-001 passed: all local hooks are installed and pre-push verification executes"
