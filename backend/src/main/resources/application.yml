@@ -17,3 +17,5 @@ management:
 
 # H2 is an interim local test Adapter authorized by the user. PostgreSQL,
 # Testcontainers, Docker Compose, query plans, and lock semantics remain deferred.
+srm:
+  jwt-secret: ${SRM_JWT_SECRET:local-development-secret-change-before-production}
