@@ -1,0 +1,9 @@
+flowchart LR
+    operator["Operator\nPerson"]
+    administrator["Administrator\nPerson"]
+    engine["SRM Credit Engine\nImplemented modular monolith"]
+    mockFx["FX provider\nProposed deterministic HTTP adapter"]
+
+    operator -->|prices and settles receivables| engine
+    administrator -->|manages reference data| engine
+    engine -. proposed rate synchronization .-> mockFx

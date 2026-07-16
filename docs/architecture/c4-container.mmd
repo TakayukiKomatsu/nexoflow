@@ -1,0 +1,11 @@
+flowchart TB
+    browser["React operator SPA\nImplemented scaffold"]
+    backend["Spring Boot API\nImplemented partial identity/runtime/reference foundation"]
+    postgres["PostgreSQL\nAuthoritative planned runtime"]
+    h2["H2\nTest-only adapter"]
+    fx["Mock FX provider\nPlanned"]
+
+    browser -->|HTTPS JSON| backend
+    backend -->|Flyway/JDBC| postgres
+    backend -. tests only .-> h2
+    backend -. planned HTTP integration .-> fx

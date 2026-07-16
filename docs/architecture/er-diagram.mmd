@@ -2,56 +2,118 @@ erDiagram
     users ||--o{ user_roles : has
     users ||--o{ audit_events : performs
     assignors ||--o{ receivables : owns
+    assignors ||--o{ settlements : receives
     currencies ||--o{ receivables : denominates
+    currencies ||--o{ base_rate_versions : configures
+    currencies ||--o{ exchange_rates : base_or_quote
+    currencies ||--o{ settlements : pays
     product_types ||--o{ receivables : classifies
     product_types ||--o{ product_spread_versions : configures
-    currencies ||--o{ base_rate_versions : configures
-    currencies ||--o{ exchange_rates : base
-    currencies ||--o{ exchange_rates : quote
     receivables ||--o{ pricing_quotes : receives
-    pricing_quotes ||--o{ settlement_items : consumed_by
+    receivables ||--o| settlement_items : settled_by
+    pricing_quotes ||--o| settlement_items : consumed_by
     settlements ||--|{ settlement_items : contains
     settlements ||--o| settlement_reversals : compensated_by
     settlements ||--o{ audit_events : records
+    settlements ||--o{ idempotency_records : deduplicates
 
     users {
         uuid id PK
         string email UK
+        string password_hash
+        boolean enabled
+    }
+    user_roles {
+        uuid user_id PK,FK
+        string role PK
     }
     assignors {
         uuid id PK
         string tax_identifier UK
+        string status
     }
     currencies {
         string code PK
+        int decimal_scale
+        boolean active
     }
     product_types {
         string code PK
+        boolean active
+    }
+    product_spread_versions {
+        uuid id PK
+        string product_type_code FK
+        decimal monthly_spread
+        datetime effective_at UK
+    }
+    base_rate_versions {
+        uuid id PK
+        string currency_code FK
+        decimal monthly_rate
+        datetime effective_at UK
+    }
+    exchange_rates {
+        uuid id PK
+        string base_currency_code FK
+        string quote_currency_code FK
+        decimal rate
+        string source UK
+        datetime observed_at UK
+        datetime created_at
+        string created_by
     }
     receivables {
         uuid id PK
         uuid assignor_id FK
         string currency_code FK
         string product_type_code FK
+        decimal face_value
+        date issue_date
+        date due_date
+        string status
         int version
     }
     pricing_quotes {
         uuid id PK
         uuid receivable_id FK
         string status
+        decimal settlement_amount
+        datetime created_at
         datetime expires_at
     }
     settlements {
         uuid id PK
         uuid assignor_id FK
         string settlement_currency_code FK
+        string status
+        datetime created_at
     }
     settlement_items {
         uuid id PK
         uuid settlement_id FK
-        uuid receivable_id FK
+        uuid receivable_id UK,FK
+        uuid pricing_quote_id UK,FK
+        decimal amount
+    }
+    idempotency_records {
+        uuid id PK
+        string operation UK
+        string client_key UK
+        string request_hash
+        uuid settlement_id FK
     }
     settlement_reversals {
         uuid id PK
+        uuid settlement_id UK,FK
+        string reason
+        datetime created_at
+    }
+    audit_events {
+        uuid id PK
+        uuid actor_id FK
         uuid settlement_id FK
+        string action
+        string correlation_id
+        datetime occurred_at
     }

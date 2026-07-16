@@ -510,37 +510,6 @@ Microservice boundaries will be extracted only when scaling or team ownership ju
 
 ---
 
-## 13. Planned SDD prompt sequence
+## 13. Canonical SDD execution sequence
 
-The plan should later be split into small, independently verifiable prompts:
-
-1. Repository and architecture foundation
-2. Backend build, quality gates, and module boundaries
-3. Local PostgreSQL and Flyway foundation
-4. Error contract, correlation, and API conventions
-5. Authentication and role authorization
-6. Currency, product, spread, and base-rate reference data
-7. Exchange-rate storage and manual API
-8. Mock FX provider with resilience policies
-9. Assignor and receivable domain
-10. Money, rate, term, and rounding primitives
-11. Pricing strategy contract and mercantile invoice strategy
-12. Post-dated cheque strategy
-13. Cross-currency conversion
-14. Persisted, expiring pricing quotes
-15. Atomic batch settlement
-16. Settlement idempotency
-17. Optimistic locking and concurrency tests
-18. Settlement reversal and audit trail
-19. Optimized settlement statement query
-20. Frontend foundation and generated API integration
-21. Frontend authentication and authorization
-22. Operator receivable and quote workflow
-23. Settlement confirmation workflow
-24. Statement grid and filters
-25. Structured logs, metrics, and health checks
-26. End-to-end and performance validation
-27. C4, ADRs, high-scale design, and EDA proposal
-28. README, AI usage report, Git evidence, and release checklist
-
-Each prompt must specify context, exact scope, non-goals, contracts, acceptance criteria, tests, verification commands, documentation updates, and an atomic Conventional Commit message.
+The delivery plan is implemented through the 12 independently verifiable prompts in [`docs/sdd/README.md`](./sdd/README.md). The 12-prompt suite replaces the earlier 28-item decomposition and is the canonical source for ordering, review gates, contracts, acceptance criteria, verification commands, and commit outcomes.
