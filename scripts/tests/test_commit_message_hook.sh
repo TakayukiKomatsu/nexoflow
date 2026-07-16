@@ -49,4 +49,9 @@ if [[ "$head_before" != "$head_after" ]]; then
   exit 1
 fi
 
-echo "FIN-GIT-001 passed: malformed commit was rejected and HEAD remained unchanged"
+if ! git -C "$test_repo" commit -m "chore(repo): accept scoped message" >/dev/null 2>&1; then
+  echo "expected valid scoped Conventional Commit to be accepted" >&2
+  exit 1
+fi
+
+echo "FIN-GIT-001 passed: malformed commit was rejected, HEAD remained unchanged, and scoped syntax was accepted"
