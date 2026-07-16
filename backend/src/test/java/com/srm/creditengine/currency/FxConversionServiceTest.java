@@ -13,6 +13,12 @@ class FxConversionServiceTest {
     }
 
     @Test
+    void sameCurrencyConversionPreservesAmount() {
+        assertThat(new FxConversionService().identity(new BigDecimal("100.00")))
+                .isEqualByComparingTo("100.0000000000");
+    }
+
+    @Test
     void inverseConversionDividesByRate() {
         assertThat(new FxConversionService().inverse(new BigDecimal("520.00"), new BigDecimal("5.20")))
                 .isEqualByComparingTo("100.0000000000");

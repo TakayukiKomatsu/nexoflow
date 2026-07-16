@@ -8,6 +8,10 @@ public final class FxConversionService {
         return amount.multiply(rate).setScale(10, RoundingMode.HALF_EVEN);
     }
 
+    public BigDecimal identity(BigDecimal amount) {
+        return amount.setScale(10, RoundingMode.HALF_EVEN);
+    }
+
     public BigDecimal inverse(BigDecimal amount, BigDecimal rate) {
         return amount.divide(rate, 10, RoundingMode.HALF_EVEN);
     }
