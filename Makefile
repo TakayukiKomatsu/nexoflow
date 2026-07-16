@@ -1,4 +1,15 @@
-.PHONY: test-hooks test-unit install-hooks
+.PHONY: test-hooks test-unit install-hooks verify-fast validate-workflows validate-architecture-docs
+
+verify-fast: test-hooks test-unit
+	./scripts/tests/test_frontend_quality.sh
+	./scripts/tests/test_architecture_docs.sh
+	./scripts/tests/test_ci_workflow.sh
+
+validate-workflows:
+	./scripts/tests/test_ci_workflow.sh
+
+validate-architecture-docs:
+	./scripts/tests/test_architecture_docs.sh
 
 test-hooks:
 	./scripts/tests/test_commit_message_hook.sh
