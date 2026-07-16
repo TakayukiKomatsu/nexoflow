@@ -1,0 +1,57 @@
+erDiagram
+    users ||--o{ user_roles : has
+    users ||--o{ audit_events : performs
+    assignors ||--o{ receivables : owns
+    currencies ||--o{ receivables : denominates
+    product_types ||--o{ receivables : classifies
+    product_types ||--o{ product_spread_versions : configures
+    currencies ||--o{ base_rate_versions : configures
+    currencies ||--o{ exchange_rates : base
+    currencies ||--o{ exchange_rates : quote
+    receivables ||--o{ pricing_quotes : receives
+    pricing_quotes ||--o{ settlement_items : consumed_by
+    settlements ||--|{ settlement_items : contains
+    settlements ||--o| settlement_reversals : compensated_by
+    settlements ||--o{ audit_events : records
+
+    users {
+        uuid id PK
+        string email UK
+    }
+    assignors {
+        uuid id PK
+        string tax_identifier UK
+    }
+    currencies {
+        string code PK
+    }
+    product_types {
+        string code PK
+    }
+    receivables {
+        uuid id PK
+        uuid assignor_id FK
+        string currency_code FK
+        string product_type_code FK
+        int version
+    }
+    pricing_quotes {
+        uuid id PK
+        uuid receivable_id FK
+        string status
+        datetime expires_at
+    }
+    settlements {
+        uuid id PK
+        uuid assignor_id FK
+        string settlement_currency_code FK
+    }
+    settlement_items {
+        uuid id PK
+        uuid settlement_id FK
+        uuid receivable_id FK
+    }
+    settlement_reversals {
+        uuid id PK
+        uuid settlement_id FK
+    }
