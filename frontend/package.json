@@ -9,9 +9,11 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest",
+    "test:a11y": "vitest run src/a11y.test.tsx",
     "typecheck": "tsc -b",
     "format:check": "prettier --check .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "license:check": "license-checker-rseidelsohn --production --excludePrivatePackages --json --out license-report.json && node ../scripts/check-frontend-licenses.mjs license-report.json config/allowed-licenses.json"
   },
   "dependencies": {
     "react": "^19.2.7",
@@ -21,11 +23,14 @@
     "@mermaid-js/mermaid-cli": "^11.16.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@types/jest-axe": "^3.5.9",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
+    "jest-axe": "^9.0.0",
     "jsdom": "^29.1.1",
+    "license-checker-rseidelsohn": "^5.0.1",
     "oxlint": "^1.71.0",
     "prettier": "^3.9.5",
     "typescript": "~6.0.2",

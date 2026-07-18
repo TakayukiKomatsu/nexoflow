@@ -6,7 +6,7 @@
 
 **Architecture:** Exercise stabilized application contracts through a real Spring HTTP server, PostgreSQL Testcontainers, and the Compose browser path. Generate deterministic evidence with explicit environment metadata; then make `release-check` aggregate every local gate used by CI.
 
-**Tech Stack:** Cucumber JVM 7.34.3, JUnit Platform Suite 5.11.4, Spring Boot Testcontainers, PostgreSQL 16, Playwright Test, Docker Compose, Trivy, Gitleaks, Syft/CycloneDX, Mermaid CLI, Bash, GitHub Actions.
+**Tech Stack:** Cucumber JVM 7.34.3, JUnit Platform Suite 5.14.2, Spring Boot Testcontainers, PostgreSQL 16, Playwright Test, Docker Compose, Trivy, Gitleaks, Syft/CycloneDX, Mermaid CLI, Bash, GitHub Actions.
 
 ## Global Constraints
 

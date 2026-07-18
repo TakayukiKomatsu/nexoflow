@@ -9,7 +9,7 @@ if [[ ! -s "$workflow" ]]; then
   exit 1
 fi
 
-for expected in 'permissions:' 'contents: read' 'make verify-fast' 'make build' 'gitleaks/gitleaks-action@' 'actions/dependency-review-action@' 'Docker validation is deferred'; do
+for expected in 'permissions:' 'contents: read' 'make verify-fast' 'make build' 'make test-runtime' 'make verify-compose' 'make license-check' 'gitleaks/gitleaks-action@' 'actions/dependency-review-action@'; do
   if ! grep -Fq "$expected" "$workflow"; then
     echo "expected CI workflow to contain: $expected" >&2
     exit 1
@@ -27,4 +27,4 @@ if [[ "$action_count" -lt 6 ]]; then
   exit 1
 fi
 
-echo "CI-001 passed: CI uses immutable actions, least privilege, builds, tests, and security review"
+echo "CI-001 passed: CI uses immutable actions, least privilege, builds, Docker runtime tests, license compliance, and security review"

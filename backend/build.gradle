@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.5'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.github.jk1.dependency-license-report' version '3.1.4'
 }
 
 group = 'com.srm'
@@ -13,14 +14,32 @@ java {
     }
 }
 
+ext['junit-jupiter.version'] = '5.14.2'
+
 repositories {
     mavenCentral()
+}
+
+sourceSets {
+    integrationTest {
+        java.srcDir file('src/integrationTest/java')
+        resources.srcDir file('src/integrationTest/resources')
+        compileClasspath += sourceSets.main.output + configurations.testRuntimeClasspath
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+configurations {
+    integrationTestImplementation.extendsFrom testImplementation
+    integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
 dependencies {
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -28,13 +47,50 @@ dependencies {
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
 
     runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.1'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
     testRuntimeOnly 'com.h2database:h2'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    integrationTestImplementation platform('io.cucumber:cucumber-bom:7.34.3')
+    integrationTestImplementation platform('org.junit:junit-bom:5.14.2')
+    integrationTestImplementation 'io.cucumber:cucumber-java'
+    integrationTestImplementation 'io.cucumber:cucumber-spring'
+    integrationTestImplementation 'io.cucumber:cucumber-junit-platform-engine'
+    integrationTestImplementation 'org.junit.platform:junit-platform-suite'
+    integrationTestImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    integrationTestImplementation 'org.testcontainers:junit-jupiter'
+    integrationTestImplementation 'org.testcontainers:postgresql'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+tasks.register('integrationTest', Test) {
+    description = 'Runs PostgreSQL Testcontainers integration contracts.'
+    group = 'verification'
+    testClassesDirs = sourceSets.integrationTest.output.classesDirs
+    classpath = sourceSets.integrationTest.runtimeClasspath
+    useJUnitPlatform()
+    systemProperty 'cucumber.junit-platform.naming-strategy', 'long'
+    // When with-java21.sh has routed Docker traffic through Colima, lift docker-java's
+    // shaded API version past the Colima daemon minimum of 1.40
+    if ((System.getenv('DOCKER_HOST') ?: '').contains('.colima')) {
+        systemProperty 'api.version', '1.41'
+    }
+    shouldRunAfter tasks.named('test')
+}
+
+import com.github.jk1.license.filter.LicenseBundleNormalizer
+import com.github.jk1.license.render.JsonReportRenderer
+
+licenseReport {
+    renderers = [new JsonReportRenderer('license-report.json')]
+    filters = [new LicenseBundleNormalizer()]
+    allowedLicensesFile = new File("$projectDir/config/allowed-licenses.json")
 }

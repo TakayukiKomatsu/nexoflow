@@ -6,7 +6,7 @@
 
 **Architecture:** Create Gradle test configurations before dependency resolution, make frontend quality gates compile, and provide real local/CI targets rather than no-op shims. Use Colima as the Docker-compatible macOS runtime while retaining ordinary Docker behavior in CI.
 
-**Tech Stack:** Gradle, Java 21, Spring Boot 3.5.5, Cucumber JVM 7.34.3, JUnit Platform 5.11.4, Node 26, npm, Colima, Docker Compose, GitHub Actions.
+**Tech Stack:** Gradle, Java 21, Spring Boot 3.5.5, Cucumber JVM 7.34.3, JUnit Platform 5.14.2, Node 26, npm, Colima, Docker Compose, GitHub Actions.
 
 ## Global Constraints
 
@@ -26,7 +26,7 @@
 
 **Interfaces:**
 - Produces: source set `integrationTest`, configurations `integrationTestImplementation` and `integrationTestRuntimeOnly`, task `integrationTest`.
-- Produces: Cucumber 7.34.3 and JUnit Platform 5.11.4 dependencies ready for the acceptance plan.
+- Produces: Cucumber 7.34.3 and JUnit Platform 5.14.2 dependencies ready for the acceptance plan.
 
 - [ ] **Step 1: Reproduce the configuration failure**
 
@@ -57,6 +57,8 @@ configurations {
     integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
+ext['junit-jupiter.version'] = '5.14.2'
+
 dependencies {
     implementation 'org.flywaydb:flyway-core'
     // retain the existing production dependencies
@@ -69,7 +71,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     integrationTestImplementation platform('io.cucumber:cucumber-bom:7.34.3')
-    integrationTestImplementation platform('org.junit:junit-bom:5.11.4')
+    integrationTestImplementation platform('org.junit:junit-bom:5.14.2')
     integrationTestImplementation 'io.cucumber:cucumber-java'
     integrationTestImplementation 'io.cucumber:cucumber-spring'
     integrationTestImplementation 'io.cucumber:cucumber-junit-platform-engine'
