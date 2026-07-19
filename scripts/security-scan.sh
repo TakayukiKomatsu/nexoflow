@@ -10,6 +10,11 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
+git_common_dir="$(cd "$(git rev-parse --git-common-dir)" && pwd)"
+gitleaks_git_mount=()
+if [[ -f "$repo_root/.git" ]]; then
+  gitleaks_git_mount=(-v "$git_common_dir:$git_common_dir:ro")
+fi
 
 # ── Pinned container images ──────────────────────────────────────────────────
 # Tool images are pinned to immutable multi-architecture manifest digests.
@@ -134,6 +139,7 @@ validate_ignore_policy
 echo "=== SEC-SCAN-001: gitleaks repository history and content scan ==="
 docker run --rm \
   -v "$repo_root:/repo:ro" \
+  "${gitleaks_git_mount[@]}" \
   -v "$SBOM_DIR:/output" \
   "$GITLEAKS_IMAGE" \
   detect --source /repo --redact \
