@@ -51,8 +51,9 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
   const simulationSection = page.getByRole("region", {
     name: "Server simulation",
   });
-  // Wait for the settlement amount output to prove simulation ran server-side
-  await expect(simulationSection.locator("output").first()).toBeVisible();
+  // The same-currency fixture must display the exact server-calculated amount.
+  const simulationSettlementAmount = simulationSection.locator("output").first();
+  await expect(simulationSettlementAmount).toHaveText("975.61");
   await expect(simulationSection.getByText("Base rate")).toBeVisible();
   await expect(simulationSection.getByText("Strategy")).toBeVisible();
 
@@ -73,9 +74,11 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
   await expect(workflowFeedback).toContainText("created");
 
   // Quote breakdown article appears inside the Server simulation card
+  // The issued quote must preserve the exact authoritative simulation amount.
   const quoteArticle = simulationSection.getByRole("article").first();
   await expect(quoteArticle).toBeVisible();
   await expect(quoteArticle.getByText("Settlement amount")).toBeVisible();
+  await expect(quoteArticle.getByText("975.61 BRL")).toBeVisible();
   await expect(quoteArticle.getByText("Base rate")).toBeVisible();
   await expect(quoteArticle.getByText("Expires at")).toBeVisible();
   await expect(quoteArticle.getByText("Status")).toBeVisible();
