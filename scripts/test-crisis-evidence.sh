@@ -14,6 +14,8 @@ echo "=== CRISIS-002: creating disposable shared clone from HEAD ==="
 git -C "$repo_root" clone --local --shared --quiet "$repo_root" "$clone_dir"
 echo "  clone: $clone_dir"
 
+ln -s "$repo_root/frontend/node_modules" "$clone_dir/frontend/node_modules"
+
 echo "=== CRISIS-002: creating simulation branch ==="
 git -C "$clone_dir" checkout -b simulation/crisis-revert --quiet
 
