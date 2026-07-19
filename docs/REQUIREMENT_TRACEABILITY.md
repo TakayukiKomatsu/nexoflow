@@ -11,7 +11,7 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | Strategy pricing and cross-currency conversion | **Implemented** | Product strategies call shared exact decimal math; immutable complete 15-minute quote snapshots and `ACTIVE` → `CONSUMED` lifecycle; `backend/src/main/java/com/srm/creditengine/pricing/` | `make test-api-features` |
 | Relational ACID Settlement and race protection | **Implemented** | Atomic preview/create, idempotent replay/conflict, real-PostgreSQL barrier concurrency, injected-failure rollback; `backend/src/integrationTest/java/com/srm/creditengine/settlement/` | `make test-runtime` |
 | REST/OpenAPI and controlled errors | **Implemented** | `/api/v1` controllers, RFC 9457 codes/correlation, generated OpenAPI and health contracts; `backend/src/test/java/com/srm/creditengine/api/RuntimeMetadataContractTest.java` | `make validate-docs` |
-| Filtered optimized settlement statement | **Implemented** | Authorized filters, bounded pagination, stable derived UUIDs, signed Settlement/Reversal entries, representative PostgreSQL index plan; `docs/evidence/reporting-explain.txt` | `make explain-statements-representative` |
+| Filtered optimized settlement statement | **Implemented** | Authorized filters, bounded pagination, stable derived UUIDs, signed Settlement/Reversal entries, representative PostgreSQL query plan; `docs/evidence/reporting-explain.txt` | `make explain-statements-representative` |
 | Operator simulation and paginated ledger | **Implemented** | Auth, server-authoritative stale/cancel-safe simulation, quote/preview/intent retry, URL-backed ledger, accessibility and browser critical path; `frontend/src/App.test.tsx`, `frontend/src/a11y.test.tsx`, `frontend/e2e/operator-critical-path.spec.ts` | `make test-ui-features` |
 | Docker/Compose and operational quality | **Implemented** | Internal PostgreSQL/backend/mock-FX network, edge-only frontend, deterministic fixtures, dependency-aware readiness, authenticated bounded metrics; `compose.yaml` | `make verify-compose` |
 | Hooks, CI, security, SBOM, licenses, docs | **Implemented** | Immutable CI actions, CodeQL job, Gitleaks/Trivy/Syft/license gates, Mermaid/schema/OpenAPI/link/claim validation; `.github/workflows/ci.yml`, `scripts/security-scan.sh` | `make security-scan && make validate-docs && make validate-traceability` |
@@ -49,6 +49,7 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 ## Reviewer qualifications
 
 - `docs/evidence/reporting-explain.txt` is a PostgreSQL 16 plan over 10,000 representative Settlement rows, not production-scale or 1M-transactions/minute proof.
+- The representative plan may choose sequential scans when PostgreSQL estimates them cheaper; it demonstrates the native-SQL read model at 10,000 rows, not a guaranteed index scan.
 - CodeQL runs in GitHub Actions; local `make security-scan` covers Gitleaks, Trivy, immutable image digests, CycloneDX SBOM, and production licenses.
 - Generated reports under `backend/build/`, `frontend/`, and `build/security/` must be paired with the current command result.
 - Local signed JWT/BCrypt, deterministic mock FX, and authorization-gated remote release are retained limitations, not inferred production capabilities.

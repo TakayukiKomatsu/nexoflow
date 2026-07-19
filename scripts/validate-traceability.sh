@@ -44,6 +44,8 @@ for id in "${scenario_ids[@]}"; do
     continue
   fi
 
+  status="$(printf '%s\n' "$row" | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3); print $3}')"
+  id_found=false
   artifact_found=false
   while IFS= read -r reference; do
     reference="${reference#\`}"
@@ -51,7 +53,9 @@ for id in "${scenario_ids[@]}"; do
     reference="${reference%%#*}"
     if [[ -e "$repo_root/$reference" ]]; then
       artifact_found=true
-      break
+      if grep -Eq "(^|[^[:alnum:]-])${id}([^[:alnum:]-]|$)" "$repo_root/$reference"; then
+        id_found=true
+      fi
     fi
   done < <(
     printf '%s\n' "$row" \
@@ -66,6 +70,10 @@ for id in "${scenario_ids[@]}"; do
   if ! printf '%s\n' "$row" \
     | grep -Eq '`(make |npm |docker compose |(\./)?scripts/|(\./)?backend/gradlew|(\./)?gradlew)[^`]*`'; then
     failures+=("$id: row lacks an executable verification command")
+  fi
+
+  if [[ "$status" == "**Implemented**" && "$id_found" != true ]]; then
+    failures+=("$id: implemented row lacks an executable artifact containing the exact stable ID")
   fi
 done
 
