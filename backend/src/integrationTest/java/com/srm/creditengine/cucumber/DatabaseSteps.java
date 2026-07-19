@@ -77,6 +77,17 @@ public class DatabaseSteps {
                 for each row execute function cucumber_claim_barrier()
                 """);
     }
+
+    @And("the pricing quote row count is recorded")
+    public void recordPricingQuoteCount() {
+        state.pricingQuoteCount = jdbc.queryForObject("select count(*) from pricing_quotes", Integer.class);
+    }
+
+    @And("the pricing quote row count is unchanged")
+    public void assertPricingQuoteCountUnchanged() {
+        assertThat(jdbc.queryForObject("select count(*) from pricing_quotes", Integer.class))
+                .isEqualTo(state.pricingQuoteCount);
+    }
     @And("the database rejects mutations of the last pricing quote snapshot")
     public void assertPricingQuoteSnapshotImmutable() {
         BigDecimal original = jdbc.queryForObject(

@@ -39,7 +39,18 @@ Feature: SRM executable acceptance
     Then the response status is 422
     And the response problem code is "FX_RATE_STALE"
 
-  Scenario: FX-004 transient-only retry and circuit recovery
+  Scenario: FX-004 latest non-stale direct rate is selected
+    Given the ADMIN user is authenticated
+    And the OPERATOR user is authenticated
+    When the ADMIN records exchange rate "USD/BRL" as "5.1000000000" at "2030-01-14T11:59:59Z" from "fx004-stale"
+    Then the response status is 201
+    When the ADMIN records exchange rate "USD/BRL" as "5.2000000000" at "2030-01-15T11:00:00Z" from "fx004-current"
+    Then the response status is 201
+    When the OPERATOR requests conversion of "100" "USD" to "BRL" at "2030-01-15T12:00:00Z"
+    Then the response status is 200
+    And the conversion settlement amount is "520.00"
+
+  Scenario: FX-RES-006 transient provider failures are bounded
     Given the ADMIN user is authenticated
     And the FX provider will return transient statuses "500,429,502"
     When the ADMIN triggers FX synchronization for "USD" to "BRL"
@@ -60,12 +71,17 @@ Feature: SRM executable acceptance
     And the response problem code is "FX_PROVIDER_UNAVAILABLE"
     And the FX provider request count is 5
 
-  Scenario: PRICE-001 independent invoice and cheque exact vectors
+  Scenario: PRICE-001 server simulation is exact and does not create a quote
     Given the OPERATOR user is authenticated
-    When the OPERATOR simulates pricing with face amount "1000.00" "BRL" product "MERCANTILE_INVOICE" due "2030-02-14" settlement "USD"
+    And the pricing quote row count is recorded
+    When the OPERATOR simulates pricing with face amount "1000.00" "BRL" product "MERCANTILE_INVOICE" due "2030-02-14" settlement "BRL"
     Then the response status is 200
     And the simulation discounted amount is "975.6098"
-    And the simulation settlement amount is "187.62"
+    And the simulation settlement amount is "975.61"
+    And the pricing quote row count is unchanged
+
+  Scenario: PRICE-002 independent cheque cross-currency vector
+    Given the OPERATOR user is authenticated
     When the OPERATOR simulates pricing with face amount "1000.00" "BRL" product "POST_DATED_CHEQUE" due "2030-02-14" settlement "USD"
     Then the response status is 200
     And the simulation discounted amount is "966.1836"

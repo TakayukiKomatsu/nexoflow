@@ -45,6 +45,7 @@ class ScenarioState {
     int beforeItemCount;
     int beforeIdempotencyCount;
     int beforeAuditCount;
+    int pricingQuoteCount;
 
     // Pagination / report state
     List<String> statementEntryIds = new ArrayList<>();
