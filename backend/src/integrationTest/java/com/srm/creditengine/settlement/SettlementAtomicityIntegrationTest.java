@@ -128,11 +128,11 @@ class SettlementAtomicityIntegrationTest {
 
     private void insertPricingQuote(UUID id, UUID receivableId) {
         Instant now = Instant.now();
-        jdbc.update("insert into pricing_quotes (id,receivable_id,settlement_currency_code,face_amount,face_currency_code,due_date,pricing_at,expires_at,"
+        jdbc.update("insert into pricing_quotes (id,receivable_id,settlement_currency_code,face_amount,face_currency_code,product_type_code,due_date,pricing_at,expires_at,"
                         + "base_rate,spread,strategy_code,day_count_convention,term_in_months,discounted_amount,fx_base_currency_code,fx_quote_currency_code,"
                         + "fx_rate,fx_source,fx_observed_at,settlement_amount,created_by,status) "
-                        + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                id, receivableId, "BRL", new BigDecimal("2000.0000"), "BRL", LocalDate.now().plusDays(30),
+                        + "values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                id, receivableId, "BRL", new BigDecimal("2000.0000"), "BRL", "MERCANTILE_INVOICE", LocalDate.now().plusDays(30),
                 Timestamp.from(now.minusSeconds(60)), Timestamp.from(now.plusSeconds(3600)),
                 new BigDecimal("0.0100000000"), new BigDecimal("0.0050000000"), "MERCANTILE_INVOICE", "ACTUAL_360",
                 new BigDecimal("1.0000000000"), new BigDecimal("1900.0000"), "BRL", "BRL",

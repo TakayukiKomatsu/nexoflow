@@ -2,9 +2,9 @@
 
 ## 1. Delivery target
 
-The implementation will demonstrate **senior-level engineering depth** while including selected **staff-level architecture and governance artifacts**.
+The delivered local implementation demonstrates **senior-level engineering depth** and includes selected **staff-level architecture and governance artifacts**. `make release-check` is the aggregate evidence path.
 
-The objective is not to build a distributed production platform in 3–4 days. It is to deliver a robust modular monolith, prove the critical financial paths, and document how it would evolve to very high scale.
+The objective was not to build a distributed production platform in 3–4 days. The repository delivers a modular monolith, executable evidence for critical financial paths, and a proposed evolution to very high scale. It does not claim production capacity.
 
 ### Implemented at senior depth
 
@@ -28,6 +28,7 @@ The objective is not to build a distributed production platform in 3–4 days. I
 - Evolution design for 1 million transactions per minute
 - Event-driven architecture proposal
 - Data partitioning, caching, and consistency analysis
+- Executable local acceptance, security, documentation, and crisis/revert evidence
 
 ### Explicitly not implemented
 
@@ -49,26 +50,21 @@ These are documented as evolution paths rather than simulated with unnecessary c
 - Spring Boot 3
 - Spring Web MVC
 - Spring Security
-- Spring Data JPA for transactional write models
-- jOOQ or Spring JDBC for reporting queries
-- PostgreSQL
-- Flyway migrations
+- Spring JDBC for transactional command and reporting paths; JPA for runtime integration/schema validation
+- PostgreSQL 16
+- Flyway SQL and Java migrations (V1–V16)
 - Bean Validation
 - springdoc-openapi
-- Resilience4j
+- Bounded retry and circuit-breaker behavior implemented in the FX HTTP adapter; no Resilience4j dependency
 - Micrometer with Prometheus registry
-- JUnit 5, AssertJ, Mockito, Testcontainers, REST Assured
+- JUnit 5, AssertJ, Mockito, Testcontainers, and Cucumber
 
 ### Frontend
 
-- React with TypeScript
-- Vite
-- React Router
-- TanStack Query for server state
-- React Hook Form and Zod
-- TanStack Table for server-side grids
-- Vitest and React Testing Library
-- Playwright for a small critical-path E2E suite
+- React with TypeScript and Vite
+- Contract-aligned fetch client and explicit component state; no React Router, TanStack Query/Table, React Hook Form, or Zod dependency
+- Vitest, React Testing Library, and jest-axe
+- Playwright for the critical financial-path E2E scenario
 
 ### Delivery tooling
 
@@ -100,7 +96,7 @@ These are documented as evolution paths rather than simulated with unnecessary c
 - Initial spreads:
   - Mercantile invoice: `0.015` per month
   - Post-dated cheque: `0.025` per month
-- A settlement stores snapshots of the base rate, spread, and strategy version used.
+- A Pricing Quote stores immutable snapshots of the base rate, spread, strategy, term convention, face values, and FX observation used.
 
 ### 3.3 Term convention
 
@@ -164,23 +160,19 @@ Example: `USD/BRL = 5.20` means `USD 1 = BRL 5.20`.
 
 ## 4. Authentication and authorization
 
-The exercise will implement local authentication using Spring Security.
+The exercise implements local authentication using Spring Security.
 
 ### Authentication
 
 - Users are stored in PostgreSQL.
-- Passwords are hashed with Argon2 or BCrypt.
-- Login returns a short-lived signed JWT access token.
-- Access token lifetime: 15 minutes.
-- Refresh tokens are omitted unless time remains; users can authenticate again.
-- A seeded development operator is available only through local environment configuration.
+- Passwords are hashed with BCrypt.
+- Login returns a signed JWT access token with a 15-minute lifetime.
+- Refresh tokens are deliberately omitted; users authenticate again.
+- Independently configured development `OPERATOR` and `ADMIN` users are available only through the `dev` profile; test and production profiles seed none.
 
 ### Roles
 
-- `OPERATOR`: create receivables, request quotes, and create settlements
-- `ANALYST`: read statements, receivables, quotes, and settlements
-- `ADMIN`: manage exchange rates, base rates, product configurations, and users
-- `AUDITOR`: read all financial and audit records without mutation rights
+The implemented role and endpoint contract is maintained in [`PERMISSION_MATRIX.md`](PERMISSION_MATRIX.md). `OPERATOR` runs the financial workflow, `ANALYST` has read-only financial access, `ADMIN` manages reference data, reads Prometheus metrics, and exclusively performs reversals, and `AUDITOR` adds audit-event visibility to read-only financial access. There is no user-management endpoint.
 
 ### Security controls
 
@@ -226,8 +218,8 @@ Rules:
 - Controllers do not contain business logic.
 - Domain code does not depend on Spring or persistence annotations where practical.
 - Application services control transactions.
-- JPA supports transactional write paths.
-- Reporting bypasses domain reconstruction and uses read-optimized SQL/jOOQ.
+- Spring JDBC owns transactional command paths; JPA supplies runtime integration and schema validation.
+- Reporting bypasses aggregate reconstruction and uses read-optimized Spring JDBC SQL.
 - Cross-module dependencies are explicit and tested with architecture tests.
 
 ---
@@ -247,7 +239,12 @@ All endpoints are versioned under `/api/v1`.
 - `GET /exchange-rates`
 - `POST /base-rates`
 - `GET /base-rates`
-- `GET /product-types`
+- `POST /product-spreads`
+- `GET /product-spreads`
+- `POST /fx-sync`
+- `GET /conversions`
+
+There is no `/product-types` management API in the implemented surface.
 
 ### Assignors and receivables
 
@@ -274,6 +271,10 @@ All endpoints are versioned under `/api/v1`.
 ### Reporting
 
 - `GET /settlement-statements`
+
+### Audit
+
+- `GET /audit-events`
 
 Supported parameters:
 
@@ -316,6 +317,7 @@ Core tables:
 - `product_spread_versions`
 - `base_rate_versions`
 - `exchange_rates`
+- `runtime_fixture_records` (review fixture profiles only)
 - `receivables`
 - `pricing_quotes`
 - `settlements`
@@ -335,10 +337,14 @@ Important constraints and indexes:
 - Indexed statement date, assignor, product, and currencies
 - Optimistic version on receivables
 - Foreign keys for all financial relationships
+- PostgreSQL immutability triggers protect exchange-rate, quote, settlement, settlement-item, reversal, and audit history; quote lifecycle permits only `ACTIVE` → `CONSUMED` without changing snapshot values.
+- Flyway migrations V1–V16 are the schema authority; [`architecture/er-diagram.mmd`](architecture/er-diagram.mmd) mirrors those tables and the derived ledger identity.
 
 ---
 
 ## 8. Acceptance criteria by capability
+
+All capability criteria below are implemented locally and mapped to executable commands and artifacts in [`REQUIREMENT_TRACEABILITY.md`](REQUIREMENT_TRACEABILITY.md). The representative reporting plan uses 10,000 PostgreSQL rows and is evidence of query shape, not production throughput.
 
 ### Currency engine
 
@@ -429,7 +435,7 @@ Grafana dashboards may be provisioned if time permits; metric definitions are ma
 
 ## 11. Staff-level scale evolution
 
-The implemented modular monolith remains the source of truth for the exercise. The architecture document will explain an evolution toward 1 million transactions per minute:
+The implemented modular monolith remains the source of truth for the exercise. The architecture documents a **proposed** evolution toward 1 million transactions per minute; no throughput, capacity, or production-scale proof is claimed:
 
 - Separate command ingestion from synchronous processing.
 - Partition events and transactional data by tenant/assignor and time.
@@ -443,11 +449,13 @@ The implemented modular monolith remains the source of truth for the exercise. T
 - Apply backpressure, dead-letter handling, replay, and reconciliation.
 - Define SLOs, capacity models, disaster recovery, and operational ownership before decomposition.
 
-Microservice boundaries will be extracted only when scaling or team ownership justifies them.
+Microservice boundaries would be extracted only when measured scale or team ownership justifies them; none is implemented here.
 
 ---
 
 ## 12. Ordered delivery plan
+
+Milestones 0–6 are implemented locally with evidence in [`REQUIREMENT_TRACEABILITY.md`](REQUIREMENT_TRACEABILITY.md). Milestone 7's local operations, documentation, security, and crisis/revert evidence is implemented; remote publication and the `v1.0.0` tag remain blocked pending explicit human authorization.
 
 ### Milestone 0 — Specification and architecture
 
@@ -505,8 +513,9 @@ Microservice boundaries will be extracted only when scaling or team ownership ju
 - Complete metrics, resilience, and structured logging
 - Complete high-scale and EDA proposal
 - Document Git workflow and crisis simulation
-- Complete `README.md` and `AI_USAGE.md`
-- Run release checklist and tag `v1.0.0`
+- Complete reviewer, AI-usage, and human/tooling documentation
+- Run the local release checklist
+- Publish or tag `v1.0.0` only after the Prompt 12 authorization gates; neither action has been executed
 
 ---
 

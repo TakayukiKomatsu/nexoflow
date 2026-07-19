@@ -2,9 +2,11 @@ package com.srm.creditengine.settlement.api;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -13,6 +15,7 @@ import com.srm.creditengine.identity.application.ActorContext;
 import com.srm.creditengine.identity.application.ActorRole;
 import com.srm.creditengine.identity.application.CurrentActor;
 import com.srm.creditengine.settlement.application.SettlementService;
+import com.srm.creditengine.settlement.application.PricingQuoteExpiredException;
 import java.math.BigDecimal;
 import com.srm.creditengine.shared.runtime.SafeOperationalLogger;
 import java.time.Instant;
@@ -20,15 +23,21 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.context.annotation.Import;
+import com.srm.creditengine.shared.api.JacksonConfiguration;
 
 @WebMvcTest(SettlementController.class)
 @AutoConfigureMockMvc(addFilters = false)
+@Import(JacksonConfiguration.class)
 class SettlementControllerTest {
     @Autowired MockMvc mvc;
     @MockBean SettlementService settlements;
@@ -67,6 +76,146 @@ class SettlementControllerTest {
                 .thenReturn(new SettlementService.Reversal(reversal, settlement, "duplicate source document", Instant.parse("2030-01-16T09:00:00Z"), true));
         mvc.perform(post("/api/v1/settlements/" + settlement + "/reversals").header("Idempotency-Key", "reverse-007").contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"duplicate source document\"}"))
                 .andExpect(status().isCreated()).andExpect(header().string("Idempotent-Replay", "true")).andExpect(jsonPath("$.reversalId").value(reversal.toString()));
+    }
+
+    @Test
+    void settlementRequiresIdempotencyKey() throws Exception {
+        mvc.perform(post("/api/v1/settlements")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(quoteRequest()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:idempotency-key-required"))
+                .andExpect(jsonPath("$.detail").value("Idempotency-Key header is required."));
+    }
+
+    @Test
+    void reversalRequiresIdempotencyKey() throws Exception {
+        mvc.perform(post("/api/v1/settlements/" + settlementId() + "/reversals")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reversalRequest()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:idempotency-key-required"))
+                .andExpect(jsonPath("$.detail").value("Idempotency-Key header is required."));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidIdempotencyKeys")
+    void settlementRejectsInvalidIdempotencyKey(String key) throws Exception {
+        mvc.perform(post("/api/v1/settlements")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(quoteRequest()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:validation-failed"))
+                .andExpect(jsonPath("$.detail").value("Request validation failed."));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidIdempotencyKeys")
+    void reversalRejectsInvalidIdempotencyKey(String key) throws Exception {
+        mvc.perform(post("/api/v1/settlements/" + settlementId() + "/reversals")
+                        .header("Idempotency-Key", key)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reversalRequest()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:validation-failed"))
+                .andExpect(jsonPath("$.detail").value("Request validation failed."));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"totalAmount", "actor", "status"})
+    void settlementRejectsUnknownProperties(String property) throws Exception {
+        mvc.perform(post("/api/v1/settlements")
+                        .header("Idempotency-Key", "strict-settlement")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(quoteRequestWith(property)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.violations[0].field").value("request"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:validation-failed"))
+                .andExpect(jsonPath("$.detail").value("Request validation failed."))
+                .andExpect(result -> org.assertj.core.api.Assertions
+                        .assertThat(result.getResponse().getContentAsString())
+                        .doesNotContain("server-owned"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"totalAmount", "actor", "status"})
+    void reversalRejectsUnknownProperties(String property) throws Exception {
+        mvc.perform(post("/api/v1/settlements/" + settlementId() + "/reversals")
+                        .header("Idempotency-Key", "strict-reversal")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(reversalRequestWith(property)))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.violations[0].field").value("request"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:validation-failed"))
+                .andExpect(jsonPath("$.detail").value("Request validation failed."))
+                .andExpect(result -> org.assertj.core.api.Assertions
+                        .assertThat(result.getResponse().getContentAsString())
+                        .doesNotContain("server-owned"));
+    }
+
+    @Test
+    void expiredQuoteUsesSafeConflictProblem() throws Exception {
+        when(actors.currentActor()).thenReturn(actor());
+        when(settlements.settle(any(), anyString(), eq("operator@srm.local")))
+                .thenThrow(new PricingQuoteExpiredException());
+
+        mvc.perform(post("/api/v1/settlements")
+                        .header("Idempotency-Key", "expired-quote")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(quoteRequest()))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value("PRICING_QUOTE_EXPIRED"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:pricing-quote-expired"))
+                .andExpect(jsonPath("$.detail").value("A pricing quote expired. Create a fresh quote and preview."))
+                .andExpect(result -> org.assertj.core.api.Assertions
+                        .assertThat(result.getResponse().getContentAsString())
+                        .doesNotContain("00000000-0000-0000-0000-000000000501"));
+    }
+
+    private static java.util.stream.Stream<String> invalidIdempotencyKeys() {
+        return java.util.stream.Stream.of(" ", "x".repeat(201));
+    }
+
+    private static String quoteRequest() {
+        return "{\"quoteIds\":[\"00000000-0000-0000-0000-000000000501\"]}";
+    }
+
+    private static String quoteRequestWith(String property) {
+        return "{\"quoteIds\":[\"00000000-0000-0000-0000-000000000501\"],\""
+                + property + "\":\"server-owned\"}";
+    }
+
+    private static String reversalRequest() {
+        return "{\"reason\":\"duplicate source document\"}";
+    }
+
+    private static String reversalRequestWith(String property) {
+        return "{\"reason\":\"duplicate source document\",\"" + property + "\":\"server-owned\"}";
+    }
+
+    private static UUID settlementId() {
+        return UUID.fromString("00000000-0000-0000-0000-000000000707");
     }
 
     private CurrentActor actor() { return new CurrentActor(UUID.randomUUID(), "operator@srm.local", Set.of(ActorRole.OPERATOR)); }

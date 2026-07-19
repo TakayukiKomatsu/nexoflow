@@ -1,4 +1,4 @@
-.PHONY: test-hooks test-unit test-runtime verify-unit build install-hooks verify-fast validate-workflows validate-architecture-docs smoke-compose fixtures-e2e verify-readiness-recovery verify-compose test-log-redaction smoke-financial-path inspect-observability verify license-check
+.PHONY: test-hooks test-unit test-runtime verify-unit build install-hooks verify-fast validate-workflows validate-architecture-docs smoke-compose fixtures-e2e verify-readiness-recovery verify-compose test-log-redaction smoke-financial-path inspect-observability verify license-check explain-statements-representative test-api-features test-ui-features e2e-fixed security-scan validate-docs validate-traceability test-crisis-evidence release-check
 
 verify-fast: test-hooks test-unit
 	./scripts/tests/test_frontend_quality.sh
@@ -47,10 +47,11 @@ verify-readiness-recovery:
 
 verify-compose:
 	@command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || { echo 'BLOCKED: verify-compose requires a working Docker daemon.' >&2; exit 2; }
-	@trap 'docker compose down -v --remove-orphans' EXIT; \
+	@set -e; trap 'docker compose down -v --remove-orphans' EXIT; \
 		docker compose config >/dev/null; \
 		docker compose up --build --wait; \
 		$(MAKE) smoke-compose; \
+		$(MAKE) inspect-observability; \
 		$(MAKE) fixtures-e2e; \
 		$(MAKE) verify-readiness-recovery
 
@@ -66,3 +67,29 @@ install-hooks:
 license-check:
 	./scripts/with-java21.sh ./backend/gradlew -p backend checkLicense
 	npm --prefix frontend run license:check
+
+explain-statements-representative:
+	@command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || { echo 'BLOCKED: explain-statements-representative requires a running Docker daemon.' >&2; exit 2; }
+	./scripts/explain-statements-representative.sh
+
+test-api-features:
+	./scripts/with-java21.sh ./backend/gradlew -p backend integrationTest --tests '*RunCucumberTest'
+
+test-ui-features:
+	npm --prefix frontend run test:e2e
+
+e2e-fixed: test-api-features test-ui-features
+
+security-scan:
+	./scripts/security-scan.sh
+
+validate-docs:
+	./scripts/validate-docs.sh
+
+validate-traceability:
+	./scripts/validate-traceability.sh
+
+test-crisis-evidence:
+	./scripts/test-crisis-evidence.sh
+
+release-check: verify-fast test-log-redaction build test-runtime verify-compose e2e-fixed explain-statements-representative security-scan validate-docs validate-traceability test-crisis-evidence

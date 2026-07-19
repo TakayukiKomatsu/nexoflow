@@ -34,6 +34,6 @@ class SettlementStatementControllerTest {
         when(statements.query(any())).thenReturn(new SettlementStatementService.Page(List.of(
                 new SettlementStatementService.Entry(entry, "REVERSAL", new BigDecimal("-975.6100"), Instant.parse("2030-01-16T09:00:00Z"), settlement, reversal, UUID.randomUUID(), "BRL", "BRL", "INVOICE", UUID.randomUUID())), 0, 50, false));
         mvc.perform(get("/api/v1/settlement-statements").param("from", "2030-01-15T00:00:00Z").param("to", "2030-01-17T00:00:00Z"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.entries[0].entryType").value("REVERSAL")).andExpect(jsonPath("$.entries[0].signedAmount").value("-975.6100")).andExpect(jsonPath("$.entries[0].settlementId").value(settlement.toString()));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.entries[0].entryId").value(entry.toString())).andExpect(jsonPath("$.entries[0].entryType").value("REVERSAL")).andExpect(jsonPath("$.entries[0].signedAmount").value("-975.6100")).andExpect(jsonPath("$.entries[0].settlementId").value(settlement.toString()));
     }
 }

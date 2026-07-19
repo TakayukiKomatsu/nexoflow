@@ -1,11 +1,11 @@
 flowchart TB
-    browser["React operator SPA\nImplemented scaffold"]
-    backend["Spring Boot API\nImplemented partial identity/runtime/reference foundation"]
-    postgres["PostgreSQL\nAuthoritative planned runtime"]
+    browser["React + TypeScript operator SPA\nImplemented; edge-exposed by nginx"]
+    backend["Spring Boot modular API\nImplemented financial command and reporting runtime"]
+    postgres["PostgreSQL 16\nImplemented authoritative write model and SQL read model"]
     h2["H2\nTest-only adapter"]
-    fx["Mock FX provider\nPlanned"]
+    fx["Deterministic mock FX HTTP service\nImplemented reviewer fixture; not real market data"]
 
-    browser -->|HTTPS JSON| backend
-    backend -->|Flyway/JDBC| postgres
+    browser -->|Reverse-proxied HTTP JSON /api/v1| backend
+    backend -->|Flyway + JDBC/JPA| postgres
     backend -. tests only .-> h2
-    backend -. planned HTTP integration .-> fx
+    backend -->|HTTP rate and health requests| fx

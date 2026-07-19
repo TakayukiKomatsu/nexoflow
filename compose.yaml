@@ -1,0 +1,174 @@
+name: srm-credit-engine
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: srm_credit_engine
+      POSTGRES_USER: srm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-srm-local-only}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETGID, SETUID]
+    init: true
+    stop_grace_period: 30s
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 256
+    networks: [srm-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U srm -d srm_credit_engine"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mock-fx:
+    image: nginxinc/nginx-unprivileged:1.29-alpine
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    init: true
+    stop_grace_period: 10s
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 64
+    volumes:
+      - ./mock-fx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks: [srm-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/health | grep -q UP"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      SRM_DB_URL: jdbc:postgresql://postgres:5432/srm_credit_engine
+      SRM_DB_USERNAME: srm
+      SRM_DB_PASSWORD: ${POSTGRES_PASSWORD:-srm-local-only}
+      SRM_JWT_SECRET: ${SRM_JWT_SECRET:-srm-local-only-secret-must-have-at-least-32-bytes}
+      SRM_MOCK_FX_BASE_URL: http://mock-fx:8080
+      SPRING_PROFILES_ACTIVE: dev
+      SRM_CLOCK_FIXED_INSTANT: "2030-01-15T12:00:00Z"
+      SRM_DEV_OPERATOR_EMAIL: ${SRM_DEV_OPERATOR_EMAIL:-operator@srm.local}
+      SRM_DEV_OPERATOR_PASSWORD: ${SRM_DEV_OPERATOR_PASSWORD:-local-review-only-not-a-real-password}
+      SRM_DEV_ADMIN_EMAIL: ${SRM_DEV_ADMIN_EMAIL:-admin@srm.local}
+      SRM_DEV_ADMIN_PASSWORD: ${SRM_DEV_ADMIN_PASSWORD:-local-admin-review-only-not-a-real-password}
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    init: true
+    stop_grace_period: 30s
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 256
+    networks: [srm-internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mock-fx:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health/readiness | grep -q UP"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    init: true
+    stop_grace_period: 10s
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 128
+    ports: ["${FRONTEND_PORT:-8088}:8080"]
+    networks: [srm-internal, srm-edge]
+    depends_on:
+      backend:
+        condition: service_healthy
+      e2e-fixtures:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ | grep -q '<div id=\"root\"'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  dev-fixtures:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["--spring.profiles.active=dev-fixtures"]
+    environment:
+      SRM_DB_URL: jdbc:postgresql://postgres:5432/srm_credit_engine
+      SRM_DB_USERNAME: srm
+      SRM_DB_PASSWORD: ${POSTGRES_PASSWORD:-srm-local-only}
+      SRM_JWT_SECRET: ${SRM_JWT_SECRET:-srm-local-only-secret-must-have-at-least-32-bytes}
+    networks: [srm-internal]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles: [fixtures]
+
+  e2e-fixtures:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["--spring.profiles.active=e2e-fixtures"]
+    environment:
+      SRM_DB_URL: jdbc:postgresql://postgres:5432/srm_credit_engine
+      SRM_DB_USERNAME: srm
+      SRM_DB_PASSWORD: ${POSTGRES_PASSWORD:-srm-local-only}
+      SRM_JWT_SECRET: ${SRM_JWT_SECRET:-srm-local-only-secret-must-have-at-least-32-bytes}
+    networks: [srm-internal]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+
+  smoke:
+    image: curlimages/curl:8.16.0
+    entrypoint: ["/bin/sh", "/smoke/compose-smoke.sh"]
+    read_only: true
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 64m
+    cpus: 0.25
+    pids_limit: 64
+    environment:
+      SRM_SMOKE_OPERATOR_EMAIL: ${SRM_DEV_OPERATOR_EMAIL:-operator@srm.local}
+      SRM_SMOKE_OPERATOR_PASSWORD: ${SRM_DEV_OPERATOR_PASSWORD:-local-review-only-not-a-real-password}
+      SRM_SMOKE_ADMIN_EMAIL: ${SRM_DEV_ADMIN_EMAIL:-admin@srm.local}
+      SRM_SMOKE_ADMIN_PASSWORD: ${SRM_DEV_ADMIN_PASSWORD:-local-admin-review-only-not-a-real-password}
+    volumes:
+      - ./scripts/compose-smoke.sh:/smoke/compose-smoke.sh:ro
+    networks: [srm-internal]
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+      mock-fx:
+        condition: service_healthy
+    profiles: [smoke]
+
+networks:
+  srm-internal:
+    internal: true
+  srm-edge:
+
+volumes:
+  postgres-data:

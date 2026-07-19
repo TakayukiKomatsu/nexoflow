@@ -5,15 +5,49 @@ spring:
     password: ${SRM_DB_PASSWORD}
   flyway:
     enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
   sql:
     init:
       mode: never
 
 management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
   endpoint:
     health:
       probes:
         enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db,mockFx
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+  metrics:
+    tags:
+      application: srm-credit-engine
+
+logging:
+  structured:
+    format:
+      console: logstash
 
 srm:
   jwt-secret: ${SRM_JWT_SECRET}
+  dev-operator:
+    email: ${SRM_DEV_OPERATOR_EMAIL:}
+    password: ${SRM_DEV_OPERATOR_PASSWORD:}
+  dev-admin:
+    email: ${SRM_DEV_ADMIN_EMAIL:}
+    password: ${SRM_DEV_ADMIN_PASSWORD:}
+  fx-provider:
+    base-url: ${SRM_MOCK_FX_BASE_URL:http://localhost:8090}

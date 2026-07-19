@@ -1,0 +1,137 @@
+# Reviewer runbook
+
+Operational guide for running, verifying, and reviewing the SRM Credit Engine locally. Every command below is copied from [`Makefile`](../Makefile), [`README.md`](../README.md), and `scripts/`; none is invented for this document.
+
+## 1. Run locally
+
+### Compose (recommended reviewer path)
+
+The default reviewer runtime is `compose.yaml`: PostgreSQL, the Spring backend, the built React frontend, and a deterministic mock FX service on an internal-only Docker network.
+
+```bash
+cp .env.example .env
+set -a; source .env; set +a
+docker compose up --build --wait
+```
+
+`backend`, `frontend`, `mock-fx`, and `postgres` each carry a `healthcheck`; `--wait` blocks until all report healthy. Tear down with:
+
+```bash
+docker compose down -v --remove-orphans
+```
+
+### Native (backend + frontend processes)
+
+Prerequisites: Java 21, Node 26, and a reachable PostgreSQL instance.
+
+```bash
+cp .env.example .env
+set -a; source .env; set +a
+./scripts/with-java21.sh ./backend/gradlew -p backend bootRun
+npm --prefix frontend run dev
+```
+
+Required environment variables (see `.env.example`): `SRM_DB_URL`, `SRM_DB_USERNAME`, `SRM_DB_PASSWORD`, `SRM_JWT_SECRET` (≥32 bytes). With `SPRING_PROFILES_ACTIVE=dev`, the `SRM_DEV_OPERATOR_*` and `SRM_DEV_ADMIN_*` pairs independently seed local `OPERATOR` and `ADMIN` users through `DevelopmentOperatorSeeder` (`backend/src/main/java/com/srm/creditengine/identity/infrastructure/DevelopmentOperatorSeeder.java`). A blank pair is skipped independently. The seeder never runs outside `dev`; `test` and production profiles seed no credentials.
+
+## 2. Verification suite
+
+Run in this order; each target maps directly to a `Makefile` recipe.
+
+| Command | What it runs or proves | Evidence |
+| --- | --- | --- |
+| `make verify-fast` | Hook contracts, backend/frontend units, frontend quality, architecture docs, and CI workflow validation | Backend/frontend test reports |
+| `make test-runtime` | Runtime/API/migration tests plus PostgreSQL Testcontainers integrations, including settlement concurrency and rollback | `backend/build/reports/tests/` and `backend/build/reports/tests/integrationTest/` |
+| `make verify` | `verify-fast` plus credential/identifier log-redaction checks | Command result |
+| `make build` | Backend Gradle build and frontend production build | `backend/build/`, `frontend/dist/` |
+| `make verify-compose` | Clean Compose lifecycle: full-stack smoke, deterministic fixtures, PostgreSQL readiness loss/recovery, and authenticated bounded metrics inspection | Command result; stack is removed on exit |
+| `make test-api-features` | Ten executable Cucumber scenarios against Spring and PostgreSQL Testcontainers | `backend/build/reports/cucumber.json`, `backend/build/reports/cucumber.html` |
+| `make test-ui-features` | Playwright E2E-001 against a real browser, backend, and PostgreSQL | `frontend/playwright-report/`, `frontend/test-results/` |
+| `make e2e-fixed` | Deterministic fixture-backed browser path | Playwright report and Compose output |
+| `make explain-statements-representative` | PostgreSQL 16 representative 10,000-row statement query plan; not a production-scale benchmark | `docs/evidence/reporting-explain.txt` |
+| `make license-check` | Backend and frontend production dependency allowlists | `backend/build/reports/dependency-license/`, `frontend/license-report.json` |
+| `make security-scan` | Full-history/content Gitleaks; Trivy filesystem, secrets, and runtime images; immutable image digests; CycloneDX SBOM; license gate | `build/security/` |
+| `make validate-docs` | Links, required docs, Mermaid rendering, migration/ER consistency, OpenAPI reachability, and prohibited-claim checks | Command result and rendered `backend/build/mermaid/` |
+| `make validate-traceability` | Every stable SDD scenario ID resolves to an exact matrix row and executable artifact | Command result |
+| `make test-crisis-evidence` | Disposable local regression/revert proof without touching publication branches | Temporary clone output |
+| `make release-check` | Aggregate of local quality, log-redaction, build, runtime, acceptance, performance-evidence, security, docs, traceability, and crisis gates | All evidence above |
+
+Docker-dependent targets exit with explicit `BLOCKED` rather than a false pass when Docker is unavailable. CodeQL is a separate pinned GitHub Actions job; it is not represented as a local scan.
+
+Individual Compose checks can be run after `docker compose up --build --wait`:
+
+```bash
+make smoke-compose
+make fixtures-e2e
+make verify-readiness-recovery
+make inspect-observability
+```
+
+Recommended reviewer sequence:
+
+```bash
+make release-check
+```
+
+For a focused review, run the relevant target from the table and inspect its named artifact. Do not infer a pass from an artifact left by an older run; pair it with the current command result.
+
+## 3. Review gates
+
+Gates as defined in [`docs/sdd/README.md`](sdd/README.md). Do not cross a red financial-integrity or security gate.
+
+| Gate | Scope | Prompts |
+| --- | --- | --- |
+| 1. Foundation | Repository, architecture docs, runtime skeleton | 01–02 |
+| 2. Core backend | Identity/authorization, reference rates, assignors/receivables, pricing/quotes | 03–04 |
+| 3. Financial integrity and ledger | Settlement preview/atomicity, reversal, audit ledger | 05–06 |
+| 4. Operator UI | Frontend auth/simulation, preview/settlement/reversal UI | 07–08 |
+| 5. Operations and release readiness | Observability, E2E/security evidence, this reviewer documentation | 09–11 |
+| 6. Authorization-gated publication | Push/PR/tag/release, gated by explicit human authorization | 12 |
+
+Gates 1–5 have executable local or CI evidence. Cucumber covers the stable backend scenarios in `backend/src/integrationTest/resources/features/srm_acceptance.feature`; Playwright E2E-001 covers the browser financial path; `frontend/src/a11y.test.tsx` checks accessibility; real PostgreSQL integrations cover settlement concurrency and rollback; the representative query plan is persisted under `docs/evidence/`; and CI pins CodeQL, Gitleaks, Trivy, Syft/SBOM, and license gates. Gate 6 remains intentionally unexecuted: remote collaboration, publication, tags, and releases require explicit human authorization.
+
+## 4. Interpreting failures
+
+- **`make test-runtime` / `make verify-compose` report `BLOCKED`**: Docker daemon is not running or not reachable. This is a distinct outcome from `passed` — per the SDD global contract, a blocked prerequisite must never be reported as passed.
+- **Compose service fails its healthcheck** (`docker compose up --wait` hangs or errors): inspect with `docker compose logs <service>`. `backend` health depends on `/actuator/health/readiness`, which itself depends on PostgreSQL; `frontend` depends on `backend` being healthy first.
+- **`/actuator/health/readiness` returns `503`**: PostgreSQL is unreachable. `/actuator/health/liveness` only checks process liveness and stays `UP` in this case — this is deliberate, so Compose/orchestrators do not restart a backend that only needs PostgreSQL to recover. `scripts/verify-readiness-recovery.sh` exercises this exact behavior.
+- **API error responses**: every error is an RFC 9457 Problem Detail (`backend/src/main/java/com/srm/creditengine/shared/api/ApiExceptionHandler.java`) with a stable `code` field (e.g. `INVALID_CREDENTIALS`, `LOGIN_RATE_LIMITED`, `IDEMPOTENCY_KEY_REUSED`, `ALREADY_SETTLED`, `ALREADY_REVERSED`, `VALIDATION_FAILED`, `ACCESS_DENIED`, `AUTHENTICATION_REQUIRED`, `INTERNAL_ERROR`) and a `correlationId` sourced from `CorrelationIdFilter`. Use the `code` to distinguish causes; use `correlationId` to find the request in logs.
+- **`403` / `ACCESS_DENIED`**: the authenticated role lacks the matcher for that endpoint. Check [`PERMISSION_MATRIX.md`](PERMISSION_MATRIX.md) against the actual `SecurityConfiguration.java` matchers before assuming a bug.
+- **`401` / `AUTHENTICATION_REQUIRED`**: missing or invalid JWT `Authorization: Bearer` header, or the token is expired (tokens are short-lived, per `docs/adr/0005-local-jwt-and-oidc-evolution.md`).
+- **`429` / `LOGIN_RATE_LIMITED`**: repeated failed logins against `/api/v1/auth/login` tripped the local rate limiter; wait and retry with correct credentials.
+- **`test-log-redaction` failure**: a log line leaked a credential, JWT, idempotency key, or unrestricted financial payload. Fix the leaking log statement — do not weaken the test.
+- **Secrets scan / pre-commit hook rejects a commit**: a fixture or file matched a secret pattern. A fake-secret fixture must be unmistakably non-live and explicitly allowlisted by exact path/reason; do not disable the hook.
+- **`make test-api-features` failure**: inspect `backend/build/reports/cucumber.json` or `.html` and the matching stable scenario ID in `backend/src/integrationTest/resources/features/srm_acceptance.feature`.
+- **`make test-ui-features` failure**: inspect `frontend/playwright-report/` and `frontend/test-results/`; Playwright startup or cleanup failures are failures, not skipped evidence.
+- **Representative EXPLAIN failure**: inspect `docs/evidence/reporting-explain.txt` only after a successful current run. The dataset demonstrates index-aware behavior at 10,000 rows, not production capacity.
+- **`make security-scan` failure**: generated reports are under `build/security/`. Every secret finding and every HIGH/CRITICAL vulnerability with a published fix fails the gate. Any accepted unfixed CVE requires a specific, owned, expiring `.trivyignore.yaml` entry; blanket `ignore-unfixed` policy is forbidden.
+- **Documentation or traceability failure**: run `make validate-docs` and `make validate-traceability` separately. Fix the source, path, scenario mapping, or diagram; do not weaken the validator.
+- **`make release-check` failure**: the aggregate stops on the first failed or blocked sub-gate. A local aggregate does not execute or authorize CodeQL, a remote push, pull request, tag, or release.
+
+## 5. Seeding and resetting fixtures
+
+Fixture loading runs as one-shot Spring profiles inside the `backend` image, invoked through Compose's `fixtures` profile (`compose.yaml`):
+
+```bash
+docker compose --profile fixtures run --rm dev-fixtures  # ad hoc local/dev reference data
+docker compose --profile fixtures run --rm e2e-fixtures  # fixed-instant (2030-01-15T12:00:00Z)
+                                                           # deterministic fixtures for E2E
+```
+
+Both are idempotent: `scripts/verify-e2e-fixtures.sh` runs `e2e-fixtures` twice and asserts the resulting `runtime_fixture_records` and pinned exchange-rate row (`id = 00000000-0000-0000-0000-000000000202`) produce identical checksums, and that each fixed fixture ID (`e2e-clock`, `e2e-usd-brl-rate`, `e2e-assignor-id`) occurs exactly once. `dev-fixtures` contains no expiry-sensitive data.
+
+**There is no reset endpoint and no production fixture profile.** To reset state, stop the stack and drop the named volume:
+
+```bash
+docker compose down -v --remove-orphans   # -v removes the postgres-data volume
+docker compose up --build --wait
+```
+
+To reseed local reviewer accounts outside fixtures, restart `backend` with the `dev` profile active and either or both `SRM_DEV_OPERATOR_*` and `SRM_DEV_ADMIN_*` pairs set. `DevelopmentOperatorSeeder` uses `insert ... on conflict (email) do nothing`, so repeating the seed is safe and independently preserves the intended roles.
+
+## 6. Local Git hooks
+
+```bash
+make install-hooks
+```
+
+Installs the pre-push hook that runs the same backend/frontend unit suite as `make verify-unit`, plus the commit-message and pre-commit secret hooks validated by `make test-hooks`.

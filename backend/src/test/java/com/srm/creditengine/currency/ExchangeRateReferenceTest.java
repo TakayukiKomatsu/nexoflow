@@ -8,6 +8,9 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 import javax.sql.DataSource;
+import java.math.BigDecimal;
+import com.srm.creditengine.currency.application.CurrencyService;
+import com.srm.creditengine.currency.application.FxRateStaleException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +19,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 @SpringBootTest
 class ExchangeRateReferenceTest {
     @Autowired DataSource dataSource;
+    @Autowired CurrencyService currency;
 
     @BeforeEach
     void clearRates() throws Exception {
@@ -56,6 +60,47 @@ class ExchangeRateReferenceTest {
                             observedAt))
                     .isInstanceOf(Exception.class);
         }
+    }
+
+    @Test
+    void FX_004_selectsLatestRateAndAcceptsTheExactTwentyFourHourBoundary() throws Exception {
+        Instant now = Instant.parse("2030-01-15T12:00:00Z");
+        try (Connection connection = dataSource.getConnection()) {
+            insertRate(connection, UUID.randomUUID(), "USD", "BRL", "5.10", now.minusSeconds(24 * 60 * 60));
+            insertRate(connection, UUID.randomUUID(), "USD", "BRL", "5.20", now.minusSeconds(60 * 60));
+        }
+
+        var result = currency.resolveConversion("USD", "BRL", new BigDecimal("100.00"), now);
+
+        assertThat(result.observation().rate()).isEqualByComparingTo("5.20");
+        assertThat(result.unroundedConvertedAmount()).isEqualByComparingTo("520.0000000000");
+        assertThat(result.settlementAmount()).isEqualByComparingTo("520.00");
+    }
+
+    @Test
+    void rateOlderThanTwentyFourHoursIsNotSelected() throws Exception {
+        Instant now = Instant.parse("2030-01-15T12:00:00Z");
+        try (Connection connection = dataSource.getConnection()) {
+            insertRate(connection, UUID.randomUUID(), "USD", "BRL", "5.20", now.minusSeconds(24 * 60 * 60 + 1));
+        }
+        assertThatThrownBy(() -> currency.resolveConversion(
+                "USD", "BRL", new BigDecimal("100.00"), now))
+                .isExactlyInstanceOf(FxRateStaleException.class);
+    }
+
+    @Test
+    void recordedObservationIsDurableAndRetainsItsProviderSource() {
+        Instant observedAt = Instant.parse("2030-01-15T11:00:00Z");
+        currency.recordObservation("USD", "BRL", new BigDecimal("5.20"), "mock-provider", observedAt,
+                "admin@srm.local");
+
+        assertThat(currency.observations("USD", "BRL"))
+                .singleElement()
+                .satisfies(observation -> {
+                    assertThat(observation.rate()).isEqualByComparingTo("5.20");
+                    assertThat(observation.source()).isEqualTo("mock-provider");
+                    assertThat(observation.observedAt()).isEqualTo(observedAt);
+                });
     }
 
     private void insertRate(Connection connection, UUID id, String base, String quote, String rate)

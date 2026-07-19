@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:a11y": "vitest run src/a11y.test.tsx",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
     "typecheck": "tsc -b",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "^11.16.0",
+    "@playwright/test": "^1.61.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/jest-axe": "^3.5.9",

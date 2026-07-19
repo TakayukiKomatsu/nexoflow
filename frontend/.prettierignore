@@ -2,3 +2,5 @@ dist/
 node_modules/
 .omc/
 license-report.json
+playwright-report/
+test-results/

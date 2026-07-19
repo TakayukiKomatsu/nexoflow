@@ -6,7 +6,7 @@ import {
   screen,
 } from "@testing-library/react";
 import { axe } from "jest-axe";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import App from "./App";
 
 const simulation = (amount: string) => ({
@@ -33,6 +33,17 @@ function response(body: unknown, status = 200) {
     new Response(JSON.stringify(body), {
       status,
       headers: { "Content-Type": "application/json" },
+    }),
+  );
+}
+
+function stubFetch(fetchMock: Mock) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes("/settlement-statements"))
+        return response({ entries: [], page: 0, size: 50, hasNext: false });
+      return fetchMock(input, init);
     }),
   );
 }
@@ -80,7 +91,7 @@ describe("UI-A11Y-001 login screen accessibility", () => {
       .mockImplementationOnce(() =>
         response({ detail: "Invalid credentials." }, 401),
       );
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
     const { container } = render(<App />);
     fireEvent.change(screen.getByLabelText("Password"), {
       target: { value: "wrong-password" },
@@ -100,7 +111,7 @@ describe("UI-A11Y-001 login screen accessibility", () => {
         response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
       )
       .mockImplementationOnce(() => response(simulation("966.18")));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
     render(<App />);
 
     const emailInput = screen.getByLabelText("Email");
@@ -148,7 +159,7 @@ describe("UI-A11Y-002 live simulation screen accessibility", () => {
         response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
       )
       .mockImplementationOnce(() => new Promise(() => {}));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
     const { container } = render(<App />);
     await signIn();
 
@@ -169,7 +180,7 @@ describe("UI-A11Y-002 live simulation screen accessibility", () => {
       )
       .mockImplementationOnce(() => response(simulation("975.61")))
       .mockImplementationOnce(() => new Promise(() => {}));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
     const { container } = render(<App />);
     await signIn();
     await screen.findAllByText("975.61");
@@ -196,7 +207,7 @@ describe("UI-A11Y-002 live simulation screen accessibility", () => {
       .mockImplementationOnce(() =>
         response({ detail: "Pricing is unavailable." }, 503),
       );
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
     const { container } = render(<App />);
     await signIn();
     await screen.findByText("Pricing is unavailable.");
@@ -219,7 +230,7 @@ describe("UI-A11Y-002 live simulation screen accessibility", () => {
       .mockImplementationOnce(() =>
         response({ detail: "Pricing is unavailable." }, 503),
       );
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
     render(<App />);
     await signIn();
 
@@ -252,7 +263,7 @@ describe("UI-A11Y-002 live simulation screen accessibility", () => {
       )
       .mockImplementationOnce(() => response(simulation("975.61")))
       .mockImplementationOnce(() => response(simulation("966.18")));
-    vi.stubGlobal("fetch", fetchMock);
+    stubFetch(fetchMock);
     render(<App />);
     await signIn();
     await screen.findAllByText("975.61");

@@ -1,21 +1,21 @@
 erDiagram
     users ||--o{ user_roles : has
-    users ||--o{ audit_events : performs
     assignors ||--o{ receivables : owns
     assignors ||--o{ settlements : receives
     currencies ||--o{ receivables : denominates
     currencies ||--o{ base_rate_versions : configures
-    currencies ||--o{ exchange_rates : base_or_quote
+    currencies ||--o{ exchange_rates : prices
     currencies ||--o{ settlements : pays
     product_types ||--o{ receivables : classifies
     product_types ||--o{ product_spread_versions : configures
+    product_types ||--o{ pricing_quotes : snapshots
     receivables ||--o{ pricing_quotes : receives
-    receivables ||--o| settlement_items : settled_by
-    pricing_quotes ||--o| settlement_items : consumed_by
+    receivables ||--o| settlement_items : settles
+    pricing_quotes ||--o| settlement_items : consumes
     settlements ||--|{ settlement_items : contains
     settlements ||--o| settlement_reversals : compensated_by
-    settlements ||--o{ audit_events : records
-    settlements ||--o{ idempotency_records : deduplicates
+    settlements ||--o{ idempotency_records : settlement_replay
+    settlement_reversals ||--o{ idempotency_records : reversal_replay
 
     users {
         uuid id PK
@@ -29,8 +29,11 @@ erDiagram
     }
     assignors {
         uuid id PK
-        string tax_identifier UK
-        string status
+        string legal_name
+        string normalized_tax_id UK
+        boolean active
+        datetime created_at
+        string created_by
     }
     currencies {
         string code PK
@@ -45,75 +48,124 @@ erDiagram
         uuid id PK
         string product_type_code FK
         decimal monthly_spread
-        datetime effective_at UK
+        datetime effective_at
     }
     base_rate_versions {
         uuid id PK
         string currency_code FK
         decimal monthly_rate
-        datetime effective_at UK
+        datetime effective_at
     }
     exchange_rates {
         uuid id PK
         string base_currency_code FK
         string quote_currency_code FK
         decimal rate
-        string source UK
-        datetime observed_at UK
+        string source
+        datetime observed_at
         datetime created_at
         string created_by
+    }
+    runtime_fixture_records {
+        string fixture_id PK
+        string fixture_set
+        string fixture_value
+        datetime loaded_at
     }
     receivables {
         uuid id PK
         uuid assignor_id FK
-        string currency_code FK
         string product_type_code FK
-        decimal face_value
+        string face_currency_code FK
+        decimal face_amount
         date issue_date
         date due_date
         string status
-        int version
+        bigint version
+        datetime created_at
+        string created_by
     }
     pricing_quotes {
         uuid id PK
         uuid receivable_id FK
-        string status
-        decimal settlement_amount
-        datetime created_at
+        string settlement_currency_code FK
+        decimal face_amount
+        string face_currency_code FK
+        string product_type_code FK
+        date due_date
+        datetime pricing_at
         datetime expires_at
+        decimal base_rate
+        decimal spread
+        string strategy_code
+        string day_count_convention
+        decimal term_in_months
+        decimal discounted_amount
+        string fx_base_currency_code FK
+        string fx_quote_currency_code FK
+        decimal fx_rate
+        string fx_source
+        datetime fx_observed_at
+        decimal settlement_amount
+        string created_by
+        string status
     }
     settlements {
         uuid id PK
         uuid assignor_id FK
         string settlement_currency_code FK
+        decimal total_amount
         string status
         datetime created_at
+        string created_by
     }
     settlement_items {
         uuid id PK
         uuid settlement_id FK
+        uuid quote_id UK,FK
         uuid receivable_id UK,FK
-        uuid pricing_quote_id UK,FK
-        decimal amount
+        int item_position
+        decimal settlement_amount
+        string asset_currency_code FK
+        string product_type_code FK
     }
     idempotency_records {
         uuid id PK
-        string operation UK
-        string client_key UK
+        string actor
+        string operation
+        string idempotency_key
         string request_hash
         uuid settlement_id FK
+        uuid reversal_id FK
+        string status
+        datetime created_at
+        datetime completed_at
     }
     settlement_reversals {
         uuid id PK
         uuid settlement_id UK,FK
         string reason
-        datetime created_at
+        datetime reversed_at
+        string reversed_by
     }
     audit_events {
         uuid id PK
-        uuid actor_id FK
-        uuid settlement_id FK
+        string actor
         string action
-        string correlation_id
+        string target_type
+        uuid target_id
         datetime occurred_at
+        string correlation_id
+        json safe_metadata
     }
+
+    %% PostgreSQL V12-V16 guards make financial snapshots append-only:
+    %% exchange_rates and settlement_reversals reject UPDATE and DELETE.
+    %% pricing_quotes rejects DELETE and permits only ACTIVE to CONSUMED while every snapshot value stays unchanged.
+    %% settlements, settlement_items, and audit_events also reject mutation.
+    %% Composite uniqueness: exchange_rates(base, quote, source, observed_at);
+    %% idempotency_records(actor, operation, idempotency_key); settlement_items(settlement_id, item_position).
+    %% Settlement Ledger Entry is a derived SQL read model, not a stored table.
+    %% SETTLEMENT entry_id = md5("SETTLEMENT:" + settlement_item.id) as UUID with a positive signed amount.
+    %% REVERSAL entry_id = md5("REVERSAL:" + reversal.id + ":" + settlement_item.id) as UUID with a negative signed amount.
+    %% Stable order: effective_at DESC, entry_id DESC.

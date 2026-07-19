@@ -3,28 +3,112 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 workflow="$repo_root/.github/workflows/ci.yml"
+makefile="$repo_root/Makefile"
 
 if [[ ! -s "$workflow" ]]; then
   echo "expected CI workflow at $workflow" >&2
   exit 1
 fi
 
-for expected in 'permissions:' 'contents: read' 'make verify-fast' 'make build' 'make test-runtime' 'make verify-compose' 'make license-check' 'gitleaks/gitleaks-action@' 'actions/dependency-review-action@'; do
+if [[ ! -s "$makefile" ]]; then
+  echo "expected Makefile at $makefile" >&2
+  exit 1
+fi
+
+# ── Pinned immutable actions ─────────────────────────────────────────────────
+action_count="$(grep -Ec '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]+[^[:space:]]+@[0-9a-f]{40}([[:space:]#]|$)' "$workflow")"
+uses_count="$(grep -Ec '^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]+' "$workflow")"
+if [[ "$uses_count" -eq 0 || "$action_count" -ne "$uses_count" ]]; then
+  echo "every workflow action must use a 40-character immutable commit SHA (found $action_count of $uses_count)" >&2
+  exit 1
+fi
+
+# ── CI workflow must contain these strings ───────────────────────────────────
+for expected in \
+  'permissions:' \
+  'contents: read' \
+  'make verify-fast' \
+  'make build' \
+  'make test-runtime' \
+  'make verify-compose' \
+  'make license-check' \
+  'make test-api-features' \
+  'make test-ui-features' \
+  'make validate-docs' \
+  'make validate-traceability' \
+  'make test-crisis-evidence' \
+  'make security-scan' \
+  'make explain-statements-representative' \
+  'playwright install chromium' \
+  'cucumber-report' \
+  'playwright-report' \
+  'reporting-explain' \
+  'gitleaks/gitleaks-action@' \
+  'actions/dependency-review-action@' \
+  'ignore-unfixed'; do
+  if [[ "$expected" == 'ignore-unfixed' ]]; then
+    # The broad ignore-unfixed policy must have been removed.
+    if grep -Fq 'ignore-unfixed: true' "$workflow"; then
+      echo "workflow must not contain 'ignore-unfixed: true' (replace with per-CVE .trivyignore.yaml entries)" >&2
+      exit 1
+    fi
+    continue
+  fi
   if ! grep -Fq "$expected" "$workflow"; then
     echo "expected CI workflow to contain: $expected" >&2
     exit 1
   fi
 done
 
-if grep -Eq 'uses: [^ ]+@v[0-9]' "$workflow"; then
-  echo "workflow actions must be pinned to immutable commit SHAs" >&2
-  exit 1
-fi
+# ── Makefile must define every required target ────────────────────────────────
+for target in \
+  'test-api-features:' \
+  'test-ui-features:' \
+  'e2e-fixed:' \
+  'security-scan:' \
+  'validate-docs:' \
+  'validate-traceability:' \
+  'test-crisis-evidence:' \
+  'release-check:' \
+  'explain-statements-representative:' \
+  'verify-fast:' \
+  'test-runtime:' \
+  'verify-compose:' \
+  'license-check:' \
+  'build:'; do
+  if ! grep -qF "$target" "$makefile"; then
+    echo "Makefile must define target: $target" >&2
+    exit 1
+  fi
+done
 
-action_count="$(grep -Ec 'uses: [^ ]+@[0-9a-f]{40}([[:space:]]|$)' "$workflow")"
-if [[ "$action_count" -lt 6 ]]; then
-  echo "expected every workflow action to use a 40-character commit SHA" >&2
+# ── release-check must aggregate all required sub-targets ─────────────────────
+release_line="$(grep -n 'release-check:' "$makefile" | head -1)"
+release_deps="$(grep '^release-check:' "$makefile" | head -1)"
+for dep in \
+  'verify-fast' \
+  'test-log-redaction' \
+  'build' \
+  'test-runtime' \
+  'verify-compose' \
+  'e2e-fixed' \
+  'explain-statements-representative' \
+  'security-scan' \
+  'validate-docs' \
+  'validate-traceability' \
+  'test-crisis-evidence'; do
+  if ! printf '%s' "$release_deps" | grep -qF "$dep"; then
+    echo "release-check target must depend on: $dep (found: $release_deps)" >&2
+    exit 1
+  fi
+done
+if ! grep -qF '$(MAKE) inspect-observability' "$makefile"; then
+  echo "verify-compose must run the authenticated observability inspection" >&2
   exit 1
 fi
 
 echo "CI-001 passed: CI uses immutable actions, least privilege, builds, Docker runtime tests, license compliance, and security review"
+echo "CI-002 passed: all Task4 Make targets are defined and invoked in the CI workflow"
+echo "CI-003 passed: release-check aggregates all required sub-targets"
+echo "CI-004 passed: ignore-unfixed broad policy is absent — per-CVE .trivyignore.yaml entries required"
+echo "CI-005 passed: Compose verification includes authenticated observability inspection"

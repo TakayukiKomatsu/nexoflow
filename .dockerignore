@@ -1,0 +1,11 @@
+.git
+.omc
+.codex-team
+.codex-team-*.json
+LOOP_STATE.md
+**/build
+**/dist
+**/node_modules
+**/test-results
+**/playwright-report
+**/.gradle

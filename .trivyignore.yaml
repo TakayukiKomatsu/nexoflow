@@ -1,0 +1,18 @@
+# Trivy vulnerability exception registry
+# https://aquasecurity.github.io/trivy/latest/docs/configuration/filtering/
+#
+# POLICY: global ignore-unfixed is NEVER permitted in this project.
+# Each entry must document the specific finding, package/file scope, business
+# justification, owner, and expiry date.  Fixed vulnerabilities (a patch
+# exists) must be remediated by updating the dependency — never suppressed here.
+#
+# Template for an accepted exception:
+#
+# misconfigurations:
+#   - id: AVD-DS-NNNN
+#     paths:
+#       - path/to/Dockerfile
+#     statement: >-
+#       Justification: <explain why this finding is accepted or handled elsewhere>.
+#       Owner: <team or individual responsible for review>.
+#       Expires: YYYY-MM-DD.

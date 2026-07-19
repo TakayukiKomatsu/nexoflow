@@ -6,14 +6,30 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.srm.creditengine.currency.application.FxRateMissingException;
+import com.srm.creditengine.currency.application.FxRateStaleException;
+import com.srm.creditengine.currency.application.UnsupportedCurrencyException;
+import com.srm.creditengine.settlement.application.AlreadyReversedException;
+import com.srm.creditengine.settlement.application.AlreadySettledException;
+import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
+import com.srm.creditengine.shared.api.DecimalString;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RestController;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(ApiErrorContractTest.CurrencyFailureController.class)
 class ApiErrorContractTest {
     @Autowired
     private MockMvc mockMvc;
@@ -51,5 +67,143 @@ class ApiErrorContractTest {
                         .content("not-json"))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
+    }
+
+    @Test
+    void unsupportedCurrencyUsesRfc9457BadRequestContract() throws Exception {
+        mockMvc.perform(get("/api/v1/runtime/currency-errors/unsupported"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_CURRENCY"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:unsupported-currency"))
+                .andExpect(jsonPath("$.detail").value("The requested currency is not supported."));
+    }
+
+    @Test
+    void missingFxRateUsesRfc9457UnprocessableEntityContract() throws Exception {
+        mockMvc.perform(get("/api/v1/runtime/currency-errors/missing"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.code").value("FX_RATE_MISSING"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:fx-rate-missing"))
+                .andExpect(jsonPath("$.detail").value(
+                        "No exchange rate is available for the requested currency pair."));
+    }
+
+    @Test
+    void staleFxRateUsesRfc9457UnprocessableEntityContract() throws Exception {
+        mockMvc.perform(get("/api/v1/runtime/currency-errors/stale"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.code").value("FX_RATE_STALE"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:fx-rate-stale"))
+                .andExpect(jsonPath("$.detail").value(
+                        "No fresh exchange rate is available for the requested currency pair."));
+    }
+
+    @Test
+    void reusedIdempotencyKeyRemainsADistinctConflict() throws Exception {
+        assertConflict("/api/v1/runtime/currency-errors/idempotency-reused", "IDEMPOTENCY_KEY_REUSED");
+    }
+
+    @Test
+    void alreadySettledRemainsADistinctConflict() throws Exception {
+        assertConflict("/api/v1/runtime/currency-errors/already-settled", "ALREADY_SETTLED");
+    }
+
+    @Test
+    void alreadyReversedRemainsADistinctConflict() throws Exception {
+        assertConflict("/api/v1/runtime/currency-errors/already-reversed", "ALREADY_REVERSED");
+    }
+
+    private void assertConflict(String path, String code) throws Exception {
+        mockMvc.perform(get(path))
+                .andExpect(status().isConflict())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(409))
+                .andExpect(jsonPath("$.code").value(code))
+                .andExpect(jsonPath("$.type").value(
+                        "urn:srm:error:" + code.toLowerCase(java.util.Locale.ROOT).replace('_', '-')));
+    }
+
+    @Test
+    void nonIdempotencyMissingHeaderUsesGenericValidationProblem() throws Exception {
+        mockMvc.perform(get("/api/v1/runtime/currency-errors/required-header"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.type").value("urn:srm:error:validation-failed"))
+                .andExpect(jsonPath("$.detail").value("Request validation failed."))
+                .andExpect(result -> org.assertj.core.api.Assertions
+                        .assertThat(result.getResponse().getContentAsString())
+                        .doesNotContain("Idempotency-Key"));
+    }
+
+    @Test
+    void unreadableJsonUsesSafeRequestLevelValidationProblem() throws Exception {
+        mockMvc.perform(post("/api/v1/runtime/currency-errors/decimal")
+                        .contentType("application/json")
+                        .content("{\"amount\":987654321.12}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.detail").value("Request validation failed."))
+                .andExpect(jsonPath("$.violations.length()").value(1))
+                .andExpect(jsonPath("$.violations[0].field").value("request"))
+                .andExpect(jsonPath("$.violations[0].message")
+                        .value("is malformed or contains an invalid value"))
+                .andExpect(result -> org.assertj.core.api.Assertions
+                        .assertThat(result.getResponse().getContentAsString())
+                        .doesNotContain("987654321.12"));
+    }
+
+    @RestController
+    @RequestMapping("/api/v1/runtime/currency-errors")
+    static class CurrencyFailureController {
+        @GetMapping("/unsupported")
+        void unsupported() {
+            throw new UnsupportedCurrencyException();
+        }
+
+        @GetMapping("/missing")
+        void missing() {
+            throw new FxRateMissingException();
+        }
+
+        @GetMapping("/stale")
+        void stale() {
+            throw new FxRateStaleException();
+        }
+
+        @GetMapping("/idempotency-reused")
+        void idempotencyReused() {
+            throw new IdempotencyKeyReusedException();
+        }
+
+        @GetMapping("/already-settled")
+        void alreadySettled() {
+            throw new AlreadySettledException();
+        }
+
+        @GetMapping("/already-reversed")
+        void alreadyReversed() {
+            throw new AlreadyReversedException();
+        }
+
+        @GetMapping("/required-header")
+        void requiredHeader(@RequestHeader("X-Required") String required) {
+        }
+
+        @PostMapping("/decimal")
+        void decimal(@RequestBody DecimalRequest request) {
+        }
+
+        record DecimalRequest(DecimalString amount) {
+        }
     }
 }
