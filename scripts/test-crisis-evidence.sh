@@ -1,28 +1,26 @@
 #!/usr/bin/env bash
-# CRISIS-001: Disposable shared clone that injects a regression, proves it fails,
-# reverts it, proves recovery, and records both commit hashes.
+# CRISIS-002: Disposable shared clone that injects a dedicated regression,
+# proves the fixture fails, reverts it, and proves fast-gate recovery.
 # Never pushes, tags, or touches the working repository.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fixture="scripts/tests/test_crisis_fixture.sh"
 
 clone_dir="$(mktemp -d)"
 trap 'rm -rf "$clone_dir"' EXIT
 
-echo "=== CRISIS-001: creating disposable shared clone from HEAD ==="
+echo "=== CRISIS-002: creating disposable shared clone from HEAD ==="
 git -C "$repo_root" clone --local --shared --quiet "$repo_root" "$clone_dir"
 echo "  clone: $clone_dir"
 
-# The clone needs frontend/node_modules for Mermaid rendering in the arch-doc check.
-# Symlink from the host repo (same package.json) to avoid reinstalling.
-ln -s "$repo_root/frontend/node_modules" "$clone_dir/frontend/node_modules"
-
-echo "=== CRISIS-001: creating simulation branch ==="
+echo "=== CRISIS-002: creating simulation branch ==="
 git -C "$clone_dir" checkout -b simulation/crisis-revert --quiet
 
-echo "=== CRISIS-001: injecting controlled regression ==="
-echo 'exit 99' >> "$clone_dir/scripts/tests/test_architecture_docs.sh"
-git -C "$clone_dir" add scripts/tests/test_architecture_docs.sh
+echo "=== CRISIS-002: injecting controlled regression ==="
+sed -i.bak 's/CRISIS_FIXTURE_STATE=healthy/CRISIS_FIXTURE_STATE=regressed/' "$clone_dir/$fixture"
+rm "$clone_dir/$fixture.bak"
+git -C "$clone_dir" add "$fixture"
 git -C "$clone_dir" \
   -c user.email="crisis-sim@srm.local" \
   -c user.name="Crisis Simulation" \
@@ -30,14 +28,14 @@ git -C "$clone_dir" \
 CRISIS_SHA="$(git -C "$clone_dir" rev-parse HEAD)"
 echo "  regression commit: $CRISIS_SHA"
 
-echo "=== CRISIS-001: proving the injected regression is detected ==="
-if "$clone_dir/scripts/tests/test_architecture_docs.sh" 2>/dev/null; then
-  echo "CRISIS-001 FAILED: injected regression passed the architecture-doc check — simulation invalid" >&2
+echo "=== CRISIS-002: proving the injected regression is detected ==="
+if "$clone_dir/$fixture" 2>/dev/null; then
+  echo "CRISIS-002 FAILED: injected regression passed the dedicated fixture" >&2
   exit 1
 fi
 echo "  regression correctly detected (exit non-zero)"
 
-echo "=== CRISIS-001: reverting the regression ==="
+echo "=== CRISIS-002: reverting the regression ==="
 git -C "$clone_dir" \
   -c user.email="crisis-sim@srm.local" \
   -c user.name="Crisis Simulation" \
@@ -45,15 +43,17 @@ git -C "$clone_dir" \
 REVERT_SHA="$(git -C "$clone_dir" rev-parse HEAD)"
 echo "  revert commit: $REVERT_SHA"
 
-echo "=== CRISIS-001: proving recovery after revert ==="
-"$clone_dir/scripts/tests/test_architecture_docs.sh" \
-  || { echo "CRISIS-001 FAILED: architecture-doc check still fails after revert" >&2; exit 1; }
+echo "=== CRISIS-002: proving recovery after revert ==="
+"$clone_dir/$fixture" \
+  || { echo "CRISIS-002 FAILED: fixture still fails after revert" >&2; exit 1; }
+make -C "$clone_dir" verify-fast \
+  || { echo "CRISIS-002 FAILED: fast gate still fails after revert" >&2; exit 1; }
 echo "  recovery confirmed"
 
-echo "=== CRISIS-001: asserting exactly 2 simulation commits ==="
+echo "=== CRISIS-002: asserting exactly 2 simulation commits ==="
 commit_count="$(git -C "$clone_dir" rev-list --count HEAD~2..HEAD)"
 test "$commit_count" -eq 2 \
-  || { echo "CRISIS-001 FAILED: expected 2 commits (regression + revert), got $commit_count" >&2; exit 1; }
+  || { echo "CRISIS-002 FAILED: expected 2 commits (regression + revert), got $commit_count" >&2; exit 1; }
 evidence_file="$clone_dir/crisis-evidence.txt"
 printf '%s\n' \
   "branch=simulation/crisis-revert" \
@@ -62,10 +62,10 @@ printf '%s\n' \
   "commits_verified=$commit_count" \
   > "$evidence_file"
 test -s "$evidence_file" \
-  || { echo "CRISIS-001 FAILED: disposable evidence record was not written" >&2; exit 1; }
+  || { echo "CRISIS-002 FAILED: disposable evidence record was not written" >&2; exit 1; }
 
 echo ""
-echo "CRISIS-001 passed: crisis/revert evidence recorded"
+echo "CRISIS-002 passed: crisis/revert evidence recorded"
 echo "  branch:           simulation/crisis-revert"
 echo "  regression SHA:   $CRISIS_SHA"
 echo "  revert SHA:       $REVERT_SHA"
