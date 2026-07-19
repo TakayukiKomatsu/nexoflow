@@ -20,3 +20,4 @@ test-results/
 .codex-team-sdd-phase-*.json
 LOOP_STATE.md
 **/license-report.json
+.worktrees/
