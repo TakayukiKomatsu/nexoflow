@@ -372,6 +372,19 @@ public class ApiSteps {
         }
     }
 
+    @When("the OPERATOR attempts the last quote with idempotency key {string} and correlation {string}")
+    public void operatorAttemptsSettlement(String key, String correlationId) {
+        state.currentIdempotencyKey = key;
+        String body = "{\"quoteIds\":[\"" + state.lastQuoteId + "\"]}";
+        sendWithIdempotencyAndCorrelation(
+                HttpMethod.POST,
+                "/api/v1/settlements",
+                body,
+                state.operatorToken,
+                key,
+                correlationId);
+    }
+
     @And("the OPERATOR settles both quotes with idempotency key {string}")
     public void operatorSettleBothQuotes(String key) {
         state.currentIdempotencyKey = key;
@@ -549,6 +562,15 @@ public class ApiSteps {
         }
         assertThat(state.lastBody)
                 .doesNotContain("database-password", "must-not-leak", "synthetic-query-secret");
+    }
+
+    @And("operational logs contain correlation {string}")
+    public void assertOperationalLogsContainCorrelation(String correlationId) {
+        assertThat(logCapture.events().stream()
+                .filter(event -> "HTTP_REQUEST_COMPLETED".equals(event.getFormattedMessage()))
+                .flatMap(event -> event.getKeyValuePairs().stream())
+                .anyMatch(pair -> "correlation_id".equals(pair.key) && correlationId.equals(pair.value)))
+                .isTrue();
     }
 
     // ─── Response assertions ──────────────────────────────────────────────────────
@@ -734,6 +756,22 @@ public class ApiSteps {
         assertBoundedMetricLabels(metric, "result", allowedValues);
     }
 
+    @And("the metrics contain {string} with labels currency {string} and result {string}")
+    public void assertMetricLabels(String metric, String currency, String result) {
+        Pattern seriesPattern =
+                Pattern.compile("(?m)^" + Pattern.quote(metric) + "\\{([^}]*)\\}.*$");
+        Matcher series = seriesPattern.matcher(state.lastBody);
+        while (series.find()) {
+            String labels = series.group(1);
+            if (labels.contains("currency=\"" + currency + "\"")
+                    && labels.contains("result=\"" + result + "\"")) {
+                return;
+            }
+        }
+        throw new AssertionError(
+                "Missing " + metric + " series with currency=" + currency + " and result=" + result);
+    }
+
     @And("the metrics do not contain raw user input labels")
     public void assertNoRawUserInputLabels() {
         assertThat(state.lastBody)
@@ -766,7 +804,17 @@ public class ApiSteps {
             String body,
             String token,
             String idempotencyKey) {
-        HttpAttempt response = request(method, path, body, token, idempotencyKey);
+        sendWithIdempotencyAndCorrelation(method, path, body, token, idempotencyKey, null);
+    }
+
+    private void sendWithIdempotencyAndCorrelation(
+            HttpMethod method,
+            String path,
+            String body,
+            String token,
+            String idempotencyKey,
+            String correlationId) {
+        HttpAttempt response = request(method, path, body, token, idempotencyKey, correlationId);
         state.lastStatus = response.status();
         state.lastBody = response.body();
         state.lastHeaders.clear();
@@ -778,7 +826,7 @@ public class ApiSteps {
                         && endpoint.path().contains("/settlements")
                 ? "role-matrix-idempotency-key"
                 : null;
-        return request(endpoint.method(), endpoint.path(), endpoint.body(), token, key);
+        return request(endpoint.method(), endpoint.path(), endpoint.body(), token, key, null);
     }
 
     private HttpAttempt request(
@@ -787,6 +835,16 @@ public class ApiSteps {
             String body,
             String token,
             String idempotencyKey) {
+        return request(method, path, body, token, idempotencyKey, null);
+    }
+
+    private HttpAttempt request(
+            HttpMethod method,
+            String path,
+            String body,
+            String token,
+            String idempotencyKey,
+            String correlationId) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         if (token != null) {
@@ -794,6 +852,9 @@ public class ApiSteps {
         }
         if (idempotencyKey != null) {
             headers.set("Idempotency-Key", idempotencyKey);
+        }
+        if (correlationId != null) {
+            headers.set("X-Correlation-ID", correlationId);
         }
         ResponseEntity<String> response =
                 rest.exchange(path, method, new HttpEntity<>(body, headers), String.class);

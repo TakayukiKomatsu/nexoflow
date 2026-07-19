@@ -13,6 +13,7 @@ import com.srm.creditengine.settlement.application.AlreadyReversedException;
 import com.srm.creditengine.settlement.application.AlreadySettledException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
 import com.srm.creditengine.shared.api.DecimalString;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -33,6 +34,9 @@ import org.springframework.web.bind.annotation.RestController;
 class ApiErrorContractTest {
     @Autowired
     private MockMvc mockMvc;
+    @Autowired
+    private MeterRegistry meterRegistry;
+
 
     @Test
     void missingRequiredInputUsesProblemDetailsAndCorrelationId() throws Exception {
@@ -115,6 +119,19 @@ class ApiErrorContractTest {
     }
 
     @Test
+    void alreadySettledRecordsConflictWithSettlementCurrency() throws Exception {
+        mockMvc.perform(get("/api/v1/runtime/currency-errors/already-settled-brl"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ALREADY_SETTLED"));
+
+        org.assertj.core.api.Assertions.assertThat(
+                        meterRegistry.find("srm_settlement_outcomes_total")
+                                .tags("currency", "BRL", "result", "CONFLICT")
+                                .counter())
+                .isNotNull();
+    }
+
+    @Test
     void alreadyReversedRemainsADistinctConflict() throws Exception {
         assertConflict("/api/v1/runtime/currency-errors/already-reversed", "ALREADY_REVERSED");
     }
@@ -188,6 +205,11 @@ class ApiErrorContractTest {
         @GetMapping("/already-settled")
         void alreadySettled() {
             throw new AlreadySettledException();
+        }
+
+        @GetMapping("/already-settled-brl")
+        void alreadySettledBrl() {
+            throw new AlreadySettledException("BRL");
         }
 
         @GetMapping("/already-reversed")

@@ -82,7 +82,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(AlreadySettledException.class)
     ProblemDetail alreadySettled(AlreadySettledException exception, HttpServletRequest request) {
-        telemetry.settlement("UNKNOWN", "conflict");
+        telemetry.settlement(exception.settlementCurrency(), "conflict");
         operationalLogger.financialConflict();
         return problem(HttpStatus.CONFLICT, "ALREADY_SETTLED", exception.getMessage(), request);
     }

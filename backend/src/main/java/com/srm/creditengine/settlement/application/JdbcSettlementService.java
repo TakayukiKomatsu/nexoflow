@@ -53,7 +53,7 @@ class JdbcSettlementService implements SettlementService {
             Quote quote = quotes.get(index);
             int updatedQuote = jdbc.update("update pricing_quotes set status='CONSUMED' where id=? and status='ACTIVE'", quote.id);
             int updatedReceivable = jdbc.update("update receivables set status='SETTLED', version=version+1 where id=? and status='REGISTERED' and version=?", quote.receivableId, quote.receivableVersion);
-            if (updatedQuote != 1 || updatedReceivable != 1) throw new AlreadySettledException();
+            if (updatedQuote != 1 || updatedReceivable != 1) throw new AlreadySettledException(quote.currency);
             jdbc.update("insert into settlement_items (id,settlement_id,quote_id,receivable_id,item_position,settlement_amount,asset_currency_code,product_type_code) values (?,?,?,?,?,?,?,?)",
                     UUID.randomUUID(), settlementId, quote.id, quote.receivableId, index + 1, quote.amount, quote.assetCurrency, quote.productType);
         }
@@ -131,9 +131,9 @@ class JdbcSettlementService implements SettlementService {
         Instant now = clock.instant();
         for (UUID id : ids) {
             Quote q = byId.get(id);
-            if ("CONSUMED".equals(q.quoteStatus)) throw new AlreadySettledException();
+            if ("CONSUMED".equals(q.quoteStatus)) throw new AlreadySettledException(q.currency);
             if (!"ACTIVE".equals(q.quoteStatus) || !now.isBefore(q.expiresAt)) throw new PricingQuoteExpiredException();
-            if (!"REGISTERED".equals(q.receivableStatus)) throw new AlreadySettledException();
+            if (!"REGISTERED".equals(q.receivableStatus)) throw new AlreadySettledException(q.currency);
             ordered.add(q);
         }
         Quote first = ordered.getFirst();

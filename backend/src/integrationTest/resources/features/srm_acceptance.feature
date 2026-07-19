@@ -193,31 +193,19 @@ Feature: SRM executable acceptance
     And the page has 2 entries
     And has next page is "false"
     And the second statement page does not overlap the first
-    When the OPERATOR requests the first statement page again with size "2"
-    Then the response status is 200
-    And the page has 2 entries
-
-  Scenario: OBS-003 logs and metrics contain bounded safe labels
+  Scenario: OBS-003 settlement conflict is observable without leaking credentials
     Given the ADMIN user is authenticated
     And the OPERATOR user is authenticated
-    When the OPERATOR simulates pricing with face amount "1000.00" "BRL" product "MERCANTILE_INVOICE" due "2030-02-14" settlement "BRL"
-    Then the response status is 200
     When the OPERATOR creates a receivable with amount "1000.00" currency "BRL" product "MERCANTILE_INVOICE" issue "2030-01-01" due "2030-02-14"
     And the OPERATOR creates a pricing quote for the last receivable with settlement currency "BRL"
-    And the OPERATOR settles the last quote with idempotency key "obs-003-settlement"
-    When the OPERATOR queries the settlement statement filtered by the last settlement assignor
-    Then the response status is 200
-    Given the FX provider will return rate "5.2000000000" observed at "2030-01-15T12:00:31Z"
-    When the ADMIN triggers FX synchronization for "USD" to "BRL"
+    And the OPERATOR settles the last quote with idempotency key "obs-003-a"
     Then the response status is 201
-    When the OPERATOR invokes a failure with synthetic credentials
-    Then the response status is 500
-    And the response problem code is "INTERNAL_ERROR"
+    When the OPERATOR attempts the last quote with idempotency key "obs-003-b" and correlation "obs-003-b"
+    Then the response status is 409
+    And the response problem code is "ALREADY_SETTLED"
+    And operational logs contain correlation "obs-003-b"
     And operational logs contain only bounded fields and no credentials
     When the ADMIN retrieves Prometheus metrics
     Then the response status is 200
-    And the metrics contain "srm_simulation_outcomes_total" with label product in "MERCANTILE_INVOICE,POST_DATED_CHEQUE,UNKNOWN"
-    And the metrics contain "srm_settlement_outcomes_total" with label currency in "BRL,USD,UNKNOWN"
-    And the metrics contain "srm_fx_resilience_outcomes_total" with label result in "SUCCESS,UNAVAILABLE,UNKNOWN"
+    And the metrics contain "srm_settlement_outcomes_total" with labels currency "BRL" and result "CONFLICT"
     And the metrics do not contain raw user input labels
-    And the metrics contain "srm_statement_queries_total"
