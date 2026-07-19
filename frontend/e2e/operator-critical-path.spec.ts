@@ -52,7 +52,9 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
     name: "Server simulation",
   });
   // The same-currency fixture must display the exact server-calculated amount.
-  const simulationSettlementAmount = simulationSection.locator("output").first();
+  const simulationSettlementAmount = simulationSection
+    .locator("output")
+    .first();
   await expect(simulationSettlementAmount).toHaveText("975.61");
   await expect(simulationSection.getByText("Base rate")).toBeVisible();
   await expect(simulationSection.getByText("Strategy")).toBeVisible();
