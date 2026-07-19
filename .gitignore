@@ -16,3 +16,7 @@
 coverage/
 playwright-report/
 test-results/
+.codex-team/
+.codex-team-sdd-phase-*.json
+LOOP_STATE.md
+**/license-report.json
