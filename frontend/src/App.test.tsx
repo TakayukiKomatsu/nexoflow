@@ -38,6 +38,25 @@ const simulation = (amount: string) => ({
   pricedAt: "2030-01-15T12:00:00Z",
 });
 
+const pricing = (amount: string) => ({
+  faceAmount: "1000.00",
+  faceCurrency: "BRL",
+  settlementCurrency: "BRL",
+  baseRate: "0.010",
+  spread: "0.015",
+  strategyCode: "INVOICE",
+  dayCountConvention: "ACTUAL_DAYS_30_MONTH",
+  termInMonths: "1.0000000000",
+  discountedAmount: amount,
+  fxBaseCurrency: "BRL",
+  fxQuoteCurrency: "BRL",
+  fxRate: "1",
+  fxSource: "IDENTITY",
+  fxObservedAt: "2030-01-15T12:00:00Z",
+  settlementAmount: amount,
+  pricedAt: "2030-01-15T12:00:00Z",
+});
+
 function response(body: unknown, status = 200) {
   return Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -71,7 +90,9 @@ function deferred<T>() {
 const quote = {
   id: "quote-1",
   receivableId: "receivable-1",
-  pricing: simulation("966.18"),
+  productType: "MERCANTILE_INVOICE",
+  dueDate: "2030-02-14",
+  pricing: pricing("966.18"),
   expiresAt: "2030-01-15T12:05:00Z",
   status: "ACTIVE",
 };
@@ -459,6 +480,45 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+  });
+
+  it("wire-shape regression: renders quote metadata from top-level fields", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith("/auth/login"))
+        return response({ accessToken: "token", expiresIn: 900 });
+      if (url.endsWith("/users/me"))
+        return response({ email: "operator@srm.local", roles: ["OPERATOR"] });
+      if (url.endsWith("/pricing-simulations"))
+        return response(simulation("975.61"));
+      if (url.endsWith("/receivables")) return response({ id: "receivable-1" });
+      if (url.endsWith("/pricing-quotes")) return response(quote);
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    stubFetch(fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.change(screen.getByLabelText(/Assignor ID/), {
+      target: { value: ASSIGNOR_A },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Register receivable" }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create quote" }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const article = screen
+      .getByRole("heading", { name: "Quote quote-1" })
+      .closest("article")!;
+    expect(article).toHaveTextContent("Product type");
+    expect(article).toHaveTextContent("MERCANTILE_INVOICE");
+    expect(article).toHaveTextContent("Due date");
+    expect(article).toHaveTextContent("2030-02-14");
   });
 
   it("renders a complete quote breakdown with explicit expiry and status", async () => {

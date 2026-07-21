@@ -26,10 +26,14 @@ export type PricingSimulation = PricingSimulationRequest & {
   settlementAmount: string;
   pricedAt: string;
 };
+export type PricingBreakdown = Omit<PricingSimulation, "productType" | "dueDate">;
+
 export type PricingQuote = {
   id: string;
   receivableId: string;
-  pricing: PricingSimulation;
+  productType: string;
+  dueDate: string;
+  pricing: PricingBreakdown;
   expiresAt: string;
   status: string;
 };

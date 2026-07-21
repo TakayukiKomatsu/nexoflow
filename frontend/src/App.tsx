@@ -659,11 +659,11 @@ function Workflow({
                 <dl>
                   <div>
                     <dt>Product type</dt>
-                    <dd>{quote.pricing.productType}</dd>
+                    <dd>{quote.productType}</dd>
                   </div>
                   <div>
                     <dt>Due date</dt>
-                    <dd>{quote.pricing.dueDate}</dd>
+                    <dd>{quote.dueDate}</dd>
                   </div>
                   <div>
                     <dt>Face amount</dt>
