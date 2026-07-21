@@ -17,7 +17,7 @@ class PricingController {
     private final PricingService pricing; private final ActorContext actors;
     PricingController(PricingService pricing, ActorContext actors) { this.pricing=pricing; this.actors=actors; }
     @PostMapping("/api/v1/pricing-simulations")
-    Response simulate(@Valid @RequestBody SimulationRequest request) { return Response.from(pricing.simulate(new PricingService.Input(request.faceAmount().value(),request.faceCurrency(),request.productType(),request.dueDate(),request.settlementCurrency()))); }
+    PricingBreakdownResponse simulate(@Valid @RequestBody SimulationRequest request) { return PricingBreakdownResponse.from(pricing.simulate(new PricingService.Input(request.faceAmount().value(),request.faceCurrency(),request.productType(),request.dueDate(),request.settlementCurrency()))); }
     @PostMapping("/api/v1/pricing-quotes") @ResponseStatus(HttpStatus.CREATED)
     QuoteResponse quote(@Valid @RequestBody QuoteRequest request) { return QuoteResponse.from(pricing.createQuote(request.receivableId(),request.settlementCurrency(),actors.currentActor().email())); }
     @GetMapping("/api/v1/pricing-quotes/{id}")
@@ -31,17 +31,35 @@ class PricingController {
         }
     }
     record QuoteRequest(@NotNull UUID receivableId, @NotBlank String settlementCurrency) {}
-    record Response(String faceAmount, String faceCurrency, String settlementCurrency, String baseRate, String spread, String strategyCode, String dayCountConvention, String termInMonths, String discountedAmount, String fxBaseCurrency, String fxQuoteCurrency, String fxRate, String fxSource, Instant fxObservedAt, String settlementAmount, Instant pricedAt) {
-        static Response from(PricingService.Breakdown b) { return new Response(decimal(b.faceAmount()),b.faceCurrency(),b.settlementCurrency(),decimal(b.baseRate()),decimal(b.spread()),b.strategyCode(),b.dayCountConvention(),decimal(b.termInMonths()),decimal(b.discountedAmount()),b.fxBaseCurrency(),b.fxQuoteCurrency(),decimal(b.fxRate()),b.fxSource(),b.fxObservedAt(),decimal(b.settlementAmount()),b.pricedAt()); }
+    record PricingBreakdownResponse(String faceAmount, String faceCurrency, String settlementCurrency, String baseRate, String spread, String strategyCode, String dayCountConvention, String termInMonths, String discountedAmount, String fxBaseCurrency, String fxQuoteCurrency, String fxRate, String fxSource, Instant fxObservedAt, String settlementAmount, Instant pricedAt) {
+        static PricingBreakdownResponse from(PricingService.Breakdown breakdown) {
+            return new PricingBreakdownResponse(
+                    decimal(breakdown.faceAmount()),
+                    breakdown.faceCurrency(),
+                    breakdown.settlementCurrency(),
+                    decimal(breakdown.baseRate()),
+                    decimal(breakdown.spread()),
+                    breakdown.strategyCode(),
+                    breakdown.dayCountConvention(),
+                    decimal(breakdown.termInMonths()),
+                    decimal(breakdown.discountedAmount()),
+                    breakdown.fxBaseCurrency(),
+                    breakdown.fxQuoteCurrency(),
+                    decimal(breakdown.fxRate()),
+                    breakdown.fxSource(),
+                    breakdown.fxObservedAt(),
+                    decimal(breakdown.settlementAmount()),
+                    breakdown.pricedAt());
+        }
     }
-    record QuoteResponse(UUID id, UUID receivableId, String productType, LocalDate dueDate, Response pricing, Instant expiresAt, String status, String createdBy) {
+    record QuoteResponse(UUID id, UUID receivableId, String productType, LocalDate dueDate, PricingBreakdownResponse pricing, Instant expiresAt, String status, String createdBy) {
         static QuoteResponse from(PricingService.Quote quote) {
             return new QuoteResponse(
                     quote.id(),
                     quote.receivableId(),
                     quote.productType(),
                     quote.dueDate(),
-                    Response.from(quote.breakdown()),
+                    PricingBreakdownResponse.from(quote.breakdown()),
                     quote.expiresAt(),
                     quote.status(),
                     quote.createdBy());

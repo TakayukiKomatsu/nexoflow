@@ -65,6 +65,7 @@ class RuntimeMetadataContractTest {
                 .andExpect(jsonPath("$.status").value("UP"));
     }
 
+
     @Test
     void oneFxProviderUrlDrivesTheAdapterAndBoundedReadinessHealth() throws Exception {
         providerRequests.clear();
