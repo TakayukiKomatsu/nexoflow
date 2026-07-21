@@ -38,6 +38,36 @@ const simulation = (amount: string) => ({
   pricedAt: "2030-01-15T12:00:00Z",
 });
 
+const crossCurrencySimulation = {
+  ...simulation("193.24"),
+  faceCurrency: "BRL",
+  settlementCurrency: "USD",
+  fxBaseCurrency: "BRL",
+  fxQuoteCurrency: "USD",
+  fxRate: "0.2000000000",
+  fxSource: "MANUAL",
+  settlementAmount: "193.24",
+};
+
+const pricing = (amount: string) => ({
+  faceAmount: "1000.00",
+  faceCurrency: "BRL",
+  settlementCurrency: "BRL",
+  baseRate: "0.010",
+  spread: "0.015",
+  strategyCode: "INVOICE",
+  dayCountConvention: "ACTUAL_DAYS_30_MONTH",
+  termInMonths: "1.0000000000",
+  discountedAmount: amount,
+  fxBaseCurrency: "BRL",
+  fxQuoteCurrency: "BRL",
+  fxRate: "1",
+  fxSource: "IDENTITY",
+  fxObservedAt: "2030-01-15T12:00:00Z",
+  settlementAmount: amount,
+  pricedAt: "2030-01-15T12:00:00Z",
+});
+
 function response(body: unknown, status = 200) {
   return Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -46,6 +76,11 @@ function response(body: unknown, status = 200) {
     }),
   );
 }
+
+const staleFx = response(
+  { status: 409, code: "FX_RATE_STALE", detail: "Selected FX rate is stale." },
+  409,
+);
 
 function stubFetch(fetchMock: Mock) {
   vi.stubGlobal(
@@ -71,7 +106,9 @@ function deferred<T>() {
 const quote = {
   id: "quote-1",
   receivableId: "receivable-1",
-  pricing: simulation("966.18"),
+  productType: "MERCANTILE_INVOICE",
+  dueDate: "2030-02-14",
+  pricing: pricing("966.18"),
   expiresAt: "2030-01-15T12:05:00Z",
   status: "ACTIVE",
 };
@@ -139,6 +176,36 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
           String(url).includes("settlements"),
       ),
     ).toBe(false);
+  });
+
+  it("renders server-provided cross-currency FX metadata", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        response({ accessToken: "token", expiresIn: 900 }),
+      )
+      .mockImplementationOnce(() =>
+        response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+      )
+      .mockImplementationOnce(() => response(crossCurrencySimulation));
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+
+    fireEvent.change(screen.getByLabelText("Product"), {
+      target: { value: "POST_DATED_CHEQUE" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIMULATION_DEBOUNCE_MS);
+    });
+
+    const simulationRegion = screen
+      .getByRole("heading", { name: "Server simulation" })
+      .closest("section");
+    expect(simulationRegion).not.toBeNull();
+    expect(simulationRegion!).toHaveTextContent("BRL/USD");
+    expect(simulationRegion!).toHaveTextContent("0.2000000000");
+    expect(simulationRegion!).toHaveTextContent("MANUAL");
   });
 
   it("never lets an old response overwrite the newest result", async () => {
@@ -313,6 +380,36 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     );
   });
 
+  it("renders a stale FX server detail in the focused alert", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        response({ accessToken: "token", expiresIn: 900 }),
+      )
+      .mockImplementationOnce(() =>
+        response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+      )
+      .mockImplementationOnce(() => response(simulation("193.24")))
+      .mockImplementationOnce(() => staleFx);
+    stubFetch(fetchMock);
+
+    render(<App />);
+    await signIn();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIMULATION_DEBOUNCE_MS);
+    });
+    fireEvent.change(screen.getByLabelText("Product"), {
+      target: { value: "POST_DATED_CHEQUE" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIMULATION_DEBOUNCE_MS);
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Selected FX rate is stale.");
+    expect(alert).toHaveFocus();
+  });
+
   it("invalidates a registered receivable when any authoritative input changes", async () => {
     let receivableNumber = 0;
     const fetchMock = vi.fn((url: string) => {
@@ -459,6 +556,47 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
+  });
+
+  it("wire-shape regression: renders quote metadata from top-level fields", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith("/auth/login"))
+        return response({ accessToken: "token", expiresIn: 900 });
+      if (url.endsWith("/users/me"))
+        return response({ email: "operator@srm.local", roles: ["OPERATOR"] });
+      if (url.endsWith("/pricing-simulations"))
+        return response(simulation("975.61"));
+      if (url.endsWith("/receivables")) return response({ id: "receivable-1" });
+      if (url.endsWith("/pricing-quotes")) return response(quote);
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    stubFetch(fetchMock);
+
+    render(<App />);
+    await signIn();
+    fireEvent.change(screen.getByLabelText(/Assignor ID/), {
+      target: { value: ASSIGNOR_A },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register receivable" }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create quote" }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const article = screen
+      .getByRole("heading", { name: "Quote quote-1" })
+      .closest("article")!;
+    expect(article).toHaveTextContent("Product type");
+    expect(article).toHaveTextContent("MERCANTILE_INVOICE");
+    expect(article).toHaveTextContent("Due date");
+    expect(article).toHaveTextContent("2030-02-14");
   });
 
   it("renders a complete quote breakdown with explicit expiry and status", async () => {
@@ -742,7 +880,9 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     expect(failure).toHaveFocus();
   });
   it("shows a generic login failure when the transport does not return a problem", async () => {
-    stubFetch(vi.fn(() => Promise.reject(new TypeError("Network unavailable"))));
+    stubFetch(
+      vi.fn(() => Promise.reject(new TypeError("Network unavailable"))),
+    );
     render(<App />);
 
     fireEvent.change(screen.getByLabelText("Password"), {
@@ -766,9 +906,7 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
       .mockImplementationOnce(() =>
         response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
       )
-      .mockImplementationOnce(() =>
-        response({ detail: "Expired." }, 401),
-      );
+      .mockImplementationOnce(() => response({ detail: "Expired." }, 401));
     stubFetch(fetchMock);
     render(<App />);
     await signIn();
@@ -858,9 +996,7 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     );
     vi.stubGlobal(
       "fetch",
-      vi.fn(() =>
-        response({ entries: [], page: 0, size: 50, hasNext: false }),
-      ),
+      vi.fn(() => response({ entries: [], page: 0, size: 50, hasNext: false })),
     );
     render(<App />);
 
@@ -1005,12 +1141,13 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
       .mockImplementationOnce(() =>
         response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
       )
-      .mockImplementationOnce((_url: string, init?: RequestInit) =>
-        new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () =>
-            reject(new DOMException("Aborted", "AbortError")),
-          );
-        }),
+      .mockImplementationOnce(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            );
+          }),
       );
     stubFetch(fetchMock);
     render(<App />);

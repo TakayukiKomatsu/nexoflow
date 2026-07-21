@@ -4,3 +4,5 @@ node_modules/
 license-report.json
 playwright-report/
 test-results/
+
+coverage/

@@ -274,6 +274,7 @@ function Workflow({
           onExpired();
           return;
         }
+        setFocusAlert(true);
         setState("error");
         setFeedback({
           text:
@@ -638,6 +639,16 @@ function Workflow({
                   <dd>{simulation.fxRate}</dd>
                 </div>
                 <div>
+                  <dt>FX pair</dt>
+                  <dd>
+                    {simulation.fxBaseCurrency}/{simulation.fxQuoteCurrency}
+                  </dd>
+                </div>
+                <div>
+                  <dt>FX source</dt>
+                  <dd>{simulation.fxSource}</dd>
+                </div>
+                <div>
                   <dt>Strategy</dt>
                   <dd>{simulation.strategyCode}</dd>
                 </div>
@@ -659,11 +670,11 @@ function Workflow({
                 <dl>
                   <div>
                     <dt>Product type</dt>
-                    <dd>{quote.pricing.productType}</dd>
+                    <dd>{quote.productType}</dd>
                   </div>
                   <div>
                     <dt>Due date</dt>
-                    <dd>{quote.pricing.dueDate}</dd>
+                    <dd>{quote.dueDate}</dd>
                   </div>
                   <div>
                     <dt>Face amount</dt>

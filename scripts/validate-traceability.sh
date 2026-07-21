@@ -23,24 +23,43 @@ done < <(
 [[ "${#scenario_ids[@]}" -gt 0 ]] \
   || { echo "TRACE-001 FAILED: no stable Scenario IDs were parsed from docs/sdd" >&2; exit 1; }
 
+# Supplemental documentation and contract checks are stable traceability IDs even
+# though they are not declared as Gherkin scenarios.
+required_check_ids=(
+  DOC-LINK-001 DOC-SCHEMA-002 DOC-TRACE-003 DOC-MONEY-004 DOC-CLAIM-005
+  AUTHORITY-001 API-CONTRACT-001
+)
+check_ids=("${scenario_ids[@]}" "${required_check_ids[@]}")
+
 failures=()
 
-for id in "${scenario_ids[@]}"; do
-  row="$(
+for id in "${check_ids[@]}"; do
+  row_count="$(
     awk -F '|' -v id="$id" '
       {
         cell = $2
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", cell)
         if (cell == id) {
-          print
-          exit
+          count++
+          if (count == 1) row = $0
         }
+      }
+      END {
+        print count
+        if (count == 1) print row
       }
     ' "$traceability"
   )"
+  count="${row_count%%$'\n'*}"
+  row="${row_count#*$'\n'}"
 
-  if [[ -z "$row" ]]; then
+  if [[ "$count" -eq 0 ]]; then
     failures+=("$id: no exact scenario row")
+    continue
+  fi
+
+  if [[ "$count" -ne 1 ]]; then
+    failures+=("$id: expected exactly one traceability row, found $count")
     continue
   fi
 
@@ -59,8 +78,7 @@ for id in "${scenario_ids[@]}"; do
     fi
   done < <(
     printf '%s\n' "$row" \
-      | grep -oE '`[^`]+\.(java|feature|sh|ts|tsx|yml|yaml|md)`' \
-      || true
+      | grep -oE '`[^`]+\.(java|feature|sh|mjs|ts|tsx|yml|yaml|md)`' \
   )
 
   if [[ "$artifact_found" != true ]]; then
@@ -78,9 +96,9 @@ for id in "${scenario_ids[@]}"; do
 done
 
 if [[ "${#failures[@]}" -gt 0 ]]; then
-  echo "TRACE-001 FAILED: incomplete SDD scenario traceability:" >&2
+  echo "TRACE-001 FAILED: incomplete SDD scenario or supplemental-check traceability:" >&2
   printf '  %s\n' "${failures[@]}" >&2
   exit 1
 fi
 
-echo "TRACE-001 passed: all ${#scenario_ids[@]} SDD Scenario IDs resolve to executable artifacts and commands"
+echo "TRACE-001 passed: all ${#scenario_ids[@]} SDD Scenario IDs and ${#required_check_ids[@]} supplemental IDs resolve to executable artifacts and commands"

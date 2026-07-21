@@ -90,26 +90,26 @@ describe("API client error contract", () => {
   });
 });
 
-  it("returns a session after loading the authenticated actor profile", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(() =>
-        jsonResponse({ accessToken: "token", expiresIn: 900 }),
-      )
-      .mockImplementationOnce(() =>
-        jsonResponse({ email: "operator@srm.local", roles: ["OPERATOR"] }),
-      );
-    vi.stubGlobal("fetch", fetchMock);
+it("returns a session after loading the authenticated actor profile", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockImplementationOnce(() =>
+      jsonResponse({ accessToken: "token", expiresIn: 900 }),
+    )
+    .mockImplementationOnce(() =>
+      jsonResponse({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+    );
+  vi.stubGlobal("fetch", fetchMock);
 
-    await expect(
-      api.login({ email: "operator@srm.local", password: "correct-password" }),
-    ).resolves.toEqual({
-      accessToken: "token",
-      expiresAt: expect.any(Number),
-      email: "operator@srm.local",
-      roles: ["OPERATOR"],
-    });
+  await expect(
+    api.login({ email: "operator@srm.local", password: "correct-password" }),
+  ).resolves.toEqual({
+    accessToken: "token",
+    expiresAt: expect.any(Number),
+    email: "operator@srm.local",
+    roles: ["OPERATOR"],
   });
+});
 
 describe("API client cancellation contract", () => {
   it.each([

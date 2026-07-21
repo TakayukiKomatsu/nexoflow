@@ -789,7 +789,11 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     );
 
     render(
-      <SettlementWorkspace session={session} quotes={[quote]} onExpired={vi.fn()} />,
+      <SettlementWorkspace
+        session={session}
+        quotes={[quote]}
+        onExpired={vi.fn()}
+      />,
     );
 
     expect(screen.getByRole("checkbox")).not.toBeChecked();
@@ -880,9 +884,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     fireEvent.change(screen.getByLabelText("Page size"), {
       target: { value: "100" },
     });
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Previous" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Previous" }));
     fireEvent.click(await screen.findByRole("button", { name: "Next" }));
 
     expect(window.location.search).toContain("assignorId=assignor-1");
@@ -963,7 +965,11 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       }),
     );
     render(
-      <SettlementWorkspace session={session} quotes={[quote]} onExpired={vi.fn()} />,
+      <SettlementWorkspace
+        session={session}
+        quotes={[quote]}
+        onExpired={vi.fn()}
+      />,
     );
 
     fireEvent.click(screen.getByRole("checkbox"));
@@ -994,15 +1000,23 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       }),
     );
     render(
-      <SettlementWorkspace session={session} quotes={[quote]} onExpired={vi.fn()} />,
+      <SettlementWorkspace
+        session={session}
+        quotes={[quote]}
+        onExpired={vi.fn()}
+      />,
     );
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Request server preview" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Request server preview" }),
+    );
     await screen.findByRole("button", { name: "Confirm settlement" });
     fireEvent.click(screen.getByRole("button", { name: "Confirm settlement" }));
     await screen.findByText(/Retry uses the same settlement intent/);
 
-    expect(localStorage.getItem("srm-settlement-intent")).toContain("settlement-");
+    expect(localStorage.getItem("srm-settlement-intent")).toContain(
+      "settlement-",
+    );
   });
 
   it("clears the preview expiry timer on unmount", async () => {
@@ -1017,10 +1031,16 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       }),
     );
     const view = render(
-      <SettlementWorkspace session={session} quotes={[quote]} onExpired={vi.fn()} />,
+      <SettlementWorkspace
+        session={session}
+        quotes={[quote]}
+        onExpired={vi.fn()}
+      />,
     );
     fireEvent.click(screen.getByRole("checkbox"));
-    fireEvent.click(screen.getByRole("button", { name: "Request server preview" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Request server preview" }),
+    );
     await screen.findByRole("button", { name: "Confirm settlement" });
     view.unmount();
 
@@ -1032,17 +1052,25 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
-        if (url.includes("/settlements/detail-403")) return problem("DETAIL_DENIED", 403);
+        if (url.includes("/settlements/detail-403"))
+          return problem("DETAIL_DENIED", 403);
         throw new Error(`Unexpected ${url}`);
       }),
     );
     window.history.replaceState(null, "", "/#settlement-detail-403");
     render(
-      <SettlementWorkspace session={session} quotes={[]} onExpired={onExpired} showLedger={false} />,
+      <SettlementWorkspace
+        session={session}
+        quotes={[]}
+        onExpired={onExpired}
+        showLedger={false}
+      />,
     );
 
     expect(
-      await screen.findByText("Your role is not allowed to perform this action."),
+      await screen.findByText(
+        "Your role is not allowed to perform this action.",
+      ),
     ).toBeInTheDocument();
     expect(onExpired).not.toHaveBeenCalled();
   });
@@ -1052,12 +1080,17 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
-        if (url.includes("settlement-statements")) return problem("LEDGER_DENIED", 401);
+        if (url.includes("settlement-statements"))
+          return problem("LEDGER_DENIED", 401);
         throw new Error(`Unexpected ${url}`);
       }),
     );
     render(
-      <SettlementWorkspace session={session} quotes={[]} onExpired={onExpired} />,
+      <SettlementWorkspace
+        session={session}
+        quotes={[]}
+        onExpired={onExpired}
+      />,
     );
 
     expect(

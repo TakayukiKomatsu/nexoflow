@@ -1,5 +1,6 @@
 package com.srm.creditengine.pricing.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import com.srm.creditengine.identity.application.ActorContext;
 import com.srm.creditengine.pricing.application.PricingService;
 import com.srm.creditengine.shared.api.DecimalString;
@@ -31,6 +32,7 @@ class PricingController {
         }
     }
     record QuoteRequest(@NotNull UUID receivableId, @NotBlank String settlementCurrency) {}
+    @Schema(name = "PricingBreakdownResponse")
     record PricingBreakdownResponse(String faceAmount, String faceCurrency, String settlementCurrency, String baseRate, String spread, String strategyCode, String dayCountConvention, String termInMonths, String discountedAmount, String fxBaseCurrency, String fxQuoteCurrency, String fxRate, String fxSource, Instant fxObservedAt, String settlementAmount, Instant pricedAt) {
         static PricingBreakdownResponse from(PricingService.Breakdown breakdown) {
             return new PricingBreakdownResponse(

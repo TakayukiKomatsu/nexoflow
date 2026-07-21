@@ -16,7 +16,9 @@
     "format:check": "prettier --check .",
     "format": "prettier --write .",
     "license:check": "license-checker-rseidelsohn --production --excludePrivatePackages --json --out license-report.json && node ../scripts/check-frontend-licenses.mjs license-report.json config/allowed-licenses.json",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "validate:authoritative-pricing": "node scripts/validate-authoritative-pricing.mjs",
+    "validate:pricing-quote-contract": "node scripts/validate-pricing-quote-contract.mjs"
   },
   "dependencies": {
     "react": "^19.2.7",
