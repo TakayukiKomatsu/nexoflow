@@ -1,8 +1,9 @@
 # Task 5 evidence report
 
-## Implementation commit
+## Implementation commits
 
-`48e8740d35b5c4e9115ba12e8d24e8b58a7a0756` — `docs: reconcile plan evidence with executable checks`
+- `48e8740d35b5c4e9115ba12e8d24e8b58a7a0756` — `docs: reconcile plan evidence with executable checks`
+- `d76939ef03d1a740ced676d470379c218859de7b` — `docs: align documentation check evidence`
 
 ## Modified implementation paths
 
