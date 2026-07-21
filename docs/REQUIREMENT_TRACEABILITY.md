@@ -53,7 +53,7 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | DOC-LINK-001 | **Implemented** | `docs/sdd/11_sdd_staff-artifacts-and-reviewer-documentation.md`; `scripts/tests/test_architecture_docs.sh` | `make validate-docs`; rendered local-link and Mermaid checks |
 | DOC-SCHEMA-002 | **Implemented** | `docs/sdd/11_sdd_staff-artifacts-and-reviewer-documentation.md`; `scripts/tests/test_architecture_docs.sh` | `make validate-docs`; migration-to-ER and OpenAPI checks |
 | DOC-TRACE-003 | **Implemented** | `scripts/validate-traceability.sh` | `make validate-traceability`; traceability path and command resolver |
-| DOC-MONEY-004 | **Implemented** | `docs/sdd/11_sdd_staff-artifacts-and-reviewer-documentation.md`; `backend/src/test/java/com/srm/creditengine/pricing/application/PricingExactVectorTest.java` | `make test-unit`; exact decimal `975.61` vector assertions |
+| DOC-MONEY-004 | **Implemented** | `docs/sdd/11_sdd_staff-artifacts-and-reviewer-documentation.md`; `backend/src/test/java/com/srm/creditengine/pricing/application/PricingExactVectorTest.java` | `make validate-docs && make test-unit`; documentation gate plus exact decimal `975.61` vector assertions |
 | DOC-CLAIM-005 | **Implemented** | `docs/sdd/11_sdd_staff-artifacts-and-reviewer-documentation.md`; `scripts/validate-docs.sh` | `make validate-docs`; forbidden-claim scan |
 | AUTHORITY-001 | **Implemented** | `frontend/scripts/validate-authoritative-pricing.mjs` | `make validate-frontend-authority`; browser-side financial-arithmetic guard |
 | API-CONTRACT-001 | **Implemented** | `frontend/scripts/validate-pricing-quote-contract.mjs` | `make validate-frontend-api-contract`; frontend quote/OpenAPI boundary guard |
