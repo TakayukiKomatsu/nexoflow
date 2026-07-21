@@ -52,8 +52,9 @@ Using java version 21.0.8-tem in this shell.
 > Task :processTestResources UP-TO-DATE
 > Task :testClasses UP-TO-DATE
 > Task :test UP-TO-DATE
-BUILD SUCCESSFUL in 523ms
+BUILD SUCCESSFUL in 592ms
 5 actionable tasks: 5 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.6.1/userguide/configuration_cache_enabling.html
 DOCS-002 passed: generated /v3/api-docs contract is executable and reachable
 === DOCS-003: forbidden claim scan ===
 DOCS-003 passed: no forbidden production claims in documentation
