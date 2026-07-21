@@ -6,12 +6,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -63,6 +67,54 @@ class RuntimeMetadataContractTest {
         mockMvc.perform(get("/actuator/health/liveness"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void exposesQuoteMetadataOutsideThePricingBreakdownInOpenApi() throws Exception {
+        String openApi = mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode schemas = objectMapper.readTree(openApi).path("components").path("schemas");
+        Map<String, JsonNode> quoteProperties = objectMapper.convertValue(
+                schemas.path("QuoteResponse").path("properties"),
+                new TypeReference<>() {});
+
+        assertThat(quoteProperties).containsKeys(
+                "id",
+                "receivableId",
+                "productType",
+                "dueDate",
+                "pricing",
+                "expiresAt",
+                "status",
+                "createdBy");
+        assertThat(quoteProperties.get("pricing").get("$ref").asText())
+                .endsWith("/PricingBreakdownResponse");
+
+        Map<String, JsonNode> pricingProperties = objectMapper.convertValue(
+                schemas.path("PricingBreakdownResponse").path("properties"),
+                new TypeReference<>() {});
+        assertThat(pricingProperties).containsKeys(
+                "faceAmount",
+                "faceCurrency",
+                "settlementCurrency",
+                "baseRate",
+                "spread",
+                "strategyCode",
+                "dayCountConvention",
+                "termInMonths",
+                "discountedAmount",
+                "fxBaseCurrency",
+                "fxQuoteCurrency",
+                "fxRate",
+                "fxSource",
+                "fxObservedAt",
+                "settlementAmount",
+                "pricedAt");
+        assertThat(pricingProperties).doesNotContainKeys("productType", "dueDate");
     }
 
     @Test
