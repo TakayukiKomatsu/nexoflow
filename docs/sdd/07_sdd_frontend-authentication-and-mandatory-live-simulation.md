@@ -87,10 +87,10 @@ Feature: UI-SIM server-authoritative live pricing
     And the visible product remains "POST_DATED_CHEQUE"
 ```
 
-**Test mapping:** `UI-SIM-002/005` → React Testing Library + MSW/fake timers. Static test rejects known formula/arithmetic in authoritative state path. Accessibility → axe plus keyboard assertions. Auth expiry → component/network tests. Playwright `E2E-001` in `frontend/e2e/operator-critical-path.spec.ts` supplies the browser smoke for UI simulation, settlement, and ledger scenarios.
+**Test mapping:** `UI-SIM-002` → React Testing Library + MSW/fake timers and Playwright `E2E-001`, which changes the real live invoice simulation to `POST_DATED_CHEQUE`, observes exactly one pricing-simulation POST, and renders the selected cheque product with returned amount `966.18`. `UI-SIM-005` → `App.test.tsx` deterministic stale-response proof; E2E-001 is only generic live-simulation browser smoke, not stale-ordering evidence. Static test rejects known formula/arithmetic in authoritative state path. Accessibility → axe plus keyboard assertions. Auth expiry → component/network tests. E2E-001 additionally performs browser settlement preview/confirm and URL-backed ledger filtering with `page=0` and history restoration; same-key replay and reversal are `APIRequestContext` calls, not UI controls.
 
 **Verification:** Focused: `npm --prefix frontend test -- --run App.test.tsx && npm --prefix frontend run test:a11y && make validate-frontend-api-contract && make validate-frontend-authority`. Regression: `npm --prefix frontend run lint && npm --prefix frontend run typecheck && npm --prefix frontend test -- --run && npm --prefix frontend run build && make test-ui-features`.
 
-**Evidence:** Request log/count/timestamps, stale-response trace, DOM exact values, accessibility report, OpenAPI client diff/check, no-local-formula result, and the `E2E-001` browser smoke handoff.
+**Evidence:** The deterministic component suite supplies the stale-response trace; E2E-001 supplies the real browser cheque-selection request count and returned amount, preview/confirm, and URL-backed ledger filter/page/history observations. Its `APIRequestContext` assertions prove same-key replay and API reversal only. Accessibility report, OpenAPI client diff/check, and no-local-formula result remain separate evidence.
 
 **Commit outcome:** `feat(frontend): add authenticated real-time pricing workflow`.

@@ -64,3 +64,15 @@ TRACE-001 passed: all 21 SDD Scenario IDs and 7 supplemental IDs resolve to exec
 ```
 
 Path check: all 34 backtick-delimited artifact paths in `docs/REQUIREMENT_TRACEABILITY.md` resolve from the repository root or the document directory.
+
+## Review-remediation evidence
+
+The Task 5 review correction extends E2E-001 without route mocks or fixed sleeps. It selects `POST_DATED_CHEQUE` after the invoice simulation, waits for the real pricing response, observes exactly one cheque simulation request, and verifies the selected product plus returned `966.18` amount. It retains browser settlement preview/confirm and URL-backed ledger filter, `page=0`, and history checks; same-key replay and reversal remain `APIRequestContext` assertions rather than claimed UI controls.
+
+Focused gates passed:
+
+```text
+make test-ui-features
+make validate-docs
+make validate-traceability
+```

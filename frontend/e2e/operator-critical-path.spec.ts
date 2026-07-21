@@ -7,6 +7,7 @@
  */
 
 import { expect, test } from "@playwright/test";
+import type { Request } from "@playwright/test";
 
 // ---------------------------------------------------------------------------
 // Fixed test fixtures
@@ -40,7 +41,7 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
     page.getByRole("heading", { name: "Live receivable pricing" }),
   ).toBeVisible();
 
-  // ─── Step 2: Observe live server simulation ───────────────────────────────
+  // ─── Step 2: Observe and change the live server simulation ───────────────
 
   await page.getByLabel("Issue date").fill(ISSUE_DATE);
   await page.getByLabel("Due date").fill(DUE_DATE);
@@ -51,13 +52,43 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
   const simulationSection = page.getByRole("region", {
     name: "Server simulation",
   });
-  // The same-currency fixture must display the exact server-calculated amount.
   const simulationSettlementAmount = simulationSection
     .locator("output")
     .first();
+
+  // The same-currency invoice fixture must display the exact server result.
   await expect(simulationSettlementAmount).toHaveText("975.61");
   await expect(simulationSection.getByText("Base rate")).toBeVisible();
   await expect(simulationSection.getByText("Strategy")).toBeVisible();
+
+  const productSelector = page.getByLabel(/Product/);
+
+  const chequeSimulationRequests: string[] = [];
+  const trackChequeSimulation = (request: Request) => {
+    if (
+      request.method() === "POST" &&
+      request.url().includes("/api/v1/pricing-simulations") &&
+      request.postDataJSON().productType === "POST_DATED_CHEQUE"
+    ) {
+      chequeSimulationRequests.push(request.url());
+    }
+  };
+  page.on("request", trackChequeSimulation);
+
+  const chequeSimulationResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().includes("/api/v1/pricing-simulations") &&
+      response.request().postDataJSON().productType === "POST_DATED_CHEQUE",
+  );
+
+  await productSelector.selectOption("POST_DATED_CHEQUE");
+  await chequeSimulationResponse;
+
+  await expect(productSelector).toHaveValue("POST_DATED_CHEQUE");
+  await expect(simulationSettlementAmount).toHaveText("966.18");
+  expect(chequeSimulationRequests).toHaveLength(1);
+  page.off("request", trackChequeSimulation);
 
   // ─── Step 3: Register one Receivable ─────────────────────────────────────
 
@@ -76,13 +107,13 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
   await expect(workflowFeedback).toContainText("created");
 
   // Quote breakdown article appears inside the Server simulation card
-  // The issued quote must preserve the exact authoritative simulation amount.
+  // The issued quote preserves the exact authoritative cheque simulation.
   const quoteArticle = simulationSection.getByRole("article").first();
   await expect(quoteArticle).toBeVisible();
   await expect(quoteArticle.getByText("Settlement amount")).toBeVisible();
-  await expect(quoteArticle.getByText("975.61 BRL")).toBeVisible();
+  await expect(quoteArticle.getByText("966.18 BRL")).toBeVisible();
   await expect(quoteArticle.getByText("Product type")).toBeVisible();
-  await expect(quoteArticle.getByText("MERCANTILE_INVOICE")).toBeVisible();
+  await expect(quoteArticle.getByText("POST_DATED_CHEQUE")).toBeVisible();
   await expect(quoteArticle.getByText("Due date")).toBeVisible();
   await expect(quoteArticle.getByText(DUE_DATE)).toBeVisible();
   await expect(quoteArticle.getByText("Base rate")).toBeVisible();
@@ -198,68 +229,9 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
     new RegExp(`settlementCurrency=${SETTLEMENT_CURRENCY}`),
   );
 
-  // ─── Step 9: Stale-response ordering – current filters win ───────────────
-  //
-  // Hold the first statement response, change the filter so a second request
-  // fires, then release the stale first response. The app must discard it
-  // because the URL has since changed.
 
-  let resolveDelayed!: () => void;
-  const delayGate = new Promise<void>((r) => {
-    resolveDelayed = r;
-  });
-  let interceptCount = 0;
+  // ─── Step 9: Login as ADMIN and reverse via the API ──────────────────────
 
-  await page.route("**/api/v1/settlement-statements**", async (route) => {
-    interceptCount++;
-    if (interceptCount === 1) {
-      await delayGate;
-    }
-    try {
-      await route.continue();
-    } catch {
-      // Request may have been aborted by the app before we unblocked it —
-      // that is the correct outcome (stale request cancelled or discarded).
-    }
-  });
-
-  // Set up the waitForRequest listener BEFORE triggering the request so we
-  // cannot miss it
-  const firstRequestCaptured = page.waitForRequest((req) =>
-    req.url().includes("/api/v1/settlement-statements"),
-  );
-
-  // Change the filter so request 1 is delayed while the URL advances.
-  await currencyFilter.fill("USD");
-  await currencyFilter.press("Tab");
-
-  // Capture the request so we know it reached the route handler
-  await firstRequestCaptured;
-
-  // Clear filter immediately (triggers request 2 – not delayed)
-  const secondResponseDone = page.waitForResponse(
-    (resp) =>
-      resp.url().includes("/api/v1/settlement-statements") &&
-      !resp.url().includes("settlementCurrency="),
-  );
-
-  await currencyFilter.fill("");
-  await currencyFilter.press("Tab");
-  await expect(page).not.toHaveURL(/settlementCurrency=/);
-
-  // Wait for the current filter's response to complete, then release the stale
-  // first response – the app must ignore it because URL no longer matches
-  await secondResponseDone;
-  resolveDelayed();
-
-  // Final state: filter and URL must reflect the current (empty) filter
-  await expect(currencyFilter).toHaveValue("");
-  await expect(page).not.toHaveURL(/settlementCurrency=/);
-
-  await page.unroute("**/api/v1/settlement-statements**");
-
-  // ─── Step 10: Login as ADMIN and reverse via the API ─────────────────────
-  //
   // No UI reversal control exists; the plan specifies ADMIN API reversal.
 
   const adminLoginResponse = await request.post("/api/v1/auth/login", {
@@ -287,11 +259,27 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
   expect(reversalId).toMatch(/^[0-9a-f-]{36}$/i);
   expect(reversalSettlementId).toBe(settlementId);
 
-  // ─── Step 11: Assert signed ledger entries link to the Settlement ─────────
+  // ─── Step 10: Assert signed ledger entries link to the Settlement ────────
 
-  // Filter by currency so both our rows appear
+  // Refresh via the URL-backed filter so the browser receives the API reversal.
+  const unfilteredLedgerResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/v1/settlement-statements") &&
+      !response.url().includes("settlementCurrency="),
+  );
+  await currencyFilter.fill("");
+  await currencyFilter.press("Tab");
+  await unfilteredLedgerResponse;
+
+  const refreshedLedgerResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/v1/settlement-statements") &&
+      new URL(response.url()).searchParams.get("settlementCurrency") ===
+        SETTLEMENT_CURRENCY,
+  );
   await currencyFilter.fill(SETTLEMENT_CURRENCY);
   await currencyFilter.press("Tab");
+  await refreshedLedgerResponse;
   await expect(page).toHaveURL(
     new RegExp(`settlementCurrency=${SETTLEMENT_CURRENCY}`),
   );
