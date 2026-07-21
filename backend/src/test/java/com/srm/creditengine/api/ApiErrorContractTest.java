@@ -161,6 +161,14 @@ class ApiErrorContractTest {
     }
 
     @Test
+    void missingIdempotencyHeaderUsesTheDedicatedProblemContract() throws Exception {
+        mockMvc.perform(post("/api/v1/runtime/currency-errors/idempotency-header"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("IDEMPOTENCY_KEY_REQUIRED"))
+                .andExpect(jsonPath("$.detail").value("Idempotency-Key header is required."));
+    }
+
+    @Test
     void unreadableJsonUsesSafeRequestLevelValidationProblem() throws Exception {
         mockMvc.perform(post("/api/v1/runtime/currency-errors/decimal")
                         .contentType("application/json")
@@ -219,6 +227,10 @@ class ApiErrorContractTest {
 
         @GetMapping("/required-header")
         void requiredHeader(@RequestHeader("X-Required") String required) {
+        }
+
+        @PostMapping("/idempotency-header")
+        void idempotencyHeader(@RequestHeader("Idempotency-Key") String key) {
         }
 
         @PostMapping("/decimal")

@@ -34,6 +34,8 @@ jobs:
         run: |
           make test-runtime
           make verify-compose
+      - name: Enforce financial and security coverage gate
+        run: make test-coverage
       - name: Run API feature tests (Cucumber)
         run: make test-api-features
       - name: Install Playwright browsers

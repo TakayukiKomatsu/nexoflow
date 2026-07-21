@@ -745,4 +745,324 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     expect(screen.getByText("NEW-ID")).toBeInTheDocument();
     expect(screen.queryByText("OLD-ID")).toBeNull();
   });
+  it.each([
+    [401, "Your session has expired. Sign in again."],
+    [403, "Your role is not allowed to perform this action."],
+  ])(
+    "explains preview authorization failure %i without retaining a preview",
+    async (status, expectedMessage) => {
+      const onExpired = vi.fn();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn((url: string) => {
+          if (url.includes("settlement-statements"))
+            return json({ entries: [], page: 0, size: 50, hasNext: false });
+          if (url.includes("settlement-previews"))
+            return problem("PREVIEW_DENIED", status);
+          throw new Error(`Unexpected ${url}`);
+        }),
+      );
+      render(
+        <SettlementWorkspace
+          session={session}
+          quotes={[quote]}
+          onExpired={onExpired}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("checkbox"));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Request server preview" }),
+      );
+
+      expect(await screen.findByText(expectedMessage)).toBeInTheDocument();
+      expect(screen.queryByLabelText("Server settlement preview")).toBeNull();
+      expect(onExpired).toHaveBeenCalledTimes(status === 401 ? 1 : 0);
+    },
+  );
+
+  it("discards an invalid persisted intent instead of selecting another actor's quotes", () => {
+    localStorage.setItem("srm-settlement-intent", "{");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => json({ entries: [], page: 0, size: 50, hasNext: false })),
+    );
+
+    render(
+      <SettlementWorkspace session={session} quotes={[quote]} onExpired={vi.fn()} />,
+    );
+
+    expect(screen.getByRole("checkbox")).not.toBeChecked();
+    expect(
+      screen.queryByText(/saved settlement intent was restored/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("cancels a retryable intent explicitly before another selection can be settled", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("settlement-statements"))
+          return json({ entries: [], page: 0, size: 50, hasNext: false });
+        if (url.includes("settlement-previews")) return json(preview);
+        if (url.includes("settlements"))
+          return Promise.reject(new TypeError("Network lost"));
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    render(
+      <SettlementWorkspace
+        session={session}
+        quotes={[quote, quoteB]}
+        onExpired={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("checkbox")[0]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Request server preview" }),
+    );
+    await screen.findByRole("button", { name: "Confirm settlement" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm settlement" }));
+    await screen.findByText(/Retry uses the same settlement intent/);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel intent" }));
+
+    expect(
+      screen.getByText("Settlement intent cancelled."),
+    ).toBeInTheDocument();
+    expect(localStorage.getItem("srm-settlement-intent")).toBeNull();
+  });
+
+  it("updates all ledger filters and navigates both pagination directions", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        json({
+          entries: [
+            {
+              entryId: "entry-1",
+              entryType: "SETTLEMENT",
+              signedAmount: "100.00",
+              settlementCurrency: "BRL",
+              settlementId: "S-1",
+              effectiveAt: "2030-01-15T12:00:00Z",
+            },
+          ],
+          page: 1,
+          size: 50,
+          hasNext: true,
+        }),
+      ),
+    );
+    render(
+      <SettlementWorkspace session={session} quotes={[]} onExpired={vi.fn()} />,
+    );
+    await screen.findByText("SETTLEMENT");
+
+    fireEvent.change(screen.getByLabelText("Ledger product"), {
+      target: { value: "INVOICE" },
+    });
+    fireEvent.change(screen.getByLabelText("Ledger product"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("From filter"), {
+      target: { value: "2030-01-01T00:00" },
+    });
+    fireEvent.change(screen.getByLabelText("To filter"), {
+      target: { value: "2030-01-31T23:59" },
+    });
+    fireEvent.change(screen.getByLabelText("Ledger assignor ID"), {
+      target: { value: "assignor-1" },
+    });
+    fireEvent.change(screen.getByLabelText("Ledger asset currency"), {
+      target: { value: "usd" },
+    });
+    fireEvent.change(screen.getByLabelText("Page size"), {
+      target: { value: "100" },
+    });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Previous" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }));
+
+    expect(window.location.search).toContain("assignorId=assignor-1");
+    expect(window.location.search).toContain("assetCurrency=USD");
+    expect(window.location.search).toContain("size=100");
+    expect(window.location.search).toContain("page=2");
+  });
+
+  it("expires the actor after a settlement-detail authorization failure", async () => {
+    const onExpired = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("/settlements/detail-1"))
+          return problem("DETAIL_DENIED", 401);
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    window.history.replaceState(null, "", "/#settlement-detail-1");
+
+    render(
+      <SettlementWorkspace
+        session={session}
+        quotes={[]}
+        onExpired={onExpired}
+        showLedger={false}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Your session has expired. Sign in again."),
+    ).toBeInTheDocument();
+    expect(onExpired).toHaveBeenCalledTimes(1);
+  });
+  it("expires the actor after a settlement authorization failure", async () => {
+    const onExpired = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("settlement-statements"))
+          return json({ entries: [], page: 0, size: 50, hasNext: false });
+        if (url.includes("settlement-previews")) return json(preview);
+        if (url.includes("settlements")) return problem("SETTLE_DENIED", 401);
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    render(
+      <SettlementWorkspace
+        session={session}
+        quotes={[quote]}
+        onExpired={onExpired}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Request server preview" }),
+    );
+    await screen.findByRole("button", { name: "Confirm settlement" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm settlement" }));
+
+    await screen.findByText(/Retry uses the same settlement intent/);
+    expect(onExpired).toHaveBeenCalledTimes(1);
+  });
+  it("silently discards an aborted preview request", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string, init?: RequestInit) => {
+        if (url.includes("settlement-statements"))
+          return json({ entries: [], page: 0, size: 50, hasNext: false });
+        if (url.includes("settlement-previews"))
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            );
+          });
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    render(
+      <SettlementWorkspace session={session} quotes={[quote]} onExpired={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Request server preview" }),
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(
+      screen.queryByText("Could not obtain a settlement preview."),
+    ).toBeNull();
+  });
+  it("falls back to a generated settlement key when random UUID support is unavailable", async () => {
+    vi.stubGlobal("crypto", {});
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("settlement-statements"))
+          return json({ entries: [], page: 0, size: 50, hasNext: false });
+        if (url.includes("settlement-previews")) return json(preview);
+        if (url.includes("settlements"))
+          return Promise.reject(new TypeError("Network lost"));
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    render(
+      <SettlementWorkspace session={session} quotes={[quote]} onExpired={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Request server preview" }));
+    await screen.findByRole("button", { name: "Confirm settlement" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm settlement" }));
+    await screen.findByText(/Retry uses the same settlement intent/);
+
+    expect(localStorage.getItem("srm-settlement-intent")).toContain("settlement-");
+  });
+
+  it("clears the preview expiry timer on unmount", async () => {
+    const clearTimeout = vi.spyOn(window, "clearTimeout");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("settlement-statements"))
+          return json({ entries: [], page: 0, size: 50, hasNext: false });
+        if (url.includes("settlement-previews")) return json(preview);
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    const view = render(
+      <SettlementWorkspace session={session} quotes={[quote]} onExpired={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Request server preview" }));
+    await screen.findByRole("button", { name: "Confirm settlement" });
+    view.unmount();
+
+    expect(clearTimeout).toHaveBeenCalled();
+  });
+
+  it("renders detail authorization denial without expiring a valid session", async () => {
+    const onExpired = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("/settlements/detail-403")) return problem("DETAIL_DENIED", 403);
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    window.history.replaceState(null, "", "/#settlement-detail-403");
+    render(
+      <SettlementWorkspace session={session} quotes={[]} onExpired={onExpired} showLedger={false} />,
+    );
+
+    expect(
+      await screen.findByText("Your role is not allowed to perform this action."),
+    ).toBeInTheDocument();
+    expect(onExpired).not.toHaveBeenCalled();
+  });
+
+  it("expires the actor when the ledger request returns unauthorized", async () => {
+    const onExpired = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("settlement-statements")) return problem("LEDGER_DENIED", 401);
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    render(
+      <SettlementWorkspace session={session} quotes={[]} onExpired={onExpired} />,
+    );
+
+    expect(
+      await screen.findByText("Your session has expired. Sign in again."),
+    ).toBeInTheDocument();
+    expect(onExpired).toHaveBeenCalledTimes(1);
+  });
 });

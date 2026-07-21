@@ -741,4 +741,292 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     expect(failure).toHaveClass("error");
     expect(failure).toHaveFocus();
   });
+  it("shows a generic login failure when the transport does not return a problem", async () => {
+    stubFetch(vi.fn(() => Promise.reject(new TypeError("Network unavailable"))));
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "test-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Unable to sign in.");
+  });
+
+  it("expires the session when an authoritative simulation returns 401", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        response({ accessToken: "token", expiresIn: 900 }),
+      )
+      .mockImplementationOnce(() =>
+        response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+      )
+      .mockImplementationOnce(() =>
+        response({ detail: "Expired." }, 401),
+      );
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIMULATION_DEBOUNCE_MS);
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Operator sign in" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a registration failure and focuses the operational alert", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith("/auth/login"))
+        return response({ accessToken: "token", expiresIn: 900 });
+      if (url.endsWith("/users/me"))
+        return response({ email: "operator@srm.local", roles: ["OPERATOR"] });
+      if (url.endsWith("/receivables"))
+        return response({ detail: "Registration unavailable." }, 503);
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+
+    fireEvent.change(screen.getByLabelText(/Assignor ID/), {
+      target: { value: ASSIGNOR_A },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register receivable" }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Registration unavailable.");
+    expect(alert).toHaveFocus();
+  });
+  it("reports required pricing and registration fields independently", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        response({ accessToken: "token", expiresIn: 900 }),
+      )
+      .mockImplementationOnce(() =>
+        response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+      );
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+
+    fireEvent.change(screen.getByLabelText("Settlement currency"), {
+      target: { value: "us" },
+    });
+    fireEvent.change(screen.getByLabelText("Issue date"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Due date"), {
+      target: { value: "" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register receivable" }),
+    );
+
+    expect(
+      screen.getAllByText(
+        "Enter a three-letter uppercase settlement currency.",
+      ),
+    ).toHaveLength(2);
+    expect(screen.getByText("Enter an issue date.")).toBeInTheDocument();
+    expect(screen.getByText("Enter a due date.")).toBeInTheDocument();
+  });
+
+  it("expires a loaded session when the periodic expiry check reaches its deadline", async () => {
+    localStorage.setItem(
+      "srm-session",
+      JSON.stringify({
+        accessToken: "token",
+        expiresAt: Date.now() + 1,
+        email: "operator@srm.local",
+        roles: ["OPERATOR"],
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        response({ entries: [], page: 0, size: 50, hasNext: false }),
+      ),
+    );
+    render(<App />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    expect(
+      screen.getByRole("heading", { name: "Operator sign in" }),
+    ).toBeInTheDocument();
+  });
+
+  it("labels a native simulation failure as unavailable", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        response({ accessToken: "token", expiresIn: 900 }),
+      )
+      .mockImplementationOnce(() =>
+        response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+      )
+      .mockImplementationOnce(() =>
+        Promise.reject(new TypeError("Network unavailable")),
+      );
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIMULATION_DEBOUNCE_MS);
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Simulation is unavailable.",
+    );
+  });
+  it("renders the fallback when receivable registration loses transport", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith("/auth/login"))
+        return response({ accessToken: "token", expiresIn: 900 });
+      if (url.endsWith("/users/me"))
+        return response({ email: "operator@srm.local", roles: ["OPERATOR"] });
+      if (url.endsWith("/receivables"))
+        return Promise.reject(new TypeError("Network unavailable"));
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+
+    fireEvent.change(screen.getByLabelText(/Assignor ID/), {
+      target: { value: ASSIGNOR_A },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register receivable" }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not register receivable.",
+    );
+  });
+
+  it("renders the fallback when quote creation loses transport", async () => {
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith("/auth/login"))
+        return response({ accessToken: "token", expiresIn: 900 });
+      if (url.endsWith("/users/me"))
+        return response({ email: "operator@srm.local", roles: ["OPERATOR"] });
+      if (url.endsWith("/receivables")) return response({ id: "receivable-1" });
+      if (url.endsWith("/pricing-quotes"))
+        return Promise.reject(new TypeError("Network unavailable"));
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+
+    fireEvent.change(screen.getByLabelText(/Assignor ID/), {
+      target: { value: ASSIGNOR_A },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register receivable" }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create quote" }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not create quote.",
+    );
+  });
+  it("ignores a stale registration failure after authoritative inputs change", async () => {
+    let rejectRegistration!: (cause: unknown) => void;
+    const registration = new Promise<Response>((_resolve, reject) => {
+      rejectRegistration = reject;
+    });
+    const fetchMock = vi.fn((url: string) => {
+      if (url.endsWith("/auth/login"))
+        return response({ accessToken: "token", expiresIn: 900 });
+      if (url.endsWith("/users/me"))
+        return response({ email: "operator@srm.local", roles: ["OPERATOR"] });
+      if (url.endsWith("/receivables")) return registration;
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+
+    fireEvent.change(screen.getByLabelText(/Assignor ID/), {
+      target: { value: ASSIGNOR_A },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register receivable" }),
+    );
+    fireEvent.change(screen.getByLabelText("Face amount"), {
+      target: { value: "2000.00" },
+    });
+    rejectRegistration(new TypeError("Network unavailable"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+  it("silently discards an aborted simulation refresh", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        response({ accessToken: "token", expiresIn: 900 }),
+      )
+      .mockImplementationOnce(() =>
+        response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+      )
+      .mockImplementationOnce((_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("Aborted", "AbortError")),
+          );
+        }),
+      );
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIMULATION_DEBOUNCE_MS);
+    });
+
+    fireEvent.change(screen.getByLabelText("Product"), {
+      target: { value: "POST_DATED_CHEQUE" },
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });

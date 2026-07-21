@@ -229,6 +229,78 @@ class HttpFxSynchronizationServiceTest {
         server.verify();
     }
 
+    @Test
+    void blankProviderSourceFallsBackToTheBoundedDefault() {
+        CurrencyService currency = mock(CurrencyService.class);
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
+                        "{\"rate\":\"5.20\",\"observedAt\":\"2030-01-15T12:00:00Z\",\"source\":\" \"}",
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+
+        var observed = service(currency, builder, Clock.fixed(NOW, ZoneOffset.UTC), new ArrayList<>())
+                .synchronize("USD", "BRL", "admin@srm.local");
+
+        assertThat(observed.source()).isEqualTo("HTTP_PROVIDER");
+        server.verify();
+    }
+
+    @Test
+    void partiallyPresentProviderPayloadIsRejectedAsPermanentFailure() {
+        CurrencyService currency = mock(CurrencyService.class);
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
+                        "{\"rate\":\"5.20\"}",
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service(
+                currency, builder, Clock.fixed(NOW, ZoneOffset.UTC), new ArrayList<>())
+                .synchronize("USD", "BRL", "admin@srm.local"))
+                .isInstanceOf(FxProviderUnavailableException.class);
+        server.verify();
+    }
+    @Test
+    void nullProviderPayloadIsRejectedAsPermanentFailure() {
+        CurrencyService currency = mock(CurrencyService.class);
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
+                        "null",
+                        org.springframework.http.MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> service(
+                currency, builder, Clock.fixed(NOW, ZoneOffset.UTC), new ArrayList<>())
+                .synchronize("USD", "BRL", "admin@srm.local"))
+                .isInstanceOf(FxProviderUnavailableException.class);
+        server.verify();
+    }
+
+    @Test
+    void interruptedRetryStopsTheSynchronizationWithoutASecondAttempt() {
+        CurrencyService currency = mock(CurrencyService.class);
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
+                        .withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        var service = new HttpFxSynchronizationService(
+                currency,
+                builder.baseUrl("http://fx").build(),
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                new SimpleMeterRegistry(),
+                FxRetryDelay.exponential(() -> 0.5d),
+                duration -> {
+                    throw new InterruptedException();
+                });
+
+        assertThatThrownBy(() -> service.synchronize("USD", "BRL", "admin@srm.local"))
+                .isInstanceOf(FxProviderUnavailableException.class);
+        server.verify();
+    }
     private static HttpFxSynchronizationService service(
             CurrencyService currency, RestClient.Builder builder, Clock clock, List<Duration> waits) {
         return new HttpFxSynchronizationService(currency, builder.baseUrl("http://fx").build(), clock,

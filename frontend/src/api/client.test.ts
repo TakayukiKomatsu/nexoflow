@@ -75,7 +75,41 @@ describe("API client error contract", () => {
     await expect(result).rejects.toBe(abortError);
     await expect(result).rejects.not.toBeInstanceOf(ApiError);
   });
+  it("uses a status fallback when an error response has no problem detail", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => jsonResponse({}, 503)),
+    );
+
+    await expect(api.previewSettlement(["quote-1"], "token")).rejects.toEqual(
+      expect.objectContaining({
+        status: 503,
+        message: "Request failed (503).",
+      }),
+    );
+  });
 });
+
+  it("returns a session after loading the authenticated actor profile", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        jsonResponse({ accessToken: "token", expiresIn: 900 }),
+      )
+      .mockImplementationOnce(() =>
+        jsonResponse({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      api.login({ email: "operator@srm.local", password: "correct-password" }),
+    ).resolves.toEqual({
+      accessToken: "token",
+      expiresAt: expect.any(Number),
+      email: "operator@srm.local",
+      roles: ["OPERATOR"],
+    });
+  });
 
 describe("API client cancellation contract", () => {
   it.each([

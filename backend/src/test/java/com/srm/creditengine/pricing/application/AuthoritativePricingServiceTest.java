@@ -13,6 +13,7 @@ import com.srm.creditengine.pricing.*;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
+import com.srm.creditengine.receivable.application.ReceivableService;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -221,5 +222,94 @@ class AuthoritativePricingServiceTest {
                 "operator@srm.local",
                 "ACTIVE");
         return jdbc;
+    }
+    @Test
+    void rejectsEveryInvalidSimulationInputBeforeReferenceLookups() {
+        Instant now = Instant.parse("2030-01-15T12:00:00Z");
+        var service = new AuthoritativePricingService(
+                null, null, null, null, null, Clock.fixed(now, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.simulate(input(null, "BRL", "MERCANTILE_INVOICE", "2030-02-14", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Face amount must be positive with no more than four decimal places");
+        assertThatThrownBy(() -> service.simulate(input(BigDecimal.ZERO, "BRL", "MERCANTILE_INVOICE", "2030-02-14", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Face amount must be positive with no more than four decimal places");
+        assertThatThrownBy(() -> service.simulate(input(new BigDecimal("1.00001"), "BRL", "MERCANTILE_INVOICE", "2030-02-14", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Face amount must be positive with no more than four decimal places");
+        assertThatThrownBy(() -> service.simulate(input(BigDecimal.ONE, null, "MERCANTILE_INVOICE", "2030-02-14", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Pricing input is incomplete");
+        assertThatThrownBy(() -> service.simulate(input(BigDecimal.ONE, "BRL", null, "2030-02-14", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Pricing input is incomplete");
+        assertThatThrownBy(() -> service.simulate(input(BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", null, "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Pricing input is incomplete");
+        assertThatThrownBy(() -> service.simulate(input(BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", "2030-01-15", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Due date must be after pricing date");
+    }
+
+    @Test
+    void preservesNonIdentityRateAndTerminalStoredQuoteStatus() {
+        Instant pricedAt = Instant.parse("2030-01-15T12:00:00Z");
+        JdbcTemplate jdbc = quoteSnapshot(pricedAt, pricedAt.plus(Duration.ofMinutes(15)));
+        jdbc.update(
+                "update pricing_quotes set fx_source=?, fx_rate=?, status=?",
+                "HTTP_PROVIDER",
+                new BigDecimal("5.2500000000"),
+                "CONSUMED");
+
+        var quote = serviceAt(jdbc, pricedAt).getQuote(QUOTE_ID);
+
+        assertThat(quote.breakdown().fxRate()).isEqualByComparingTo("5.2500000000");
+        assertThat(quote.status()).isEqualTo("CONSUMED");
+    }
+
+    @Test
+    void refusesToCreateAQuoteForNonRegisteredReceivables() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        var receivable = new ReceivableService.Receivable(
+                RECEIVABLE_ID,
+                UUID.randomUUID(),
+                "MERCANTILE_INVOICE",
+                new BigDecimal("1000.0000"),
+                "BRL",
+                LocalDate.parse("2030-01-15"),
+                LocalDate.parse("2030-02-14"),
+                "SETTLED",
+                1L);
+        when(jdbc.query(
+                        org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<ReceivableService.Receivable>>any(),
+                        org.mockito.ArgumentMatchers.<Object>any()))
+                .thenReturn(List.of(receivable));
+        var service = new AuthoritativePricingService(
+                null,
+                null,
+                null,
+                null,
+                jdbc,
+                Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.createQuote(RECEIVABLE_ID, "BRL", "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Only REGISTERED receivables can be quoted");
+    }
+
+    private static PricingService.Input input(
+            BigDecimal faceAmount,
+            String faceCurrency,
+            String productType,
+            String dueDate,
+            String settlementCurrency) {
+        return new PricingService.Input(
+                faceAmount,
+                faceCurrency,
+                productType,
+                dueDate == null ? null : LocalDate.parse(dueDate),
+                settlementCurrency);
     }
 }

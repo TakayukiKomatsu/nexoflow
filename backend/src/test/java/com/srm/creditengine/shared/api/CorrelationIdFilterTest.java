@@ -27,6 +27,18 @@ class CorrelationIdFilterTest {
     }
 
     @Test
+    void rejectsShortCorrelationIdsWithUnsafeCharacters() throws Exception {
+        var filter = new CorrelationIdFilter(new SafeOperationalLogger());
+        var request = new MockHttpServletRequest();
+        request.addHeader(CorrelationIdFilter.HEADER, "unsafe value!");
+        var response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) -> {});
+
+        assertThat(response.getHeader(CorrelationIdFilter.HEADER)).matches("[0-9a-f-]{36}");
+    }
+
+    @Test
     void correlationContextExistsOnlyWhileTheRequestIsBeingProcessed() throws Exception {
         var filter = new CorrelationIdFilter(new SafeOperationalLogger());
         var request = new MockHttpServletRequest();

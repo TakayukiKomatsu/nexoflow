@@ -1,4 +1,4 @@
-.PHONY: test-hooks test-unit test-runtime verify-unit build install-hooks verify-fast validate-workflows validate-architecture-docs smoke-compose fixtures-e2e verify-readiness-recovery verify-compose test-log-redaction smoke-financial-path inspect-observability verify license-check explain-statements-representative test-api-features test-ui-features e2e-fixed security-scan validate-docs validate-traceability test-crisis-evidence release-check
+.PHONY: test-hooks test-unit test-runtime test-coverage verify-unit build install-hooks verify-fast validate-workflows validate-architecture-docs smoke-compose fixtures-e2e verify-readiness-recovery verify-compose test-log-redaction smoke-financial-path inspect-observability verify license-check explain-statements-representative test-api-features test-ui-features e2e-fixed security-scan validate-docs validate-traceability test-crisis-evidence release-check
 
 verify-fast: test-hooks test-unit
 	./scripts/tests/test_frontend_quality.sh
@@ -24,6 +24,11 @@ test-runtime:
 	@command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || { echo 'BLOCKED: test-runtime requires a working Docker daemon for Testcontainers.' >&2; exit 2; }
 	./scripts/with-java21.sh ./backend/gradlew -p backend test --tests '*Runtime*' --tests '*ApiErrorContractTest' --tests '*MigrationSmokeTest'
 	./scripts/with-java21.sh ./backend/gradlew -p backend integrationTest
+
+test-coverage:
+	@command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1 || { echo 'BLOCKED: test-coverage requires a working Docker daemon for integration coverage.' >&2; exit 2; }
+	./scripts/with-java21.sh ./backend/gradlew -p backend riskCoverage
+	npm --prefix frontend run test:coverage
 
 smoke-compose:
 	docker compose --profile smoke run --rm smoke
@@ -92,4 +97,4 @@ validate-traceability:
 test-crisis-evidence:
 	./scripts/test-crisis-evidence.sh
 
-release-check: verify-fast test-log-redaction build test-runtime verify-compose e2e-fixed explain-statements-representative security-scan validate-docs validate-traceability test-crisis-evidence
+release-check: verify-fast test-log-redaction build test-runtime test-coverage verify-compose e2e-fixed explain-statements-representative security-scan validate-docs validate-traceability test-crisis-evidence

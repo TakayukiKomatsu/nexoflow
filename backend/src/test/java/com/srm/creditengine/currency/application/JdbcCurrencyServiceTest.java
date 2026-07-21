@@ -161,6 +161,54 @@ class JdbcCurrencyServiceTest {
                 .hasMessage("No fresh exchange rate is available for the requested currency pair.");
     }
 
+    @Test
+    void reportsStaleWhenOnlyTheInverseObservationIsStale() {
+        JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
+        CurrencyService.Observation staleInverse = observation(
+                "USD", "BRL", "5.00", NOW.minus(Duration.ofHours(24)).minusNanos(1));
+        when(latestQuery(jdbc)).thenReturn(List.of(), List.of(staleInverse));
+        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.resolveConversion(
+                "BRL", "USD", new BigDecimal("100.00"), NOW))
+                .isInstanceOf(FxRateStaleException.class);
+    }
+
+    @Test
+    void rejectsEveryRequiredObservationFieldBeforePersisting() {
+        JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
+        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.recordObservation(
+                "BRL", "BRL", new BigDecimal("1"), "provider", NOW, "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Base and quote currencies must differ");
+        assertThatThrownBy(() -> service.recordObservation(
+                "BRL", "USD", null, "provider", NOW, "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A rate must be positive");
+        assertThatThrownBy(() -> service.recordObservation(
+                "BRL", "USD", BigDecimal.ZERO, "provider", NOW, "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A rate must be positive");
+        assertThatThrownBy(() -> service.recordObservation(
+                "BRL", "USD", BigDecimal.ONE, "provider", null, "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Rate observation time is required");
+        assertThatThrownBy(() -> service.recordObservation(
+                "BRL", "USD", BigDecimal.ONE, "provider", NOW, ""))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Actor is required");
+        assertThatThrownBy(() -> service.recordObservation(
+                "BRL", "USD", BigDecimal.ONE, null, NOW, "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Rate source is required");
+        assertThatThrownBy(() -> service.recordObservation(
+                "BRL", "USD", BigDecimal.ONE, "provider", NOW, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Actor is required");
+        verifyNoInteractions(jdbc);
+    }
     private static List<CurrencyService.Observation> latestQuery(JdbcTemplate jdbc) {
         return jdbc.query(
                 any(String.class), org.mockito.ArgumentMatchers.<RowMapper<CurrencyService.Observation>>any(),
