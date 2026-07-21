@@ -274,6 +274,7 @@ function Workflow({
           onExpired();
           return;
         }
+        setFocusAlert(true);
         setState("error");
         setFeedback({
           text:
@@ -636,6 +637,16 @@ function Workflow({
                 <div>
                   <dt>FX rate</dt>
                   <dd>{simulation.fxRate}</dd>
+                </div>
+                <div>
+                  <dt>FX pair</dt>
+                  <dd>
+                    {simulation.fxBaseCurrency}/{simulation.fxQuoteCurrency}
+                  </dd>
+                </div>
+                <div>
+                  <dt>FX source</dt>
+                  <dd>{simulation.fxSource}</dd>
                 </div>
                 <div>
                   <dt>Strategy</dt>

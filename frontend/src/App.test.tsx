@@ -38,6 +38,17 @@ const simulation = (amount: string) => ({
   pricedAt: "2030-01-15T12:00:00Z",
 });
 
+const crossCurrencySimulation = {
+  ...simulation("193.24"),
+  faceCurrency: "BRL",
+  settlementCurrency: "USD",
+  fxBaseCurrency: "BRL",
+  fxQuoteCurrency: "USD",
+  fxRate: "0.2000000000",
+  fxSource: "MANUAL",
+  settlementAmount: "193.24",
+};
+
 const pricing = (amount: string) => ({
   faceAmount: "1000.00",
   faceCurrency: "BRL",
@@ -65,6 +76,11 @@ function response(body: unknown, status = 200) {
     }),
   );
 }
+
+const staleFx = response(
+  { status: 409, code: "FX_RATE_STALE", detail: "Selected FX rate is stale." },
+  409,
+);
 
 function stubFetch(fetchMock: Mock) {
   vi.stubGlobal(
@@ -160,6 +176,36 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
           String(url).includes("settlements"),
       ),
     ).toBe(false);
+  });
+
+  it("renders server-provided cross-currency FX metadata", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        response({ accessToken: "token", expiresIn: 900 }),
+      )
+      .mockImplementationOnce(() =>
+        response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+      )
+      .mockImplementationOnce(() => response(crossCurrencySimulation));
+    stubFetch(fetchMock);
+    render(<App />);
+    await signIn();
+
+    fireEvent.change(screen.getByLabelText("Product"), {
+      target: { value: "POST_DATED_CHEQUE" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIMULATION_DEBOUNCE_MS);
+    });
+
+    const simulationRegion = screen
+      .getByRole("heading", { name: "Server simulation" })
+      .closest("section");
+    expect(simulationRegion).not.toBeNull();
+    expect(simulationRegion!).toHaveTextContent("BRL/USD");
+    expect(simulationRegion!).toHaveTextContent("0.2000000000");
+    expect(simulationRegion!).toHaveTextContent("MANUAL");
   });
 
   it("never lets an old response overwrite the newest result", async () => {
@@ -332,6 +378,36 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Pricing service unavailable.",
     );
+  });
+
+  it("renders a stale FX server detail in the focused alert", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() =>
+        response({ accessToken: "token", expiresIn: 900 }),
+      )
+      .mockImplementationOnce(() =>
+        response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
+      )
+      .mockImplementationOnce(() => response(simulation("193.24")))
+      .mockImplementationOnce(() => staleFx);
+    stubFetch(fetchMock);
+
+    render(<App />);
+    await signIn();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIMULATION_DEBOUNCE_MS);
+    });
+    fireEvent.change(screen.getByLabelText("Product"), {
+      target: { value: "POST_DATED_CHEQUE" },
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(SIMULATION_DEBOUNCE_MS);
+    });
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Selected FX rate is stale.");
+    expect(alert).toHaveFocus();
   });
 
   it("invalidates a registered receivable when any authoritative input changes", async () => {
