@@ -87,10 +87,10 @@ Feature: UI-SIM server-authoritative live pricing
     And the visible product remains "POST_DATED_CHEQUE"
 ```
 
-**Test mapping:** `UI-SIM-002/005` → React Testing Library + MSW/fake timers and Playwright BDD browser smoke. Static test rejects known formula/arithmetic in authoritative state path. Accessibility → axe plus keyboard assertions. Auth expiry → component/network tests.
+**Test mapping:** `UI-SIM-002/005` → React Testing Library + MSW/fake timers. Static test rejects known formula/arithmetic in authoritative state path. Accessibility → axe plus keyboard assertions. Auth expiry → component/network tests. Playwright `E2E-001` in `frontend/e2e/operator-critical-path.spec.ts` supplies the browser smoke for UI simulation, settlement, and ledger scenarios.
 
-**Verification:** Focused: `npm --prefix frontend test -- --run pricing auth && npm --prefix frontend run test:a11y`. Regression: `npm --prefix frontend run lint && npm --prefix frontend run typecheck && npm --prefix frontend test -- --run && npm --prefix frontend run build && make test-ui-features`.
+**Verification:** Focused: `npm --prefix frontend test -- --run App.test.tsx && npm --prefix frontend run test:a11y && make validate-frontend-api-contract && make validate-frontend-authority`. Regression: `npm --prefix frontend run lint && npm --prefix frontend run typecheck && npm --prefix frontend test -- --run && npm --prefix frontend run build && make test-ui-features`.
 
-**Evidence:** Request log/count/timestamps, stale-response trace, DOM exact values, accessibility report, OpenAPI client diff/check, no-local-formula result, and global handoff.
+**Evidence:** Request log/count/timestamps, stale-response trace, DOM exact values, accessibility report, OpenAPI client diff/check, no-local-formula result, and the `E2E-001` browser smoke handoff.
 
 **Commit outcome:** `feat(frontend): add authenticated real-time pricing workflow`.

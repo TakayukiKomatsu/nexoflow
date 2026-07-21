@@ -373,7 +373,7 @@ All capability criteria below are implemented locally and mapped to executable c
 
 - Authorized users can filter by date, assignor, product, and currency.
 - Results are deterministically sorted and server-side paginated.
-- Query plans use the intended indexes on representative data.
+- Parameterized, indexable reporting filters and stable server-side pagination are exercised on representative PostgreSQL data; PostgreSQL may select sequential scans when its cost model estimates them cheaper.
 - Reports do not trigger per-row database queries.
 
 ### Frontend
