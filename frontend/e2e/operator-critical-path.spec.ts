@@ -238,7 +238,6 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
     new RegExp(`settlementCurrency=${SETTLEMENT_CURRENCY}`),
   );
 
-
   // ─── Step 9: Login as ADMIN and reverse via the API ──────────────────────
 
   // No UI reversal control exists; the plan specifies ADMIN API reversal.

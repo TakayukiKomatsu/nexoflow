@@ -577,7 +577,9 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     fireEvent.change(screen.getByLabelText(/Assignor ID/), {
       target: { value: ASSIGNOR_A },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Register receivable" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Register receivable" }),
+    );
     await act(async () => {
       await Promise.resolve();
       await Promise.resolve();
@@ -878,7 +880,9 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     expect(failure).toHaveFocus();
   });
   it("shows a generic login failure when the transport does not return a problem", async () => {
-    stubFetch(vi.fn(() => Promise.reject(new TypeError("Network unavailable"))));
+    stubFetch(
+      vi.fn(() => Promise.reject(new TypeError("Network unavailable"))),
+    );
     render(<App />);
 
     fireEvent.change(screen.getByLabelText("Password"), {
@@ -902,9 +906,7 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
       .mockImplementationOnce(() =>
         response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
       )
-      .mockImplementationOnce(() =>
-        response({ detail: "Expired." }, 401),
-      );
+      .mockImplementationOnce(() => response({ detail: "Expired." }, 401));
     stubFetch(fetchMock);
     render(<App />);
     await signIn();
@@ -994,9 +996,7 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     );
     vi.stubGlobal(
       "fetch",
-      vi.fn(() =>
-        response({ entries: [], page: 0, size: 50, hasNext: false }),
-      ),
+      vi.fn(() => response({ entries: [], page: 0, size: 50, hasNext: false })),
     );
     render(<App />);
 
@@ -1141,12 +1141,13 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
       .mockImplementationOnce(() =>
         response({ email: "operator@srm.local", roles: ["OPERATOR"] }),
       )
-      .mockImplementationOnce((_url: string, init?: RequestInit) =>
-        new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () =>
-            reject(new DOMException("Aborted", "AbortError")),
-          );
-        }),
+      .mockImplementationOnce(
+        (_url: string, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            );
+          }),
       );
     stubFetch(fetchMock);
     render(<App />);
