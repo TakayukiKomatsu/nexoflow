@@ -81,6 +81,10 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
   await expect(quoteArticle).toBeVisible();
   await expect(quoteArticle.getByText("Settlement amount")).toBeVisible();
   await expect(quoteArticle.getByText("975.61 BRL")).toBeVisible();
+  await expect(quoteArticle.getByText("Product type")).toBeVisible();
+  await expect(quoteArticle.getByText("MERCANTILE_INVOICE")).toBeVisible();
+  await expect(quoteArticle.getByText("Due date")).toBeVisible();
+  await expect(quoteArticle.getByText(DUE_DATE)).toBeVisible();
   await expect(quoteArticle.getByText("Base rate")).toBeVisible();
   await expect(quoteArticle.getByText("Expires at")).toBeVisible();
   await expect(quoteArticle.getByText("Status")).toBeVisible();
