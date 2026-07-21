@@ -147,10 +147,19 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
       !req.url().includes("/reversals") &&
       req.method() === "POST",
   );
+  const settlementResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/v1/settlements") &&
+      !response.url().includes("/reversals") &&
+      response.request().method() === "POST",
+  );
 
   await previewDiv.getByRole("button", { name: "Confirm settlement" }).click();
 
   const capturedRequest = await settlementRequestPromise;
+
+  const originalResponse = await settlementResponsePromise;
+  expect(originalResponse.status()).toBe(201);
 
   const capturedKey = capturedRequest.headers()["idempotency-key"];
   expect(capturedKey).toMatch(
