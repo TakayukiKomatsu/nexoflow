@@ -739,6 +739,11 @@ function Workflow({
         session={session}
         quotes={quotes}
         onExpired={onExpired}
+        onSettled={(consumedQuoteIds) =>
+          setQuotes((current) =>
+            current.filter(({ id }) => !consumedQuoteIds.includes(id)),
+          )
+        }
         showLedger={canViewLedger}
       />
     </main>

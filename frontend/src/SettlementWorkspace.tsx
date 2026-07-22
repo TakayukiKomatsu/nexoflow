@@ -49,11 +49,13 @@ export function SettlementWorkspace({
   session,
   quotes,
   onExpired,
+  onSettled = () => undefined,
   showLedger = true,
 }: {
   session: Session;
   quotes: PricingQuote[];
   onExpired: () => void;
+  onSettled?: (consumedQuoteIds: string[]) => void;
   showLedger?: boolean;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
@@ -66,6 +68,7 @@ export function SettlementWorkspace({
   const [message, setMessage] = useState<string>();
   const [previewPending, setPreviewPending] = useState(false);
   const [settlementPending, setSettlementPending] = useState(false);
+  const [ledgerRevision, setLedgerRevision] = useState(0);
   const previewRequestId = useRef(0);
   const previewAbort = useRef<AbortController | undefined>(undefined);
   const quoteIds = selected;
@@ -82,6 +85,7 @@ export function SettlementWorkspace({
   useEffect(() => {
     const recovered = loadIntent(session.email);
     setIntent(recovered);
+    setResult(undefined);
     // Keep IDs even when the quote list has not been reloaded yet. The server
     // remains authoritative when a recovered intent requests a fresh preview.
     setSelected(recovered?.quoteIds ?? []);
@@ -93,7 +97,6 @@ export function SettlementWorkspace({
     setPreviewPending(false);
     setPreviewState(undefined);
     setPreviewExpired(false);
-    setResult(undefined);
     setMessage(undefined);
   }, [quoteKey]);
 
@@ -130,6 +133,7 @@ export function SettlementWorkspace({
   );
 
   function toggle(id: string, checked: boolean) {
+    setResult(undefined);
     setSelected((old) =>
       checked ? [...old, id] : old.filter((value) => value !== id),
     );
@@ -228,6 +232,9 @@ export function SettlementWorkspace({
       );
       setResult(settlement);
       clearIntent();
+      setSelected([]);
+      onSettled(nextIntent.quoteIds);
+      setLedgerRevision((current) => current + 1);
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 401) onExpired();
       if (cause instanceof ApiError) {
@@ -381,7 +388,11 @@ export function SettlementWorkspace({
       </section>
       <SettlementDetail session={session} onExpired={onExpired} />
       {showLedger && (
-        <StatementLedger session={session} onExpired={onExpired} />
+        <StatementLedger
+          session={session}
+          onExpired={onExpired}
+          refreshRevision={ledgerRevision}
+        />
       )}
     </>
   );
@@ -484,9 +495,11 @@ function SettlementDetail({
 function StatementLedger({
   session,
   onExpired,
+  refreshRevision,
 }: {
   session: Session;
   onExpired: () => void;
+  refreshRevision: number;
 }) {
   const [search, setSearch] = useState(
     () => new URLSearchParams(window.location.search),
@@ -524,7 +537,7 @@ function StatementLedger({
         );
       });
     return () => controller.abort();
-  }, [search, session.accessToken, onExpired]);
+  }, [search, session.accessToken, onExpired, refreshRevision]);
   useEffect(() => {
     const restore = () =>
       setSearch(new URLSearchParams(window.location.search));

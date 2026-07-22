@@ -5,6 +5,7 @@ import {
   render,
   screen,
 } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettlementWorkspace } from "./SettlementWorkspace";
 import type { PricingQuote, Session } from "./api/client";
@@ -74,6 +75,65 @@ afterEach(() => {
 });
 
 describe("UI-SETTLE-004 retry-safe settlement intent", () => {
+  it("removes consumed quotes and refreshes the signed ledger after settlement", async () => {
+    let statementRequests = 0;
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("settlement-statements")) {
+        statementRequests += 1;
+        return json({ entries: [], page: 0, size: 50, hasNext: false });
+      }
+      if (url.includes("settlement-previews")) return json(preview);
+      if (url.endsWith("/settlements")) {
+        return json({
+          ...preview,
+          settlementId: "00000000-0000-0000-0000-000000000804",
+          status: "COMPLETED",
+          completedAt: "2030-01-15T12:01:00Z",
+        });
+      }
+      throw new Error(`Unexpected ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    function SettlementHarness() {
+      const [activeQuotes, setActiveQuotes] = useState([quote]);
+      return (
+        <SettlementWorkspace
+          session={session}
+          quotes={activeQuotes}
+          onExpired={vi.fn()}
+          onSettled={(consumedIds) =>
+            setActiveQuotes((current) =>
+              current.filter(({ id }) => !consumedIds.includes(id)),
+            )
+          }
+        />
+      );
+    }
+
+    render(<SettlementHarness />);
+    await screen.findByRole("heading", {
+      name: "Signed settlement statement",
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Request server preview" }),
+    );
+    await screen.findByRole("button", { name: "Confirm settlement" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm settlement" }));
+
+    await screen.findByRole("link", {
+      name: "00000000-0000-0000-0000-000000000804",
+    });
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Create one or more quotes before requesting settlement/i,
+      ),
+    ).toBeInTheDocument();
+    expect(statementRequests).toBe(2);
+  });
+
   it("reuses the persisted key and submits quote IDs only after a lost response", async () => {
     let settlementCalls = 0;
     const fetchMock = vi.fn((url: string) => {
