@@ -69,6 +69,10 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
+    // NOTE: FinancialModuleLayeringTest is deliberately red on this branch until Task 2
+    // completes the domain/infrastructure refactor. Gradle will report build failures for
+    // those 4 tests; this is expected and intentional. Do NOT add ignoreFailures here —
+    // normal failure behavior must remain so regressions in other tests are caught.
 }
 
 tasks.named('jacocoTestReport') {
@@ -99,9 +103,21 @@ tasks.register('integrationTest', Test) {
     shouldRunAfter tasks.named('test')
 }
 def riskCoverageIncludes = [
-        'com/srm/creditengine/pricing/**',
+        // assignor and receivable: new financial-module scope (domain/infrastructure non-existent until Task 2)
+        'com/srm/creditengine/assignor/domain/**',
+        'com/srm/creditengine/assignor/application/**',
+        'com/srm/creditengine/assignor/infrastructure/**',
+        'com/srm/creditengine/receivable/domain/**',
+        'com/srm/creditengine/receivable/application/**',
+        'com/srm/creditengine/receivable/infrastructure/**',
+        // currency and pricing: broad selector preserves root-package classes (Money, Rate, FxConversionService…)
+        // that exist outside a sub-package; api/** is excluded below
         'com/srm/creditengine/currency/**',
+        'com/srm/creditengine/pricing/**',
+        // settlement: sub-package paths; root classes live in application
+        'com/srm/creditengine/settlement/domain/**',
         'com/srm/creditengine/settlement/application/**',
+        'com/srm/creditengine/settlement/infrastructure/**',
         'com/srm/creditengine/reporting/application/**',
         'com/srm/creditengine/identity/application/**',
         'com/srm/creditengine/identity/domain/**',
