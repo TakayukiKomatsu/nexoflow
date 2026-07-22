@@ -1,6 +1,6 @@
-.PHONY: test-hooks test-unit test-runtime test-coverage verify-unit build install-hooks verify-fast validate-workflows validate-architecture-docs smoke-compose fixtures-e2e verify-readiness-recovery verify-compose test-log-redaction smoke-financial-path inspect-observability verify license-check explain-statements-representative test-api-features test-ui-features e2e-fixed security-scan validate-docs validate-frontend-authority validate-frontend-api-contract validate-traceability test-crisis-evidence release-check
+.PHONY: test-hooks test-security-scan-script test-unit test-runtime test-coverage verify-unit build install-hooks verify-fast validate-workflows validate-architecture-docs smoke-compose fixtures-e2e verify-readiness-recovery verify-compose test-log-redaction smoke-financial-path inspect-observability verify license-check explain-statements-representative test-api-features test-ui-features e2e-fixed security-scan validate-docs validate-frontend-authority validate-frontend-api-contract validate-traceability test-crisis-evidence release-check
 
-verify-fast: test-hooks test-unit
+verify-fast: test-hooks test-security-scan-script test-unit
 	./scripts/tests/test_frontend_quality.sh
 	./scripts/tests/test_architecture_docs.sh
 	./scripts/tests/test_ci_workflow.sh
@@ -15,6 +15,9 @@ test-hooks:
 	./scripts/tests/test_commit_message_hook.sh
 	./scripts/tests/test_pre_commit_secret_hook.sh
 	./scripts/tests/test_hook_installation.sh
+
+test-security-scan-script:
+	./scripts/tests/test_security_scan.sh
 
 test-unit:
 	./scripts/with-java21.sh ./backend/gradlew -p backend test
