@@ -27,7 +27,7 @@ done < <(
 # though they are not declared as Gherkin scenarios.
 required_check_ids=(
   DOC-LINK-001 DOC-SCHEMA-002 DOC-TRACE-003 DOC-MONEY-004 DOC-CLAIM-005
-  AUTHORITY-001 API-CONTRACT-001
+  AUTHORITY-001 API-CONTRACT-001 COLLAB-LOCAL-001 REBASE-LOCAL-002
 )
 check_ids=("${scenario_ids[@]}" "${required_check_ids[@]}")
 

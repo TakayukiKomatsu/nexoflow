@@ -45,6 +45,8 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | E2E-001 | **Implemented** | `frontend/e2e/operator-critical-path.spec.ts` | `make test-ui-features`; `frontend/playwright-report/index.html` |
 | REL-004 | **Gap** | `docs/sdd/12_sdd_authorized-collaboration-crisis-publication-and-release-evidence.md` | `make test-crisis-evidence`; local evidence only, publication remains blocked |
 | CRISIS-002 | **Implemented** | `scripts/test-crisis-evidence.sh` | `make test-crisis-evidence`; disposable branch/hash/recovery output |
+| COLLAB-LOCAL-001 | **Implemented** | `scripts/test-local-collaboration-evidence.sh` | `make test-local-collaboration-evidence`; disposable PR-description/ref/review/fast-forward proof |
+| REBASE-LOCAL-002 | **Implemented** | `scripts/test-local-collaboration-evidence.sh` | `make test-local-collaboration-evidence`; actual unpublished autosquash and range-diff proof |
 
 ## Supplemental documentation and contract checks
 

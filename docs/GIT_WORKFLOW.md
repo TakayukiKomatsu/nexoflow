@@ -11,6 +11,22 @@ This project uses **GitHub Flow**: short-lived `feature/<topic>` branches are re
 - A pull request records scope, tests, security results, migrations, rollback notes, and residual risks. Required checks and review must pass before merge.
 - Release tags and repository publication require the explicit authorization gates in SDD 12.
 
+## Executable local collaboration evidence
+
+`make test-local-collaboration-evidence` creates a disposable clone with no
+remote, opens a short-lived `feature/local-pr-simulation` branch, records a
+review-ready PR description and local PR ref, and runs review checks. It then
+performs a real unpublished `git rebase -i --autosquash`, validates the old and
+new ranges with `git range-diff`, and fast-forwards the reviewed head into the
+clone's `main`. This proves local branch, review-description, clean-history, and
+merge mechanics; it is explicitly **not** evidence of a hosted PR, reviewer
+approval, protected-branch checks, or publication.
+
 ## Crisis exercise
 
-The isolated `simulation/crisis-revert` procedure in SDD 12 creates a harmless regression on a disposable branch, proves it fails, reverts it, and records both hashes. A defective commit is never intentionally merged to `main`.
+`make test-crisis-evidence` clones the release candidate into a disposable
+repository, renames that clone's current branch to `main`, commits a harmless
+fixture regression, proves the fixture fails, and reverts it. The script then
+runs `make verify-fast` and proves the complete reverted tree equals the release
+candidate tree. The real repository's `main` is never changed; the branch name
+is intentionally realistic only inside the throwaway clone.
