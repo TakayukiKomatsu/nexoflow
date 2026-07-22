@@ -10,6 +10,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
 import com.srm.creditengine.pricing.PricingStrategyRegistry;
+import com.srm.creditengine.pricing.infrastructure.JdbcPricingQuoteRepository;
+import com.srm.creditengine.pricing.infrastructure.JdbcReceivableQuoteReader;
+import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import com.srm.creditengine.receivable.application.ReceivableService;
 import java.math.BigDecimal;
 import java.time.*;
@@ -96,9 +99,10 @@ class PricingQuoteSnapshotTest {
                 rates,
                 currency,
                 strategies,
-                receivables,
-                jdbc,
-                Clock.fixed(instant, ZoneOffset.UTC));
+                new JdbcPricingQuoteRepository(jdbc),
+                new JdbcReceivableQuoteReader(jdbc),
+                Clock.fixed(instant, ZoneOffset.UTC),
+                new FinancialTelemetry(io.micrometer.core.instrument.Metrics.globalRegistry));
     }
 
     private static List<String> financialStrings(PricingService.Breakdown breakdown) {

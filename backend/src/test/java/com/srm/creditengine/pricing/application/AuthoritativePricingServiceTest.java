@@ -10,9 +10,12 @@ import static org.mockito.Mockito.when;
 import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
 import com.srm.creditengine.pricing.*;
+import com.srm.creditengine.pricing.infrastructure.JdbcPricingQuoteRepository;
+import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
+import java.util.Optional;
 import com.srm.creditengine.receivable.application.ReceivableService;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -153,7 +156,13 @@ class AuthoritativePricingServiceTest {
 
     private static AuthoritativePricingService serviceAt(JdbcTemplate jdbc, Instant instant) {
         return new AuthoritativePricingService(
-                null, null, null, null, jdbc, Clock.fixed(instant, ZoneOffset.UTC));
+                null,
+                null,
+                null,
+                new JdbcPricingQuoteRepository(jdbc),
+                null,
+                Clock.fixed(instant, ZoneOffset.UTC),
+                new FinancialTelemetry(io.micrometer.core.instrument.Metrics.globalRegistry));
     }
 
     private static JdbcTemplate quoteSnapshot(Instant pricedAt, Instant expiresAt) {
@@ -270,29 +279,23 @@ class AuthoritativePricingServiceTest {
 
     @Test
     void refusesToCreateAQuoteForNonRegisteredReceivables() {
-        JdbcTemplate jdbc = mock(JdbcTemplate.class);
-        var receivable = new ReceivableService.Receivable(
-                RECEIVABLE_ID,
-                UUID.randomUUID(),
-                "MERCANTILE_INVOICE",
-                new BigDecimal("1000.0000"),
-                "BRL",
-                LocalDate.parse("2030-01-15"),
-                LocalDate.parse("2030-02-14"),
-                "SETTLED",
-                1L);
-        when(jdbc.query(
-                        org.mockito.ArgumentMatchers.anyString(),
-                        org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<ReceivableService.Receivable>>any(),
-                        org.mockito.ArgumentMatchers.<Object>any()))
-                .thenReturn(List.of(receivable));
+        var reader = mock(ReceivableQuoteReader.class);
+        when(reader.lockRegistered(RECEIVABLE_ID))
+                .thenReturn(Optional.of(new ReceivableQuoteReader.LockedReceivable(
+                        RECEIVABLE_ID,
+                        "MERCANTILE_INVOICE",
+                        new BigDecimal("1000.0000"),
+                        "BRL",
+                        LocalDate.parse("2030-02-14"),
+                        "SETTLED")));
         var service = new AuthoritativePricingService(
                 null,
                 null,
                 null,
                 null,
-                jdbc,
-                Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC));
+                reader,
+                Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC),
+                new FinancialTelemetry(io.micrometer.core.instrument.Metrics.globalRegistry));
 
         assertThatThrownBy(() -> service.createQuote(RECEIVABLE_ID, "BRL", "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
