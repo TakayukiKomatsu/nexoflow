@@ -3,10 +3,32 @@ set -euo pipefail
 
 canary_pattern='SRM_TEST_SECRET_DO_NOT_USE_[A-Z0-9]+'
 
+contains_suspected_secret() {
+  awk -v canary_pattern="$canary_pattern" '
+    {
+      line = $0
+      lower = tolower(line)
+      if (line ~ canary_pattern || line ~ /-----BEGIN ([A-Z0-9]+ )?PRIVATE KEY-----/) {
+        found = 1
+      }
+      if (lower ~ /^[[:space:]]*(export[[:space:]]+)?[a-z0-9_.-]*(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|secret)[a-z0-9_.-]*[[:space:]]*[:=]/) {
+        if (lower !~ /(replace[-_ ]with|placeholder|example|not[-_ ]a[-_ ]real|local[-_ ]only|changeme|dummy|\$\{|<[^>]+>)/) {
+          found = 1
+        }
+      }
+    }
+    END { exit(found ? 0 : 1) }
+  '
+}
+
 while IFS= read -r staged_file; do
   [[ -n "$staged_file" ]] || continue
 
-  if git show ":$staged_file" 2>/dev/null | grep -Eq "$canary_pattern"; then
+  # Exact-path allowlist: this executable regression test contains the
+  # unmistakably non-live FIN-GIT-002 canary used to prove the hook rejects it.
+  [[ "$staged_file" == "scripts/tests/test_pre_commit_secret_hook.sh" ]] && continue
+
+  if git show ":$staged_file" 2>/dev/null | contains_suspected_secret; then
     printf 'Potential secret detected in staged file: %s\n' "$staged_file" >&2
     printf 'Remove the secret before committing. The value is intentionally not displayed.\n' >&2
     exit 1
