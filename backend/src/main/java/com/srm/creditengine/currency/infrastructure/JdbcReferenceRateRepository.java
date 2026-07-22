@@ -13,6 +13,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 @Repository
 public class JdbcReferenceRateRepository implements ReferenceRateRepository, ReferenceRateService {
+    private static final BigDecimal MAX_MONTHLY_RATE = new BigDecimal("1.0000000000");
     private final JdbcTemplate jdbc;
 
     public JdbcReferenceRateRepository(JdbcTemplate jdbc) {
@@ -57,5 +58,8 @@ public class JdbcReferenceRateRepository implements ReferenceRateRepository, Ref
 
     private static void requirePositive(BigDecimal value) {
         if (value == null || value.signum() <= 0) throw new IllegalArgumentException("A reference rate must be positive");
+        if (value.compareTo(MAX_MONTHLY_RATE) > 0) {
+            throw new IllegalArgumentException("A reference rate must be at most 1.0000000000");
+        }
     }
 }

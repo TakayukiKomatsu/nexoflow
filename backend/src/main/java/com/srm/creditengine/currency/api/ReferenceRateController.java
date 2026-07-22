@@ -3,6 +3,7 @@ package com.srm.creditengine.currency.api;
 import com.srm.creditengine.currency.application.ReferenceRateService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
@@ -31,6 +32,12 @@ class ReferenceRateController {
     @GetMapping("/api/v1/product-spreads")
     List<ReferenceRateService.ProductSpread> listSpread(@RequestParam String productType, @RequestParam Instant effectiveAt) { return references.productSpreads(productType, effectiveAt); }
 
-    record BaseRateRequest(@NotBlank String currency, @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal monthlyRate, @NotNull Instant effectiveAt) {}
-    record ProductSpreadRequest(@NotBlank String productType, @NotNull @DecimalMin(value = "0", inclusive = false) BigDecimal monthlySpread, @NotNull Instant effectiveAt) {}
+    record BaseRateRequest(
+            @NotBlank String currency,
+            @NotNull @DecimalMin(value = "0", inclusive = false) @DecimalMax("1.0000000000") BigDecimal monthlyRate,
+            @NotNull Instant effectiveAt) {}
+    record ProductSpreadRequest(
+            @NotBlank String productType,
+            @NotNull @DecimalMin(value = "0", inclusive = false) @DecimalMax("1.0000000000") BigDecimal monthlySpread,
+            @NotNull Instant effectiveAt) {}
 }

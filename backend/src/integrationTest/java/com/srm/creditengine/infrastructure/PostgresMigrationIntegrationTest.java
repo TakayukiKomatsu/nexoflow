@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Timestamp;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -63,5 +64,25 @@ class PostgresMigrationIntegrationTest {
 
         Integer count = jdbc.queryForObject("select count(*) from audit_events where id=?", Integer.class, id);
         assertThat(count).isEqualTo(1);
+    }
+
+    @Test
+    void referenceRateTablesRejectValuesAboveThePricingDomainMaximum() {
+        Instant effectiveAt = Instant.parse("2040-01-01T00:00:00Z");
+
+        assertThatThrownBy(() -> jdbc.update(
+                        "insert into base_rate_versions (id,currency_code,monthly_rate,effective_at) values (?,?,?,?)",
+                        UUID.randomUUID(),
+                        "BRL",
+                        new BigDecimal("1.0000000001"),
+                        Timestamp.from(effectiveAt)))
+                .hasMessageContaining("base_rate_versions_monthly_rate_domain");
+        assertThatThrownBy(() -> jdbc.update(
+                        "insert into product_spread_versions (id,product_type_code,monthly_spread,effective_at) values (?,?,?,?)",
+                        UUID.randomUUID(),
+                        "MERCANTILE_INVOICE",
+                        new BigDecimal("999"),
+                        Timestamp.from(effectiveAt)))
+                .hasMessageContaining("product_spread_versions_monthly_spread_domain");
     }
 }

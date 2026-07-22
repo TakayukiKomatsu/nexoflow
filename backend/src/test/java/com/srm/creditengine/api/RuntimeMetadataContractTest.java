@@ -119,6 +119,23 @@ class RuntimeMetadataContractTest {
     }
 
     @Test
+    void documentsTheMonthlyReferenceRateDomainMaximumInOpenApi() throws Exception {
+        JsonNode schemas = new ObjectMapper()
+                .readTree(mockMvc.perform(get("/v3/api-docs"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("components")
+                .path("schemas");
+
+        assertThat(schemas.path("BaseRateRequest").path("properties").path("monthlyRate").path("maximum").decimalValue())
+                .isEqualByComparingTo("1.0000000000");
+        assertThat(schemas.path("ProductSpreadRequest").path("properties").path("monthlySpread").path("maximum").decimalValue())
+                .isEqualByComparingTo("1.0000000000");
+    }
+
+    @Test
     void oneFxProviderUrlDrivesTheAdapterAndBoundedReadinessHealth() throws Exception {
         providerRequests.clear();
 

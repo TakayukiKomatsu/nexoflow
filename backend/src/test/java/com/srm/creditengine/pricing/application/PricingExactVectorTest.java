@@ -71,6 +71,16 @@ class PricingExactVectorTest {
         assertThat(result.settlementAmount()).isEqualByComparingTo("10.00");
     }
 
+    @Test
+    void acceptedRateCeilingUsesTheIndependentThreeToTheThreeHalvesVector() {
+        var result = service("1.0000000000", Map.of("MERCANTILE_INVOICE", "1.0000000000"), identity())
+                .simulate(input("1000.00", "BRL", "MERCANTILE_INVOICE", "2030-03-01", "BRL"));
+
+        assertThat(result.termInMonths()).isEqualByComparingTo("1.5000000000");
+        assertThat(result.discountedAmount()).isEqualByComparingTo("192.4501");
+        assertThat(result.settlementAmount()).isEqualByComparingTo("192.45");
+    }
+
     private static PricingService.Input input(
             String faceAmount, String faceCurrency, String productType, String dueDate, String settlementCurrency) {
         return new PricingService.Input(
