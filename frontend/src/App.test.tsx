@@ -272,6 +272,37 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     ).toBeInTheDocument();
   });
 
+  it.each([
+    ["non-object", "not-a-session"],
+    [
+      "missing token",
+      {
+        expiresAt: Date.now() + 60_000,
+        email: "operator@srm.local",
+        roles: ["OPERATOR"],
+      },
+    ],
+    [
+      "unknown role",
+      {
+        accessToken: "token",
+        expiresAt: Date.now() + 60_000,
+        email: "operator@srm.local",
+        roles: ["ROOT"],
+      },
+    ],
+  ])("rejects a persisted session with %s", (_case, persisted) => {
+    localStorage.setItem("srm-session", JSON.stringify(persisted));
+    stubFetch(vi.fn());
+
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: "Operator sign in" }),
+    ).toBeInTheDocument();
+    expect(localStorage.getItem("srm-session")).toBeNull();
+  });
+
   it.each(["ANALYST", "AUDITOR"])(
     "does not request simulations for a read-only %s session",
     async (role) => {

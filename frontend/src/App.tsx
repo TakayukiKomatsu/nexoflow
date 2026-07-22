@@ -14,6 +14,13 @@ import {
   type PricingQuote,
   type Session,
 } from "./api/client";
+import {
+  clearSession,
+  expireSession,
+  loadSession,
+  storeSession,
+  subscribeToSessionExpiry,
+} from "./session";
 import { SettlementWorkspace } from "./SettlementWorkspace";
 import "./App.css";
 
@@ -91,20 +98,6 @@ function fingerprint(values: FormValues): string {
     values.dueDate,
     values.settlementCurrency,
   ]);
-}
-
-function readSession(): Session | undefined {
-  try {
-    const value = localStorage.getItem("srm-session");
-    return value ? (JSON.parse(value) as Session) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function saveSession(session?: Session) {
-  if (session) localStorage.setItem("srm-session", JSON.stringify(session));
-  else localStorage.removeItem("srm-session");
 }
 
 function Login({ onSession }: { onSession: (session: Session) => void }) {
@@ -215,14 +208,6 @@ function Workflow({
   const canViewLedger = session.roles.some((role) =>
     ["OPERATOR", "ANALYST", "ADMIN", "AUDITOR"].includes(role),
   );
-
-  useEffect(() => {
-    if (session.expiresAt <= Date.now()) onExpired();
-    const interval = window.setInterval(() => {
-      if (session.expiresAt <= Date.now()) onExpired();
-    }, 10_000);
-    return () => window.clearInterval(interval);
-  }, [session, onExpired]);
 
   useEffect(() => {
     if (focusAlert && feedback?.kind === "error") {
@@ -761,13 +746,24 @@ function Workflow({
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session | undefined>(readSession);
+  const [session, setSession] = useState<Session | undefined>(loadSession);
+  useEffect(() => subscribeToSessionExpiry(() => setSession(undefined)), []);
+  useEffect(() => {
+    if (!session) return;
+    const remaining = session.expiresAt - Date.now();
+    if (remaining <= 0) {
+      expireSession();
+      return;
+    }
+    const timeout = window.setTimeout(expireSession, remaining);
+    return () => window.clearTimeout(timeout);
+  }, [session]);
   const establish = useCallback((next: Session) => {
-    saveSession(next);
+    storeSession(next);
     setSession(next);
   }, []);
   const end = useCallback(() => {
-    saveSession();
+    clearSession();
     setSession(undefined);
   }, []);
   return session ? (

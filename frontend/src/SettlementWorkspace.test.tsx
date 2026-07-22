@@ -7,9 +7,9 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettlementWorkspace } from "./SettlementWorkspace";
-import type { PricingQuote } from "./api/client";
+import type { PricingQuote, Session } from "./api/client";
 
-const session = {
+const session: Session = {
   accessToken: "token",
   expiresAt: Date.now() + 60_000,
   email: "operator@srm.local",

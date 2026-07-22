@@ -19,6 +19,7 @@ const simulationInput = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  localStorage.clear();
 });
 
 describe("API client error contract", () => {
@@ -87,6 +88,40 @@ describe("API client error contract", () => {
         message: "Request failed (503).",
       }),
     );
+  });
+
+  it("clears the shared session and announces expiry for any 401 response", async () => {
+    localStorage.setItem(
+      "srm-session",
+      JSON.stringify({
+        accessToken: "token",
+        expiresAt: Date.now() + 60_000,
+        email: "operator@srm.local",
+        roles: ["OPERATOR"],
+      }),
+    );
+    const expired = vi.fn();
+    window.addEventListener("srm:session-expired", expired, { once: true });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        jsonResponse(
+          {
+            status: 401,
+            code: "AUTHENTICATION_REQUIRED",
+            detail: "Authentication is required.",
+          },
+          401,
+        ),
+      ),
+    );
+
+    await expect(
+      api.previewSettlement(["quote-1"], "token"),
+    ).rejects.toBeInstanceOf(ApiError);
+
+    expect(localStorage.getItem("srm-session")).toBeNull();
+    expect(expired).toHaveBeenCalledOnce();
   });
 });
 

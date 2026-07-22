@@ -1,9 +1,7 @@
-export type Session = {
-  accessToken: string;
-  expiresAt: number;
-  email: string;
-  roles: string[];
-};
+import { expireSession, type Session } from "../session";
+
+export type { Session } from "../session";
+
 export type PricingSimulationRequest = {
   faceAmount: string;
   faceCurrency: string;
@@ -119,12 +117,14 @@ async function request<T>(
   if (!response.ok) {
     const body = (await response.json().catch(() => undefined)) as
       ProblemDetail | undefined;
-    throw new ApiError(
+    const error = new ApiError(
       response.status,
       body?.code,
       body?.detail ?? `Request failed (${response.status}).`,
       body?.correlationId,
     );
+    if (response.status === 401) expireSession();
+    throw error;
   }
   return response.json() as Promise<T>;
 }
@@ -135,7 +135,7 @@ export const api = {
       "/auth/login",
       { method: "POST", body: JSON.stringify(input) },
     );
-    const me = await request<{ email: string; roles: string[] }>(
+    const me = await request<{ email: string; roles: Session["roles"] }>(
       "/users/me",
       {},
       token.accessToken,
