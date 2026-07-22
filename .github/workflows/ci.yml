@@ -28,6 +28,12 @@ jobs:
         run: npm --prefix frontend ci
       - name: Verify
         run: make verify-fast
+      - name: Verify sensitive-data log redaction
+        run: make test-log-redaction
+      - name: Verify browser pricing remains server-authoritative
+        run: make validate-frontend-authority
+      - name: Verify frontend and OpenAPI pricing quote contract
+        run: make validate-frontend-api-contract
       - name: Build deliverables
         run: make build
       - name: Verify PostgreSQL and Compose runtime contracts
