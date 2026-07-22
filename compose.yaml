@@ -2,7 +2,7 @@ name: srm-credit-engine
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     environment:
       POSTGRES_DB: srm_credit_engine
       POSTGRES_USER: srm
@@ -25,7 +25,7 @@ services:
       retries: 20
 
   mock-fx:
-    image: nginxinc/nginx-unprivileged:1.29-alpine
+    image: nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6
     read_only: true
     tmpfs: [/tmp, /var/cache/nginx, /var/run]
     security_opt: [no-new-privileges:true]
@@ -140,7 +140,7 @@ services:
 
 
   smoke:
-    image: curlimages/curl:8.16.0
+    image: curlimages/curl:8.16.0@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6
     entrypoint: ["/bin/sh", "/smoke/compose-smoke.sh"]
     read_only: true
     security_opt: [no-new-privileges:true]
