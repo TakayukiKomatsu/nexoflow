@@ -1,0 +1,43 @@
+import { Component, type ReactNode } from "react";
+
+type Props = {
+  children: ReactNode;
+  onReset?: () => void;
+};
+
+type State = { failed: boolean };
+
+export class ApplicationErrorBoundary extends Component<Props, State> {
+  state: State = { failed: false };
+
+  static getDerivedStateFromError(): State {
+    return { failed: true };
+  }
+
+  private reset = () => {
+    if (this.props.onReset) {
+      this.props.onReset();
+      return;
+    }
+    window.location.reload();
+  };
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <main className="login-page">
+        <section className="card" aria-labelledby="fatal-error-title">
+          <div role="alert">
+            <p className="eyebrow">SRM Credit Engine</p>
+            <h1 id="fatal-error-title">The application could not continue</h1>
+            <p>
+              Your last confirmed server operation is not changed. Reload the
+              application before trying again.
+            </p>
+          </div>
+          <button onClick={this.reset}>Reload application</button>
+        </section>
+      </main>
+    );
+  }
+}
