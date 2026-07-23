@@ -17,7 +17,10 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -32,12 +35,16 @@ class HttpFxSynchronizationServiceTest {
         CurrencyService currency = mock(CurrencyService.class);
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        var service = service(currency, builder, Clock.fixed(NOW, ZoneOffset.UTC), new ArrayList<>());
+        var registry = new SimpleMeterRegistry();
+        var service = service(
+                currency, builder, Clock.fixed(NOW, ZoneOffset.UTC), new ArrayList<>(), registry);
 
         assertThatThrownBy(() -> service.synchronize("EUR", "BRL", "admin@srm.local"))
                 .isInstanceOf(UnsupportedCurrencyException.class);
 
         verifyNoInteractions(currency);
+        assertThat(syncOutcomes(registry, "REJECTED")).isEqualTo(1);
+        assertThat(totalSyncOutcomes(registry)).isEqualTo(1);
         server.verify();
     }
 
@@ -147,7 +154,47 @@ class HttpFxSynchronizationServiceTest {
         assertThat(waits).isEmpty();
         assertThat(registry.find("srm_fx_provider_attempt_duration_seconds")
                 .tag("result", "PERMANENT_FAILURE").timer().count()).isEqualTo(1);
+        assertThat(registry.get("srm.fx.provider.failures").counter().count()).isEqualTo(1);
+        assertThat(syncOutcomes(registry, "UNAVAILABLE")).isEqualTo(1);
+        assertThat(totalSyncOutcomes(registry)).isEqualTo(1);
         server.verify();
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidProviderBodies")
+    void invalidProviderValuesArePermanentUnavailableFailures(String providerBody) {
+        CurrencyService currency = mock(CurrencyService.class);
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
+                .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
+                        providerBody, org.springframework.http.MediaType.APPLICATION_JSON));
+        var registry = new SimpleMeterRegistry();
+        List<Duration> waits = new ArrayList<>();
+        var service = service(
+                currency, builder, Clock.fixed(NOW, ZoneOffset.UTC), waits, registry);
+
+        assertThatThrownBy(() -> service.synchronize("USD", "BRL", "admin@srm.local"))
+                .isInstanceOf(FxProviderUnavailableException.class);
+
+        assertThat(waits).isEmpty();
+        assertThat(registry.get("srm.fx.provider.requests").counter().count()).isEqualTo(1);
+        assertThat(registry.get("srm.fx.provider.failures").counter().count()).isEqualTo(1);
+        assertThat(registry.find("srm_fx_provider_attempt_duration_seconds")
+                .tag("result", "PERMANENT_FAILURE").timer().count()).isEqualTo(1);
+        assertThat(syncOutcomes(registry, "UNAVAILABLE")).isEqualTo(1);
+        assertThat(totalSyncOutcomes(registry)).isEqualTo(1);
+        verifyNoInteractions(currency);
+        server.verify();
+    }
+
+    static Stream<String> invalidProviderBodies() {
+        return Stream.of(
+                "{\"rate\":\"0\",\"observedAt\":\"2030-01-15T12:00:00Z\",\"source\":\"mock\"}",
+                "{\"rate\":\"1000000000.0000000000\",\"observedAt\":\"2030-01-15T12:00:00Z\",\"source\":\"mock\"}",
+                "{\"rate\":\"5.12345678901\",\"observedAt\":\"2030-01-15T12:00:00Z\",\"source\":\"mock\"}",
+                "{\"rate\":\"5.20\",\"observedAt\":\"2030-01-15T12:00:00Z\",\"source\":\""
+                        + "x".repeat(51) + "\"}");
     }
 
     @Test
@@ -164,16 +211,20 @@ class HttpFxSynchronizationServiceTest {
                 .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess(
                         SUCCESS_BODY, org.springframework.http.MediaType.APPLICATION_JSON));
         MutableClock clock = new MutableClock(NOW);
-        var service = service(currency, builder, clock, new ArrayList<>());
+        var registry = new SimpleMeterRegistry();
+        var service = service(currency, builder, clock, new ArrayList<>(), registry);
 
         assertThatThrownBy(() -> service.synchronize("USD", "BRL", "admin@srm.local"))
                 .isInstanceOf(FxProviderUnavailableException.class);
         clock.advance(Duration.ofSeconds(29));
         assertThatThrownBy(() -> service.synchronize("USD", "BRL", "admin@srm.local"))
                 .isInstanceOf(FxProviderUnavailableException.class);
+        assertThat(syncOutcomes(registry, "UNAVAILABLE")).isEqualTo(2);
         clock.advance(Duration.ofSeconds(1));
 
         assertThat(service.synchronize("USD", "BRL", "admin@srm.local").rate()).isEqualByComparingTo("5.20");
+        assertThat(syncOutcomes(registry, "SUCCESS")).isEqualTo(1);
+        assertThat(totalSyncOutcomes(registry)).isEqualTo(3);
         server.verify();
     }
 
@@ -331,11 +382,12 @@ class HttpFxSynchronizationServiceTest {
         server.expect(org.springframework.test.web.client.match.MockRestRequestMatchers.anything())
                 .andRespond(org.springframework.test.web.client.response.MockRestResponseCreators
                         .withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+        var registry = new SimpleMeterRegistry();
         var service = new HttpFxSynchronizationService(
                 currency,
                 builder.baseUrl("http://fx").build(),
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                new SimpleMeterRegistry(),
+                registry,
                 FxRetryDelay.exponential(() -> 0.5d),
                 duration -> {
                     throw new InterruptedException();
@@ -343,12 +395,37 @@ class HttpFxSynchronizationServiceTest {
 
         assertThatThrownBy(() -> service.synchronize("USD", "BRL", "admin@srm.local"))
                 .isInstanceOf(FxProviderUnavailableException.class);
+        assertThat(syncOutcomes(registry, "UNAVAILABLE")).isEqualTo(1);
+        assertThat(totalSyncOutcomes(registry)).isEqualTo(1);
+        assertThat(registry.get("srm.fx.provider.requests").counter().count()).isEqualTo(1);
         server.verify();
     }
     private static HttpFxSynchronizationService service(
             CurrencyService currency, RestClient.Builder builder, Clock clock, List<Duration> waits) {
+        return service(currency, builder, clock, waits, new SimpleMeterRegistry());
+    }
+
+    private static HttpFxSynchronizationService service(
+            CurrencyService currency,
+            RestClient.Builder builder,
+            Clock clock,
+            List<Duration> waits,
+            SimpleMeterRegistry registry) {
         return new HttpFxSynchronizationService(currency, builder.baseUrl("http://fx").build(), clock,
-                new SimpleMeterRegistry(), FxRetryDelay.exponential(() -> 0.5d), waits::add);
+                registry, FxRetryDelay.exponential(() -> 0.5d), waits::add);
+    }
+
+    private static double syncOutcomes(SimpleMeterRegistry registry, String result) {
+        var counter = registry.find("srm_fx_resilience_outcomes_total")
+                .tag("result", result)
+                .counter();
+        return counter == null ? 0 : counter.count();
+    }
+
+    private static double totalSyncOutcomes(SimpleMeterRegistry registry) {
+        return registry.find("srm_fx_resilience_outcomes_total").counters().stream()
+                .mapToDouble(io.micrometer.core.instrument.Counter::count)
+                .sum();
     }
 
     private static final class MutableClock extends Clock {

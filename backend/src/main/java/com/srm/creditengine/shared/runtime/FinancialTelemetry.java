@@ -21,7 +21,7 @@ public class FinancialTelemetry {
     private static final Set<String> SETTLEMENT_RESULTS = Set.of("SUCCESS", "CONFLICT");
     private static final Set<String> REVERSAL_RESULTS = Set.of("SUCCESS", "CONFLICT");
     private static final Set<String> REPORT_RESULTS = Set.of("SUCCESS", "REJECTED");
-    private static final Set<String> FX_RESULTS = Set.of("SUCCESS", "UNAVAILABLE");
+    private static final Set<String> FX_RESULTS = Set.of("SUCCESS", "UNAVAILABLE", "REJECTED");
     private static final Set<String> FX_ATTEMPT_RESULTS =
             Set.of("SUCCESS", "TRANSIENT_FAILURE", "PERMANENT_FAILURE");
     private final MeterRegistry registry;

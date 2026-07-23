@@ -36,6 +36,7 @@ public class SafeOperationalLogger {
         LOG.atWarn().addKeyValue("event", "FINANCIAL_CONFLICT")
                 .addKeyValue("actor_role", role)
                 .addKeyValue("outcome", "CONFLICT")
+                .addKeyValue("correlation_id", safeCorrelationId(MDC.get("correlationId")))
                 .log("FINANCIAL_CONFLICT");
     }
 

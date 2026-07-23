@@ -73,56 +73,81 @@ class HttpFxSynchronizationService implements FxSynchronizationService {
 
     @Override
     public CurrencyService.Observation synchronize(String base, String quote, String actor) {
-        String canonicalBase = SupportedCurrency.require(base);
-        String canonicalQuote = SupportedCurrency.require(quote);
-        if (canonicalBase.equals(canonicalQuote)) {
-            throw new IllegalArgumentException("Base and quote currencies must differ");
-        }
-        if (clock.instant().isBefore(circuitOpenUntil)) throw new FxProviderUnavailableException();
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-            var timer = telemetry.startFxAttempt();
-            try {
-                requests.increment();
-                ProviderRate rate = client.get().uri("/api/v1/rates/{pair}", canonicalBase + "-" + canonicalQuote)
-                        .accept(MediaType.APPLICATION_JSON).retrieve().body(ProviderRate.class);
-                if (rate == null || rate.rate() == null || rate.observedAt() == null) {
-                    throw new RestClientException("Invalid FX response");
-                }
-                String source = rate.source() == null || rate.source().isBlank() ? "HTTP_PROVIDER" : rate.source();
-                if (!validProviderRate(rate.rate()) || source.length() > 50) {
-                    telemetry.completeFxAttempt(timer, "permanent_failure");
-                    telemetry.fx("unavailable");
-                    throw new FxProviderUnavailableException();
-                }
-                try {
-                    currency.recordObservation(
-                            canonicalBase, canonicalQuote, rate.rate(), source, rate.observedAt(), actor);
-                } catch (IllegalArgumentException exception) {
-                    telemetry.completeFxAttempt(timer, "permanent_failure");
-                    telemetry.fx("unavailable");
-                    throw new FxProviderUnavailableException();
-                }
-                telemetry.completeFxAttempt(timer, "success");
-                telemetry.fx("success");
-                return new CurrencyService.Observation(canonicalBase, canonicalQuote, rate.rate(), source, rate.observedAt());
-            } catch (RestClientException ex) {
-                failures.increment();
-                boolean retryable = retryable(ex);
-                telemetry.completeFxAttempt(timer, retryable ? "transient_failure" : "permanent_failure");
-                if (!retryable) {
-                    telemetry.fx("unavailable");
-                    throw new FxProviderUnavailableException();
-                }
-                if (attempt < MAX_ATTEMPTS) {
-                    waitBeforeRetry(attempt);
-                    continue;
-                }
-                circuitOpenUntil = clock.instant().plus(CIRCUIT_OPEN_FOR);
-                telemetry.fx("unavailable");
+        String outcome = "REJECTED";
+        try {
+            String canonicalBase = SupportedCurrency.require(base);
+            String canonicalQuote = SupportedCurrency.require(quote);
+            if (canonicalBase.equals(canonicalQuote)) {
+                throw new IllegalArgumentException("Base and quote currencies must differ");
+            }
+            outcome = "UNAVAILABLE";
+            if (clock.instant().isBefore(circuitOpenUntil)) {
                 throw new FxProviderUnavailableException();
             }
+            for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+                var timer = telemetry.startFxAttempt();
+                try {
+                    requests.increment();
+                    ProviderRate rate = client.get()
+                            .uri("/api/v1/rates/{pair}", canonicalBase + "-" + canonicalQuote)
+                            .accept(MediaType.APPLICATION_JSON)
+                            .retrieve()
+                            .body(ProviderRate.class);
+                    String source = validatedSource(rate);
+                    try {
+                        currency.recordObservation(
+                                canonicalBase,
+                                canonicalQuote,
+                                rate.rate(),
+                                source,
+                                rate.observedAt(),
+                                actor);
+                    } catch (IllegalArgumentException exception) {
+                        telemetry.completeFxAttempt(timer, "permanent_failure");
+                        throw new FxProviderUnavailableException();
+                    }
+                    telemetry.completeFxAttempt(timer, "success");
+                    outcome = "SUCCESS";
+                    return new CurrencyService.Observation(
+                            canonicalBase, canonicalQuote, rate.rate(), source, rate.observedAt());
+                } catch (RestClientException ex) {
+                    failures.increment();
+                    boolean retryable = retryable(ex);
+                    telemetry.completeFxAttempt(
+                            timer, retryable ? "transient_failure" : "permanent_failure");
+                    if (!retryable) {
+                        throw new FxProviderUnavailableException();
+                    }
+                    if (attempt < MAX_ATTEMPTS) {
+                        waitBeforeRetry(attempt);
+                        continue;
+                    }
+                    circuitOpenUntil = clock.instant().plus(CIRCUIT_OPEN_FOR);
+                    throw new FxProviderUnavailableException();
+                }
+            }
+            throw new IllegalStateException("Unreachable retry state");
+        } finally {
+            telemetry.fx(outcome);
         }
-        throw new IllegalStateException("Unreachable retry state");
+    }
+
+    private static String validatedSource(ProviderRate rate) {
+        if (rate == null || rate.rate() == null || rate.observedAt() == null) {
+            throw new RestClientException("Invalid FX response");
+        }
+        BigDecimal value = rate.rate();
+        int integerDigits = Math.max(0, value.precision() - value.scale());
+        if (value.signum() <= 0 || value.scale() > 10 || integerDigits > 9) {
+            throw new RestClientException("Invalid FX response");
+        }
+        String source = rate.source() == null || rate.source().isBlank()
+                ? "HTTP_PROVIDER"
+                : rate.source();
+        if (source.length() > 50) {
+            throw new RestClientException("Invalid FX response");
+        }
+        return source;
     }
 
     private static boolean retryable(RestClientException ex) {
@@ -130,12 +155,6 @@ class HttpFxSynchronizationService implements FxSynchronizationService {
         return ex instanceof RestClientResponseException response
                 && (response.getStatusCode().value() == 429
                         || response.getStatusCode().is5xxServerError());
-    }
-
-    private static boolean validProviderRate(BigDecimal rate) {
-        return rate.signum() > 0
-                && rate.scale() <= 10
-                && rate.precision() - rate.scale() <= 9;
     }
 
     private void waitBeforeRetry(int failedAttempt) {
