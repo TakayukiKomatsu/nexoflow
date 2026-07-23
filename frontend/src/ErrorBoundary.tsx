@@ -2,16 +2,27 @@ import { Component, type ReactNode } from "react";
 
 type Props = {
   children: ReactNode;
+  onError?: (message: typeof UI_RENDER_FAILURE) => void;
   onReset?: () => void;
 };
 
 type State = { failed: boolean };
+
+export const UI_RENDER_FAILURE = "SRM UI render failure" as const;
+
+function reportRenderFailure(message: typeof UI_RENDER_FAILURE): void {
+  console.error(message);
+}
 
 export class ApplicationErrorBoundary extends Component<Props, State> {
   state: State = { failed: false };
 
   static getDerivedStateFromError(): State {
     return { failed: true };
+  }
+
+  componentDidCatch(): void {
+    (this.props.onError ?? reportRenderFailure)(UI_RENDER_FAILURE);
   }
 
   private reset = () => {
