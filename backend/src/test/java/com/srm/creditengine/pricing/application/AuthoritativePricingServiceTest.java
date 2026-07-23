@@ -163,17 +163,16 @@ class AuthoritativePricingServiceTest {
                 new ReferenceRateService.BaseRate("BRL", BigDecimal.ONE, now, "fixture")));
         PricingStrategy strategy = mock(PricingStrategy.class);
         when(strategy.productType()).thenReturn("MERCANTILE_INVOICE");
-        when(strategy.riskSpread(references, now)).thenReturn(
+        when(references.productSpreads("MERCANTILE_INVOICE", now)).thenReturn(List.of(
                 new ReferenceRateService.ProductSpread(
-                        "MERCANTILE_INVOICE", BigDecimal.ONE, now, "fixture"));
+                        "MERCANTILE_INVOICE", BigDecimal.ONE, now, "fixture")));
+        when(strategy.riskSpread(List.of(BigDecimal.ONE))).thenReturn(BigDecimal.ONE);
         when(strategy.discount(any(), any(), any(), any())).thenReturn(new BigDecimal("0.00004"));
         CurrencyService currency = mock(CurrencyService.class);
-        var service = new AuthoritativePricingService(
+        var service = simulationService(
                 references,
                 currency,
                 new PricingStrategyRegistry(List.of(strategy)),
-                null,
-                null,
                 Clock.fixed(now, ZoneOffset.UTC));
 
         assertThatThrownBy(() -> service.simulate(input(
@@ -191,9 +190,11 @@ class AuthoritativePricingServiceTest {
                 new ReferenceRateService.BaseRate("BRL", new BigDecimal("0.01"), now, "fixture")));
         PricingStrategy strategy = mock(PricingStrategy.class);
         when(strategy.productType()).thenReturn("MERCANTILE_INVOICE");
-        when(strategy.riskSpread(references, now)).thenReturn(
+        when(references.productSpreads("MERCANTILE_INVOICE", now)).thenReturn(List.of(
                 new ReferenceRateService.ProductSpread(
-                        "MERCANTILE_INVOICE", new BigDecimal("0.01"), now, "fixture"));
+                        "MERCANTILE_INVOICE", new BigDecimal("0.01"), now, "fixture")));
+        when(strategy.riskSpread(List.of(new BigDecimal("0.01"))))
+                .thenReturn(new BigDecimal("0.01"));
         when(strategy.discount(any(), any(), any(), any())).thenReturn(BigDecimal.ONE);
         CurrencyService currency = mock(CurrencyService.class);
         when(currency.resolveConversion("BRL", "USD", BigDecimal.ONE, now)).thenReturn(
@@ -202,12 +203,10 @@ class AuthoritativePricingServiceTest {
                                 "BRL", "USD", BigDecimal.ONE, "fixture", now),
                         new BigDecimal("1000000000000000.00"),
                         new BigDecimal("1000000000000000.00")));
-        var service = new AuthoritativePricingService(
+        var service = simulationService(
                 references,
                 currency,
                 new PricingStrategyRegistry(List.of(strategy)),
-                null,
-                null,
                 Clock.fixed(now, ZoneOffset.UTC));
 
         assertThatThrownBy(() -> service.simulate(input(
