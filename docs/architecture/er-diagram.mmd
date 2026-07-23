@@ -167,10 +167,14 @@ erDiagram
         json safe_metadata
     }
 
-    %% PostgreSQL V12-V16 guards make financial snapshots append-only:
+    %% Every datetime attribute is stored as PostgreSQL timestamp with time zone;
+    %% V23 preserves legacy timestamp values by interpreting them explicitly as UTC.
+    %% PostgreSQL V12-V16 and V23 guards protect financial state:
     %% exchange_rates and settlement_reversals reject UPDATE and DELETE.
     %% pricing_quotes rejects DELETE and permits only ACTIVE to CONSUMED while every snapshot value stays unchanged.
     %% settlements, settlement_items, and audit_events also reject mutation.
+    %% idempotency_records permits only PROCESSING to COMPLETED with immutable request identity,
+    %% then rejects UPDATE/DELETE.
     %% Composite uniqueness: exchange_rates(base, quote, source, observed_at);
     %% idempotency_records(actor, operation, idempotency_key); settlement_items(settlement_id, item_position).
     %% Settlement Ledger Entry is a derived SQL read model, not a stored table.

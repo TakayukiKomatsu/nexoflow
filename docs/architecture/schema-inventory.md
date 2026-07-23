@@ -32,18 +32,41 @@ checks it against both SQL and Java migration source.
 - [V19 reference-rate immutability](../../backend/src/main/java/db/migration/V19__protect_reference_rate_history.java)
 - [V20 maximum receivable and quote terms](../../backend/src/main/java/db/migration/V20__bound_receivable_maturity.java)
 - [V22 actor identity column alignment](../../backend/src/main/java/db/migration/V22__widen_actor_identity_columns.java)
+- [V23 timezone and idempotency invariants](../../backend/src/main/java/db/migration/V23__harden_time_and_idempotency_invariants.java)
 
 V15 adds `pricing_quotes.product_type_code` and its foreign key. V12–V16 and
 V19 use PostgreSQL triggers because H2 cannot execute PL/pgSQL; PostgreSQL
 integration tests are therefore required evidence for append-only behavior.
 V22 aligns every persisted financial actor snapshot with the identity email
 contract by widening the relevant authorship columns to `varchar(320)`.
+V23 reinterprets every legacy timestamp value as UTC while converting all
+persisted Instant columns to PostgreSQL `timestamp with time zone`. It also
+permits exactly one immutable-identity `PROCESSING` → `COMPLETED` update for an
+idempotency record and rejects every other update or deletion.
 
 ## Named constraints, indexes, and triggers
 
 - Constraints: `idempotency_records_state_check`, `settlement_items_asset_currency_fk`, `settlement_items_product_type_fk`, `pricing_quotes_face_currency_fk`, `pricing_quotes_fx_base_currency_fk`, `pricing_quotes_fx_quote_currency_fk`, `pricing_quotes_face_amount_positive`, `pricing_quotes_discounted_amount_positive`, `pricing_quotes_fx_rate_positive`, `pricing_quotes_settlement_amount_positive`, `pricing_quotes_expiry_after_pricing`, `pricing_quotes_product_type_fk`, `base_rate_versions_monthly_rate_domain`, `product_spread_versions_monthly_spread_domain`, `receivables_maximum_maturity`, `pricing_quotes_maximum_term`.
 - Indexes: `exchange_rates_pair_observed_at_idx`, `pricing_quotes_receivable_id_idx`, `audit_events_target_idx`, `settlement_reversals_settlement_idx`, `settlements_created_at_idx`, `settlement_items_statement_dimensions_idx`, `settlements_statement_filter_idx`, `settlement_reversals_statement_filter_idx`, `settlement_items_product_statement_idx`.
-- PostgreSQL triggers: `pricing_quotes_immutable`, `settlements_immutable`, `settlement_items_immutable`, `audit_events_immutable`, `exchange_rates_immutable`, `settlement_reversals_immutable`, `base_rate_versions_immutable`, `product_spread_versions_immutable`.
+- PostgreSQL triggers: `pricing_quotes_immutable`, `settlements_immutable`, `settlement_items_immutable`, `audit_events_immutable`, `exchange_rates_immutable`, `settlement_reversals_immutable`, `base_rate_versions_immutable`, `product_spread_versions_immutable`, `idempotency_records_transition_guard`.
+
+## Temporal storage
+
+All persisted Java `Instant` values use PostgreSQL `timestamp with time zone`;
+the V23 conversion uses `AT TIME ZONE 'UTC'` so existing timestamp-without-time-zone
+values retain their intended UTC instant:
+
+- `schema_metadata.created_at`
+- `base_rate_versions.effective_at`
+- `product_spread_versions.effective_at`
+- `exchange_rates.observed_at`, `exchange_rates.created_at`
+- `runtime_fixture_records.loaded_at`
+- `assignors.created_at`, `receivables.created_at`
+- `pricing_quotes.pricing_at`, `pricing_quotes.expires_at`, `pricing_quotes.fx_observed_at`
+- `settlements.created_at`
+- `idempotency_records.created_at`, `idempotency_records.completed_at`
+- `settlement_reversals.reversed_at`
+- `audit_events.occurred_at`
 
 ## Structural constraint signatures
 
