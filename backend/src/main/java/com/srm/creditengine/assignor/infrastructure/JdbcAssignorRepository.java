@@ -36,7 +36,7 @@ class JdbcAssignorRepository implements AssignorRepository {
     @Override
     public Optional<Assignor> findById(UUID id) {
         return jdbc.query(
-                        "select id,legal_name,normalized_tax_id,active,created_at"
+                        "select id,legal_name,normalized_tax_id,active,created_at,created_by"
                                 + " from assignors where id=?",
                         (rs, row) -> new Assignor(
                                 rs.getObject(1, UUID.class),
@@ -44,7 +44,7 @@ class JdbcAssignorRepository implements AssignorRepository {
                                 rs.getString(3),
                                 rs.getBoolean(4),
                                 rs.getTimestamp(5).toInstant(),
-                                null),
+                                rs.getString(6)),
                         id)
                 .stream()
                 .findFirst();
@@ -53,7 +53,7 @@ class JdbcAssignorRepository implements AssignorRepository {
     @Override
     public List<Assignor> findAll() {
         return jdbc.query(
-                "select id,legal_name,normalized_tax_id,active,created_at"
+                "select id,legal_name,normalized_tax_id,active,created_at,created_by"
                         + " from assignors order by created_at,id",
                 (rs, row) -> new Assignor(
                         rs.getObject(1, UUID.class),
@@ -61,6 +61,6 @@ class JdbcAssignorRepository implements AssignorRepository {
                         rs.getString(3),
                         rs.getBoolean(4),
                         rs.getTimestamp(5).toInstant(),
-                        null));
+                        rs.getString(6)));
     }
 }
