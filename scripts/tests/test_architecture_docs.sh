@@ -76,7 +76,11 @@ while IFS= read -r table; do
 done < <(sed -nE 's/^create table ([a-z_]+).*/\1/p' "$repo_root"/backend/src/main/resources/db/migration/*.sql)
 
 node "$repo_root/scripts/validate-schema-docs.mjs"
+"$repo_root/scripts/tests/test_schema_docs_validator.sh"
+"$repo_root/scripts/with-java21.sh" "$repo_root/backend/gradlew" \
+  -p "$repo_root/backend" exportOpenApi --no-daemon
 node "$repo_root/scripts/validate-api-docs.mjs"
+"$repo_root/scripts/tests/test_api_docs_validator.sh"
 
 render_dir="$repo_root/backend/build/mermaid"
 mkdir -p "$render_dir"

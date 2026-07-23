@@ -55,12 +55,14 @@ erDiagram
         string product_type_code FK
         decimal monthly_spread
         datetime effective_at
+        string created_by
     }
     base_rate_versions {
         uuid id PK
         string currency_code FK
         decimal monthly_rate
         datetime effective_at
+        string created_by
     }
     exchange_rates {
         uuid id PK

@@ -1,0 +1,15 @@
+{
+  "openapi": "3.0.1",
+  "paths": {
+    "/actuator/health": {
+      "get": {}
+    },
+    "/api/v1/widgets": {
+      "get": {},
+      "post": {}
+    },
+    "/api/v1/widgets/{id}": {
+      "delete": {}
+    }
+  }
+}

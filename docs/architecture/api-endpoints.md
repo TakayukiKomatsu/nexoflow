@@ -1,9 +1,9 @@
 # API endpoint inventory
 
-This inventory is checked against every Spring `*Controller.java` mapping by
-`scripts/validate-api-docs.mjs`. The runtime OpenAPI document remains the
-executable wire-contract authority; this page is a reviewer index, not a second
-handwritten schema.
+This inventory is checked against every `/api/v1` operation in the freshly
+exported runtime OpenAPI document by `scripts/validate-api-docs.mjs`. The
+generated document remains the executable wire-contract authority; this page is
+a reviewer index, not a second handwritten schema.
 
 | Capability | Method and path |
 | --- | --- |
