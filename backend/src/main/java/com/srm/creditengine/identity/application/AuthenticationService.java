@@ -21,11 +21,12 @@ public class AuthenticationService {
         this.rateLimiter = rateLimiter;
     }
 
-    public AccessToken authenticate(String email, String password) {
-        rateLimiter.check(email);
+    public AccessToken authenticate(String email, String password, String source) {
+        rateLimiter.check(email, source);
         var account = accounts.findEnabledByEmail(email)
                 .filter(candidate -> passwords.matches(password, candidate.passwordHash()))
                 .orElseThrow(InvalidCredentialsException::new);
+        rateLimiter.successful(email, source);
         return new AccessToken(tokens.issue(account), "Bearer", 900);
     }
 

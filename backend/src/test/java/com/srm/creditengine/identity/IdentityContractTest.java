@@ -150,6 +150,28 @@ class IdentityContractTest {
                 .andExpect(jsonPath("$.code").value("LOGIN_RATE_LIMITED"));
     }
 
+    @Test
+    void failuresFromOneNetworkSourceCannotLockTheIdentityFromAnotherSource() throws Exception {
+        UUID id = UUID.randomUUID();
+        jdbc.update(
+                "insert into users(id,email,password_hash,enabled) values (?,?,?,true)",
+                id,
+                "source-isolated@srm.local",
+                passwords.encode("correct-password"));
+        jdbc.update("insert into user_roles(user_id,role) values (?,?)", id, "OPERATOR");
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            login("source-isolated@srm.local", "wrong", "192.0.2.40")
+                    .andExpect(status().isUnauthorized());
+        }
+        login("source-isolated@srm.local", "wrong", "192.0.2.40")
+                .andExpect(status().isTooManyRequests());
+
+        login("source-isolated@srm.local", "correct-password", "192.0.2.41")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty());
+    }
+
     @ParameterizedTest(name = "{0} against {1}")
     @MethodSource("permissionMatrixCases")
     void permissionMatrixMatchesEveryConfiguredRouteClass(String role, PermissionRule rule) throws Exception {
@@ -290,5 +312,16 @@ class IdentityContractTest {
                 .build();
         var header = JwsHeader.with(MacAlgorithm.HS256).build();
         return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+    }
+
+    private org.springframework.test.web.servlet.ResultActions login(
+            String email, String password, String source) throws Exception {
+        return mockMvc.perform(post("/api/v1/auth/login")
+                .with(request -> {
+                    request.setRemoteAddr(source);
+                    return request;
+                })
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"));
     }
 }

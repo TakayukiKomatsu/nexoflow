@@ -41,12 +41,43 @@ class RiskBoundaryTest {
     void startsANewLoginWindowAtTheExactBoundary() {
         MutableClock clock = new MutableClock(Instant.parse("2030-01-15T12:00:00Z"));
         LoginRateLimiter limiter = new LoginRateLimiter(clock);
-        for (int attempt = 0; attempt < 5; attempt++) limiter.check("operator@srm.local");
-        assertThatThrownBy(() -> limiter.check("operator@srm.local"))
+        for (int attempt = 0; attempt < 5; attempt++) {
+            limiter.check("operator@srm.local", "192.0.2.10");
+        }
+        assertThatThrownBy(() -> limiter.check("operator@srm.local", "192.0.2.10"))
                 .isInstanceOf(LoginRateLimitedException.class);
 
         clock.advanceSeconds(60);
-        limiter.check("operator@srm.local");
+        limiter.check("operator@srm.local", "192.0.2.10");
+    }
+
+    @Test
+    void loginLimiterEvictsTheLeastRecentBucketAtItsConfiguredCapacity() {
+        MutableClock clock = new MutableClock(Instant.parse("2030-01-15T12:00:00Z"));
+        LoginRateLimiter limiter = new LoginRateLimiter(clock, 2);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            limiter.check("oldest@srm.local", "192.0.2.10");
+        }
+        assertThatThrownBy(() -> limiter.check("oldest@srm.local", "192.0.2.10"))
+                .isInstanceOf(LoginRateLimitedException.class);
+
+        limiter.check("second@srm.local", "192.0.2.11");
+        limiter.check("third@srm.local", "192.0.2.12");
+
+        limiter.check("oldest@srm.local", "192.0.2.10");
+    }
+
+    @Test
+    void successfulLoginClearsOnlyThatIdentityAndSourceBucket() {
+        MutableClock clock = new MutableClock(Instant.parse("2030-01-15T12:00:00Z"));
+        LoginRateLimiter limiter = new LoginRateLimiter(clock);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            limiter.check("operator@srm.local", "192.0.2.10");
+        }
+
+        limiter.successful("operator@srm.local", "192.0.2.10");
+
+        limiter.check("operator@srm.local", "192.0.2.10");
     }
 
     private static final class MutableClock extends Clock {
