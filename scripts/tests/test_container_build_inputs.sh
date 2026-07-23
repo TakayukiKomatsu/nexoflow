@@ -46,6 +46,17 @@ for dockerfile in "$repo_root/backend/Dockerfile" "$repo_root/frontend/Dockerfil
   fi
 done
 
+grep -Fq 'SRM_MIGRATION_V23_LEGACY_TIME_ZONE: ${SRM_MIGRATION_V23_LEGACY_TIME_ZONE:-}' \
+  "$repo_root/compose.yaml" || {
+  echo "CONTAINER-CONFIG-004 failed: Compose must pass the optional V23 legacy time zone to the backend" >&2
+  exit 1
+}
+grep -Eq '^SRM_MIGRATION_V23_LEGACY_TIME_ZONE=' "$repo_root/.env.example" || {
+  echo "CONTAINER-CONFIG-004 failed: .env.example must expose the V23 legacy time-zone override" >&2
+  exit 1
+}
+
 echo "CONTAINER-PIN-001 passed: every Dockerfile and Compose base image is digest-pinned"
 echo "CONTAINER-PIN-002 passed: runtime images do not perform uncontrolled apk upgrades"
 echo "CONTAINER-PIN-003 passed: runtime Dockerfiles select an explicit non-root user"
+echo "CONTAINER-CONFIG-004 passed: Compose exposes the documented V23 legacy time-zone override"
