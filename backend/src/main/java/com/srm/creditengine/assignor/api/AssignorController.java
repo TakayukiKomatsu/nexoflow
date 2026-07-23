@@ -5,6 +5,7 @@ import com.srm.creditengine.identity.application.ActorContext;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
@@ -24,7 +25,7 @@ class AssignorController {
             UUID id,
             @NotBlank @Size(min = 1, max = 200) String legalName,
             @NotBlank @Size(min = 1, max = 32) String taxId,
-            boolean active) {}
+            @NotNull Boolean active) {}
 
     @Schema(
             name = "AssignorResponse",

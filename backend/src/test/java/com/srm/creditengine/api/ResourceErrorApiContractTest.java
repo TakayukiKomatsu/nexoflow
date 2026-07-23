@@ -176,6 +176,22 @@ class ResourceErrorApiContractTest {
     }
 
     @Test
+    void assignorActiveFlagCannotBeSilentlyDefaultedWhenOmitted() throws Exception {
+        mvc.perform(post("/api/v1/assignors")
+                        .header("Authorization", "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "legalName": "Explicit State Required",
+                                  "taxId": "MISSING-ACTIVE"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.violations[0].field").value("active"));
+    }
+
+    @Test
     void receivableReferenceValuesUseDomainErrorsInsteadOfDatabaseConflicts() throws Exception {
         UUID assignorId = UUID.randomUUID();
         createAssignor(assignorId, "DOMAIN" + assignorId.toString().substring(0, 8))
