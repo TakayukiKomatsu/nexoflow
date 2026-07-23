@@ -151,25 +151,22 @@ class IdentityContractTest {
     }
 
     @Test
-    void failuresFromOneNetworkSourceCannotLockTheIdentityFromAnotherSource() throws Exception {
+    void rotatingNetworkSourcesCannotBypassAnAccountsLoginBudget() throws Exception {
         UUID id = UUID.randomUUID();
         jdbc.update(
                 "insert into users(id,email,password_hash,enabled) values (?,?,?,true)",
                 id,
-                "source-isolated@srm.local",
+                "source-rotated@srm.local",
                 passwords.encode("correct-password"));
         jdbc.update("insert into user_roles(user_id,role) values (?,?)", id, "OPERATOR");
 
         for (int attempt = 0; attempt < 5; attempt++) {
-            login("source-isolated@srm.local", "wrong", "192.0.2.40")
+            login("source-rotated@srm.local", "wrong", "192.0.2." + (40 + attempt))
                     .andExpect(status().isUnauthorized());
         }
-        login("source-isolated@srm.local", "wrong", "192.0.2.40")
-                .andExpect(status().isTooManyRequests());
-
-        login("source-isolated@srm.local", "correct-password", "192.0.2.41")
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").isNotEmpty());
+        login("source-rotated@srm.local", "correct-password", "198.51.100.41")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("LOGIN_RATE_LIMITED"));
     }
 
     @ParameterizedTest(name = "{0} against {1}")

@@ -3,8 +3,7 @@ package com.srm.creditengine.identity.application;
 import com.srm.creditengine.shared.api.LoginRateLimitedException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,13 +12,15 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class LoginRateLimiter {
-    private static final int MAX_ATTEMPTS = 5;
+    private static final int MAX_ACCOUNT_ATTEMPTS = 5;
+    private static final int MAX_SOURCE_ATTEMPTS = 20;
     private static final long WINDOW_SECONDS = 60;
     private static final int DEFAULT_MAX_BUCKETS = 10_000;
 
     private final Clock clock;
     private final int maxBuckets;
-    private final LinkedHashMap<Key, Window> attempts = new LinkedHashMap<>(16, 0.75f, true);
+    private final Map<String, Window> accountAttempts = new HashMap<>();
+    private final Map<String, Window> sourceAttempts = new HashMap<>();
 
     public LoginRateLimiter(Clock clock) {
         this(clock, DEFAULT_MAX_BUCKETS);
@@ -35,33 +36,54 @@ public class LoginRateLimiter {
     }
 
     public synchronized void check(String email, String source) {
-        Key key = new Key(normalizeEmail(email), normalizeSource(source));
+        String accountKey = normalizeEmail(email);
+        String sourceKey = normalizeSource(source);
         Instant now = clock.instant();
-        evictExpired(now);
-        Window current = attempts.get(key);
-        if (current == null) {
-            attempts.put(key, new Window(now, 1));
-            evictEldestBeyondCapacity();
-            return;
+        evictExpired(accountAttempts, now);
+        evictExpired(sourceAttempts, now);
+        Window accountWindow = accountAttempts.get(accountKey);
+        Window sourceWindow = sourceAttempts.get(sourceKey);
+        if (accountWindow != null && accountWindow.count() >= MAX_ACCOUNT_ATTEMPTS) {
+            throw new LoginRateLimitedException();
         }
-        if (current.count() >= MAX_ATTEMPTS) throw new LoginRateLimitedException();
-        attempts.put(key, new Window(current.startedAt(), current.count() + 1));
+        if (sourceWindow != null && sourceWindow.count() >= MAX_SOURCE_ATTEMPTS) {
+            throw new LoginRateLimitedException();
+        }
+        requireCapacity(accountAttempts, accountKey);
+        requireCapacity(sourceAttempts, sourceKey);
+        record(accountAttempts, accountKey, accountWindow, now);
+        record(sourceAttempts, sourceKey, sourceWindow, now);
     }
 
     public synchronized void successful(String email, String source) {
-        attempts.remove(new Key(normalizeEmail(email), normalizeSource(source)));
+        accountAttempts.remove(normalizeEmail(email));
+        String sourceKey = normalizeSource(source);
+        Window sourceWindow = sourceAttempts.get(sourceKey);
+        if (sourceWindow == null || sourceWindow.count() == 1) {
+            sourceAttempts.remove(sourceKey);
+        } else {
+            sourceAttempts.put(
+                    sourceKey, new Window(sourceWindow.startedAt(), sourceWindow.count() - 1));
+        }
     }
 
-    private void evictExpired(Instant now) {
-        attempts.entrySet().removeIf(entry ->
+    private static void record(
+            Map<String, Window> windows, String key, Window current, Instant now) {
+        windows.put(
+                key,
+                current == null
+                        ? new Window(now, 1)
+                        : new Window(current.startedAt(), current.count() + 1));
+    }
+
+    private static void evictExpired(Map<String, Window> windows, Instant now) {
+        windows.entrySet().removeIf(entry ->
                 !now.isBefore(entry.getValue().startedAt().plusSeconds(WINDOW_SECONDS)));
     }
 
-    private void evictEldestBeyondCapacity() {
-        if (attempts.size() > maxBuckets) {
-            Iterator<Map.Entry<Key, Window>> entries = attempts.entrySet().iterator();
-            entries.next();
-            entries.remove();
+    private void requireCapacity(Map<String, Window> windows, String key) {
+        if (!windows.containsKey(key) && windows.size() >= maxBuckets) {
+            throw new LoginRateLimitedException();
         }
     }
 
@@ -75,6 +97,5 @@ public class LoginRateLimiter {
         return normalized.length() <= 64 ? normalized : normalized.substring(0, 64);
     }
 
-    private record Key(String email, String source) {}
     private record Window(Instant startedAt, int count) {}
 }
