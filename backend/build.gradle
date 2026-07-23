@@ -163,6 +163,21 @@ tasks.named('check') {
     dependsOn tasks.named('riskCoverage')
 }
 
+tasks.register('exportOpenApi', Test) {
+    description = 'Exports the canonical runtime OpenAPI document as deterministic JSON.'
+    group = 'documentation'
+    dependsOn tasks.named('testClasses')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching 'com.srm.creditengine.api.OpenApiExportTest'
+    }
+    def openApiOutput = layout.buildDirectory.file('generated/openapi/srm-openapi.json')
+    systemProperty 'srm.openapi.output', openApiOutput.get().asFile.absolutePath
+    outputs.file(openApiOutput)
+}
+
 
 import com.github.jk1.license.filter.LicenseBundleNormalizer
 import com.github.jk1.license.render.JsonReportRenderer
