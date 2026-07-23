@@ -24,7 +24,7 @@ set -a; source .env; set +a
 npm --prefix frontend run dev
 ```
 
-The backend requires `SRM_DB_URL`, `SRM_DB_USERNAME`, `SRM_DB_PASSWORD`, and an `SRM_JWT_SECRET` of at least 32 random bytes. With the opt-in `dev` profile, `SRM_DEV_OPERATOR_EMAIL`/`SRM_DEV_OPERATOR_PASSWORD` and `SRM_DEV_ADMIN_EMAIL`/`SRM_DEV_ADMIN_PASSWORD` independently seed local `OPERATOR` and `ADMIN` accounts. Blank pairs are skipped; production and test profiles never seed credentials. The Vite development server forwards `/api` to `VITE_API_PROXY_TARGET` (default `http://127.0.0.1:8080`); this proxy is for native development, while Compose uses nginx. Test configuration supplies isolated H2 settings only under `src/test/resources`.
+The backend requires `SRM_DB_URL`, `SRM_DB_USERNAME`, `SRM_DB_PASSWORD`, and an `SRM_JWT_SECRET` of at least 32 random bytes. With the opt-in `dev` profile, `SRM_DEV_OPERATOR_EMAIL`/`SRM_DEV_OPERATOR_PASSWORD` and `SRM_DEV_ADMIN_EMAIL`/`SRM_DEV_ADMIN_PASSWORD` independently seed local `OPERATOR` and `ADMIN` accounts. Blank pairs are skipped; production and test profiles never seed credentials. The Vite development server forwards `/api` to `VITE_BACKEND_ORIGIN` (default `http://127.0.0.1:8080`); this proxy is for native development, while Compose uses nginx. Test configuration supplies isolated H2 settings only under `src/test/resources`.
 
 ## Verify
 
