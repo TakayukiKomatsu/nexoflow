@@ -1,6 +1,10 @@
 import { Component, type ReactNode } from "react";
+import {
+  reportUiRenderFailure,
+  UI_RENDER_FAILURE,
+} from "../observability/SafeUiLogger.ts";
 
-export const UI_RENDER_FAILURE = "SRM UI render failure" as const;
+export { UI_RENDER_FAILURE } from "../observability/SafeUiLogger.ts";
 
 type Props = {
   children: ReactNode;
@@ -10,10 +14,6 @@ type Props = {
 
 type State = { failed: boolean };
 
-function reportRenderFailure(message: typeof UI_RENDER_FAILURE): void {
-  console.error(message);
-}
-
 export class ApplicationErrorBoundary extends Component<Props, State> {
   state: State = { failed: false };
 
@@ -22,7 +22,11 @@ export class ApplicationErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(): void {
-    (this.props.onError ?? reportRenderFailure)(UI_RENDER_FAILURE);
+    if (this.props.onError) {
+      this.props.onError(UI_RENDER_FAILURE);
+      return;
+    }
+    reportUiRenderFailure();
   }
 
   private reset = () => {

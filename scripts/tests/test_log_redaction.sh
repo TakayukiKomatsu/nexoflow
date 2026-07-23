@@ -6,6 +6,7 @@ set -euo pipefail
 # must remain centralized so newly added callsites cannot bypass that schema.
 logger=backend/src/main/java/com/srm/creditengine/shared/runtime/SafeOperationalLogger.java
 telemetry=backend/src/main/java/com/srm/creditengine/shared/runtime/FinancialTelemetry.java
+frontend_logger=frontend/src/observability/SafeUiLogger.ts
 log_call_pattern='LoggerFactory|getLogger[[:space:]]*\(|\b(LOG|log|logger)\.(trace|debug|info|warn|error)[[:space:]]*\(|\.(atTrace|atDebug|atInfo|atWarn|atError)[[:space:]]*\(|System\.(out|err)\.(print|println|printf)[[:space:]]*\(|console\.(log|info|warn|error|debug)[[:space:]]*\('
 
 validate_log_callsites() {
@@ -32,13 +33,17 @@ validate_log_callsites() {
   [[ "$found_gateway" == true && "$unexpected" == false ]]
 }
 
-validate_log_callsites "$logger" backend/src/main/java frontend/src
+validate_log_callsites "$logger" backend/src/main/java
+validate_log_callsites "$frontend_logger" frontend/src
 
 rg -q 'HTTP_REQUEST_COMPLETED' "$logger"
 rg -q 'FINANCIAL_CONFLICT' "$logger"
 ! rg -ni 'authorization|bearer|jwt|password|secret|token|credential|api.?key|idempotency|request\.getHeader|request\.getBody|email|subject|payload|receivableId|settlementId' "$logger" >/dev/null
 ! rg -ni 'counter\([^)]*(actor|idempotency|correlation|receivable|settlementid|quoteid|payload|email|password|jwt)' "$telemetry" >/dev/null
 rg -Fq 'allowed.contains(normalized)' "$telemetry"
+rg -Fqx '  console.error(UI_RENDER_FAILURE);' "$frontend_logger"
+[[ "$(rg -c "$log_call_pattern" "$frontend_logger")" == 1 ]]
+! rg -ni 'authorization|bearer|jwt|password|secret|token|credential|api.?key|idempotency|email|subject|payload|receivable|settlement|quote' "$frontend_logger" >/dev/null
 
 mutation_root=$(mktemp -d)
 trap 'rm -rf -- "$mutation_root"' EXIT

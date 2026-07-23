@@ -1,11 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   ApplicationErrorBoundary,
   UI_RENDER_FAILURE,
 } from "./components/AppErrorBoundary";
 
 let renderFails = true;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function RecoverableModule() {
   if (renderFails) throw new Error("customer-secret-123");
@@ -36,4 +40,13 @@ it("offers an accessible recovery action when an unexpected render fails", () =>
   expect(JSON.stringify(report.mock.calls)).not.toContain(
     "customer-secret-123",
   );
+});
+
+it("uses the payload-free UI logging gateway by default", () => {
+  const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const boundary = new ApplicationErrorBoundary({ children: null });
+
+  boundary.componentDidCatch();
+
+  expect(report).toHaveBeenCalledExactlyOnceWith(UI_RENDER_FAILURE);
 });
