@@ -9,7 +9,7 @@ Representative rows were then inserted and rolled back. Every count and plan
 was rendered from the same classpath SQL template consumed in production.
 
 ── UTC Capture Time ─────────────────────────────────────────────────────────
-2026-07-23T14:49:12Z
+2026-07-23T15:04:07Z
 
 ── PostgreSQL Version ───────────────────────────────────────────────────────
 PostgreSQL 16.14 on aarch64-unknown-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
@@ -778,90 +778,90 @@ Output format is unaligned.
 SRM_FILTER_CASE|baseline
 SRM_FILTER_COUNT|baseline|3665
 SRM_PLAN_CASE|baseline
-Limit  (cost=1277.41..1277.54 rows=51 width=153) (actual time=6.684..6.689 rows=51 loops=1)
+Limit  (cost=1277.41..1277.54 rows=51 width=153) (actual time=6.146..6.149 rows=51 loops=1)
   Buffers: shared hit=1484
-  ->  Sort  (cost=1277.41..1286.58 rows=3665 width=153) (actual time=6.683..6.686 rows=51 loops=1)
+  ->  Sort  (cost=1277.41..1286.58 rows=3665 width=153) (actual time=6.146..6.147 rows=51 loops=1)
         Sort Key: s.created_at DESC, ((md5(('SETTLEMENT:'::text || (i.id)::text)))::uuid) DESC
         Sort Method: top-N heapsort  Memory: 47kB
         Buffers: shared hit=1484
-        ->  Append  (cost=345.64..1155.14 rows=3665 width=153) (actual time=0.979..6.260 rows=3665 loops=1)
+        ->  Append  (cost=345.64..1155.14 rows=3665 width=153) (actual time=0.832..5.739 rows=3665 loops=1)
               Buffers: shared hit=1484
-              ->  Hash Join  (cost=345.64..675.86 rows=3331 width=151) (actual time=0.979..4.565 rows=3331 loops=1)
+              ->  Hash Join  (cost=345.64..675.86 rows=3331 width=151) (actual time=0.832..4.231 rows=3331 loops=1)
                     Hash Cond: (i.settlement_id = s.id)
                     Buffers: shared hit=308
-                    ->  Seq Scan on settlement_items i  (cost=0.00..254.00 rows=10000 width=75) (actual time=0.002..0.405 rows=10000 loops=1)
+                    ->  Seq Scan on settlement_items i  (cost=0.00..254.00 rows=10000 width=75) (actual time=0.001..0.352 rows=10000 loops=1)
                           Buffers: shared hit=154
-                    ->  Hash  (cost=304.00..304.00 rows=3331 width=44) (actual time=0.962..0.962 rows=3331 loops=1)
+                    ->  Hash  (cost=304.00..304.00 rows=3331 width=44) (actual time=0.823..0.824 rows=3331 loops=1)
                           Buckets: 4096  Batches: 1  Memory Usage: 280kB
                           Buffers: shared hit=154
-                          ->  Seq Scan on settlements s  (cost=0.00..304.00 rows=3331 width=44) (actual time=0.006..0.680 rows=3331 loops=1)
+                          ->  Seq Scan on settlements s  (cost=0.00..304.00 rows=3331 width=44) (actual time=0.003..0.587 rows=3331 loops=1)
                                 Filter: ((created_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (created_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                 Rows Removed by Filter: 6669
                                 Buffers: shared hit=154
-              ->  Nested Loop  (cost=39.46..460.95 rows=334 width=178) (actual time=0.134..1.473 rows=334 loops=1)
+              ->  Nested Loop  (cost=39.46..460.95 rows=334 width=178) (actual time=0.097..1.361 rows=334 loops=1)
                     Join Filter: (r.settlement_id = s_1.id)
                     Buffers: shared hit=1176
-                    ->  Hash Join  (cost=39.17..319.44 rows=334 width=115) (actual time=0.122..0.886 rows=334 loops=1)
+                    ->  Hash Join  (cost=39.17..319.44 rows=334 width=115) (actual time=0.092..0.855 rows=334 loops=1)
                           Hash Cond: (i_1.settlement_id = r.settlement_id)
                           Buffers: shared hit=174
-                          ->  Seq Scan on settlement_items i_1  (cost=0.00..254.00 rows=10000 width=75) (actual time=0.007..0.349 rows=10000 loops=1)
+                          ->  Seq Scan on settlement_items i_1  (cost=0.00..254.00 rows=10000 width=75) (actual time=0.001..0.328 rows=10000 loops=1)
                                 Buffers: shared hit=154
-                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.104..0.104 rows=334 loops=1)
+                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.087..0.087 rows=334 loops=1)
                                 Buckets: 1024  Batches: 1  Memory Usage: 32kB
                                 Buffers: shared hit=20
-                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.004..0.074 rows=334 loops=1)
+                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.001..0.064 rows=334 loops=1)
                                       Filter: ((reversed_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (reversed_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                       Rows Removed by Filter: 666
                                       Buffers: shared hit=20
-                    ->  Index Scan using settlements_pkey on settlements s_1  (cost=0.29..0.38 rows=1 width=36) (actual time=0.001..0.001 rows=1 loops=334)
+                    ->  Index Scan using settlements_pkey on settlements s_1  (cost=0.29..0.38 rows=1 width=36) (actual time=0.000..0.000 rows=1 loops=334)
                           Index Cond: (id = i_1.settlement_id)
                           Buffers: shared hit=1002
 Planning:
   Buffers: shared hit=57
-Planning Time: 0.329 ms
-Execution Time: 6.754 ms
+Planning Time: 0.242 ms
+Execution Time: 6.194 ms
 SRM_FILTER_CASE|assignor
 SRM_FILTER_COUNT|assignor|333
 SRM_PLAN_CASE|assignor
-Limit  (cost=829.67..829.80 rows=51 width=153) (actual time=1.454..1.458 rows=51 loops=1)
+Limit  (cost=829.67..829.80 rows=51 width=153) (actual time=1.407..1.411 rows=51 loops=1)
   Buffers: shared hit=510
-  ->  Sort  (cost=829.67..830.59 rows=366 width=153) (actual time=1.454..1.456 rows=51 loops=1)
+  ->  Sort  (cost=829.67..830.59 rows=366 width=153) (actual time=1.407..1.409 rows=51 loops=1)
         Sort Key: s.created_at DESC, ((md5(('SETTLEMENT:'::text || (i.id)::text)))::uuid) DESC
         Sort Method: top-N heapsort  Memory: 45kB
         Buffers: shared hit=510
-        ->  Append  (cost=224.86..817.46 rows=366 width=153) (actual time=0.121..1.393 rows=333 loops=1)
+        ->  Append  (cost=224.86..817.46 rows=366 width=153) (actual time=0.124..1.348 rows=333 loops=1)
               Buffers: shared hit=510
-              ->  Hash Join  (cost=224.86..510.11 rows=333 width=151) (actual time=0.121..1.125 rows=333 loops=1)
+              ->  Hash Join  (cost=224.86..510.11 rows=333 width=151) (actual time=0.123..1.110 rows=333 loops=1)
                     Hash Cond: (i.settlement_id = s.id)
                     Buffers: shared hit=322
-                    ->  Seq Scan on settlement_items i  (cost=0.00..254.00 rows=10000 width=75) (actual time=0.001..0.349 rows=10000 loops=1)
+                    ->  Seq Scan on settlement_items i  (cost=0.00..254.00 rows=10000 width=75) (actual time=0.001..0.320 rows=10000 loops=1)
                           Buffers: shared hit=154
-                    ->  Hash  (cost=220.70..220.70 rows=333 width=44) (actual time=0.114..0.115 rows=333 loops=1)
+                    ->  Hash  (cost=220.70..220.70 rows=333 width=44) (actual time=0.117..0.117 rows=333 loops=1)
                           Buckets: 1024  Batches: 1  Memory Usage: 33kB
                           Buffers: shared hit=168
-                          ->  Bitmap Heap Scan on settlements s  (cost=60.87..220.70 rows=333 width=44) (actual time=0.047..0.091 rows=333 loops=1)
+                          ->  Bitmap Heap Scan on settlements s  (cost=60.87..220.70 rows=333 width=44) (actual time=0.047..0.092 rows=333 loops=1)
                                 Recheck Cond: ((assignor_id = '94ac745a-6e91-9427-67db-e09845bde1c0'::uuid) AND (created_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (created_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                 Heap Blocks: exact=154
                                 Buffers: shared hit=168
                                 ->  Bitmap Index Scan on settlements_statement_filter_idx  (cost=0.00..60.78 rows=333 width=0) (actual time=0.041..0.041 rows=333 loops=1)
                                       Index Cond: ((assignor_id = '94ac745a-6e91-9427-67db-e09845bde1c0'::uuid) AND (created_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (created_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                       Buffers: shared hit=14
-              ->  Nested Loop  (cost=95.49..305.52 rows=33 width=178) (actual time=0.255..0.255 rows=0 loops=1)
+              ->  Nested Loop  (cost=95.49..305.52 rows=33 width=178) (actual time=0.223..0.223 rows=0 loops=1)
                     Buffers: shared hit=188
-                    ->  Hash Join  (cost=95.21..264.33 rows=33 width=76) (actual time=0.255..0.255 rows=0 loops=1)
+                    ->  Hash Join  (cost=95.21..264.33 rows=33 width=76) (actual time=0.222..0.223 rows=0 loops=1)
                           Hash Cond: (s_1.id = r.settlement_id)
                           Buffers: shared hit=188
-                          ->  Bitmap Heap Scan on settlements s_1  (cost=56.03..222.53 rows=1000 width=36) (actual time=0.029..0.103 rows=1000 loops=1)
+                          ->  Bitmap Heap Scan on settlements s_1  (cost=56.03..222.53 rows=1000 width=36) (actual time=0.027..0.082 rows=1000 loops=1)
                                 Recheck Cond: (assignor_id = '94ac745a-6e91-9427-67db-e09845bde1c0'::uuid)
                                 Heap Blocks: exact=154
                                 Buffers: shared hit=168
-                                ->  Bitmap Index Scan on settlements_statement_filter_idx  (cost=0.00..55.78 rows=1000 width=0) (actual time=0.024..0.024 rows=1000 loops=1)
+                                ->  Bitmap Index Scan on settlements_statement_filter_idx  (cost=0.00..55.78 rows=1000 width=0) (actual time=0.022..0.022 rows=1000 loops=1)
                                       Index Cond: (assignor_id = '94ac745a-6e91-9427-67db-e09845bde1c0'::uuid)
                                       Buffers: shared hit=14
-                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.106..0.106 rows=334 loops=1)
+                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.099..0.099 rows=334 loops=1)
                                 Buckets: 1024  Batches: 1  Memory Usage: 32kB
                                 Buffers: shared hit=20
-                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.005..0.082 rows=334 loops=1)
+                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.001..0.077 rows=334 loops=1)
                                       Filter: ((reversed_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (reversed_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                       Rows Removed by Filter: 666
                                       Buffers: shared hit=20
@@ -869,93 +869,93 @@ Limit  (cost=829.67..829.80 rows=51 width=153) (actual time=1.454..1.458 rows=51
                           Index Cond: (settlement_id = s_1.id)
 Planning:
   Buffers: shared hit=48
-Planning Time: 0.237 ms
-Execution Time: 1.499 ms
+Planning Time: 0.227 ms
+Execution Time: 1.445 ms
 SRM_FILTER_CASE|asset_currency
 SRM_FILTER_COUNT|asset_currency|2000
 SRM_PLAN_CASE|asset_currency
-Limit  (cost=1148.69..1148.82 rows=51 width=153) (actual time=4.704..4.709 rows=51 loops=1)
+Limit  (cost=1148.69..1148.82 rows=51 width=153) (actual time=4.460..4.464 rows=51 loops=1)
   Buffers: shared hit=1484
-  ->  Sort  (cost=1148.69..1153.27 rows=1833 width=153) (actual time=4.704..4.706 rows=51 loops=1)
+  ->  Sort  (cost=1148.69..1153.27 rows=1833 width=153) (actual time=4.460..4.462 rows=51 loops=1)
         Sort Key: s.created_at DESC, ((md5(('SETTLEMENT:'::text || (i.id)::text)))::uuid) DESC
         Sort Method: top-N heapsort  Memory: 46kB
         Buffers: shared hit=1484
-        ->  Append  (cost=345.64..1087.54 rows=1833 width=153) (actual time=0.898..4.441 rows=2000 loops=1)
+        ->  Append  (cost=345.64..1087.54 rows=1833 width=153) (actual time=0.838..4.208 rows=2000 loops=1)
               Buffers: shared hit=1484
-              ->  Hash Join  (cost=345.64..662.75 rows=1666 width=151) (actual time=0.898..3.040 rows=1666 loops=1)
+              ->  Hash Join  (cost=345.64..662.75 rows=1666 width=151) (actual time=0.838..2.862 rows=1666 loops=1)
                     Hash Cond: (i.settlement_id = s.id)
                     Buffers: shared hit=308
-                    ->  Seq Scan on settlement_items i  (cost=0.00..279.00 rows=5000 width=75) (actual time=0.002..0.526 rows=5000 loops=1)
+                    ->  Seq Scan on settlement_items i  (cost=0.00..279.00 rows=5000 width=75) (actual time=0.001..0.469 rows=5000 loops=1)
                           Filter: ((asset_currency_code)::text = 'USD'::text)
                           Rows Removed by Filter: 5000
                           Buffers: shared hit=154
-                    ->  Hash  (cost=304.00..304.00 rows=3331 width=44) (actual time=0.886..0.886 rows=3331 loops=1)
+                    ->  Hash  (cost=304.00..304.00 rows=3331 width=44) (actual time=0.829..0.829 rows=3331 loops=1)
                           Buckets: 4096  Batches: 1  Memory Usage: 280kB
                           Buffers: shared hit=154
-                          ->  Seq Scan on settlements s  (cost=0.00..304.00 rows=3331 width=44) (actual time=0.002..0.630 rows=3331 loops=1)
+                          ->  Seq Scan on settlements s  (cost=0.00..304.00 rows=3331 width=44) (actual time=0.001..0.590 rows=3331 loops=1)
                                 Filter: ((created_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (created_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                 Rows Removed by Filter: 6669
                                 Buffers: shared hit=154
-              ->  Nested Loop  (cost=39.46..415.62 rows=167 width=178) (actual time=0.102..1.318 rows=334 loops=1)
+              ->  Nested Loop  (cost=39.46..415.62 rows=167 width=178) (actual time=0.091..1.264 rows=334 loops=1)
                     Join Filter: (r.settlement_id = s_1.id)
                     Buffers: shared hit=1176
-                    ->  Hash Join  (cost=39.17..331.30 rows=167 width=115) (actual time=0.095..0.761 rows=334 loops=1)
+                    ->  Hash Join  (cost=39.17..331.30 rows=167 width=115) (actual time=0.086..0.749 rows=334 loops=1)
                           Hash Cond: (i_1.settlement_id = r.settlement_id)
                           Buffers: shared hit=174
-                          ->  Seq Scan on settlement_items i_1  (cost=0.00..279.00 rows=5000 width=75) (actual time=0.001..0.452 rows=5000 loops=1)
+                          ->  Seq Scan on settlement_items i_1  (cost=0.00..279.00 rows=5000 width=75) (actual time=0.001..0.448 rows=5000 loops=1)
                                 Filter: ((asset_currency_code)::text = 'USD'::text)
-                                Rows Removed by Filter: 5000
-                                Buffers: shared hit=154
-                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.089..0.089 rows=334 loops=1)
-                                Buckets: 1024  Batches: 1  Memory Usage: 32kB
-                                Buffers: shared hit=20
-                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.002..0.066 rows=334 loops=1)
-                                      Filter: ((reversed_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (reversed_at < '2030-01-20 00:00:00'::timestamp without time zone))
-                                      Rows Removed by Filter: 666
-                                      Buffers: shared hit=20
-                    ->  Index Scan using settlements_pkey on settlements s_1  (cost=0.29..0.46 rows=1 width=36) (actual time=0.001..0.001 rows=1 loops=334)
-                          Index Cond: (id = i_1.settlement_id)
-                          Buffers: shared hit=1002
-Planning:
-  Buffers: shared hit=48
-Planning Time: 0.302 ms
-Execution Time: 4.764 ms
-SRM_FILTER_CASE|settlement_currency
-SRM_FILTER_COUNT|settlement_currency|1832
-SRM_PLAN_CASE|settlement_currency
-Limit  (cost=1143.80..1143.93 rows=51 width=153) (actual time=4.235..4.239 rows=51 loops=1)
-  Buffers: shared hit=983
-  ->  Sort  (cost=1143.80..1148.38 rows=1833 width=153) (actual time=4.234..4.236 rows=51 loops=1)
-        Sort Key: s.created_at DESC, ((md5(('SETTLEMENT:'::text || (i.id)::text)))::uuid) DESC
-        Sort Method: top-N heapsort  Memory: 47kB
-        Buffers: shared hit=983
-        ->  Append  (cost=349.82..1082.65 rows=1833 width=153) (actual time=0.721..4.005 rows=1832 loops=1)
-              Buffers: shared hit=983
-              ->  Hash Join  (cost=349.82..655.08 rows=1666 width=151) (actual time=0.721..2.904 rows=1665 loops=1)
-                    Hash Cond: (i.settlement_id = s.id)
-                    Buffers: shared hit=308
-                    ->  Seq Scan on settlement_items i  (cost=0.00..254.00 rows=10000 width=75) (actual time=0.001..0.346 rows=10000 loops=1)
-                          Buffers: shared hit=154
-                    ->  Hash  (cost=329.00..329.00 rows=1666 width=44) (actual time=0.713..0.713 rows=1665 loops=1)
-                          Buckets: 2048  Batches: 1  Memory Usage: 140kB
-                          Buffers: shared hit=154
-                          ->  Seq Scan on settlements s  (cost=0.00..329.00 rows=1666 width=44) (actual time=0.003..0.594 rows=1665 loops=1)
-                                Filter: ((created_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (created_at < '2030-01-20 00:00:00'::timestamp without time zone) AND ((settlement_currency_code)::text = 'USD'::text))
-                                Rows Removed by Filter: 8335
-                                Buffers: shared hit=154
-              ->  Nested Loop  (cost=39.46..418.41 rows=167 width=178) (actual time=0.094..1.027 rows=167 loops=1)
-                    Buffers: shared hit=675
-                    ->  Hash Join  (cost=39.17..331.30 rows=167 width=76) (actual time=0.089..0.743 rows=167 loops=1)
-                          Hash Cond: (s_1.id = r.settlement_id)
-                          Buffers: shared hit=174
-                          ->  Seq Scan on settlements s_1  (cost=0.00..279.00 rows=5000 width=36) (actual time=0.001..0.433 rows=5000 loops=1)
-                                Filter: ((settlement_currency_code)::text = 'USD'::text)
                                 Rows Removed by Filter: 5000
                                 Buffers: shared hit=154
                           ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.082..0.082 rows=334 loops=1)
                                 Buckets: 1024  Batches: 1  Memory Usage: 32kB
                                 Buffers: shared hit=20
-                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.001..0.062 rows=334 loops=1)
+                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.001..0.060 rows=334 loops=1)
+                                      Filter: ((reversed_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (reversed_at < '2030-01-20 00:00:00'::timestamp without time zone))
+                                      Rows Removed by Filter: 666
+                                      Buffers: shared hit=20
+                    ->  Index Scan using settlements_pkey on settlements s_1  (cost=0.29..0.46 rows=1 width=36) (actual time=0.000..0.000 rows=1 loops=334)
+                          Index Cond: (id = i_1.settlement_id)
+                          Buffers: shared hit=1002
+Planning:
+  Buffers: shared hit=48
+Planning Time: 0.232 ms
+Execution Time: 4.510 ms
+SRM_FILTER_CASE|settlement_currency
+SRM_FILTER_COUNT|settlement_currency|1832
+SRM_PLAN_CASE|settlement_currency
+Limit  (cost=1143.80..1143.93 rows=51 width=153) (actual time=4.100..4.104 rows=51 loops=1)
+  Buffers: shared hit=983
+  ->  Sort  (cost=1143.80..1148.38 rows=1833 width=153) (actual time=4.100..4.102 rows=51 loops=1)
+        Sort Key: s.created_at DESC, ((md5(('SETTLEMENT:'::text || (i.id)::text)))::uuid) DESC
+        Sort Method: top-N heapsort  Memory: 47kB
+        Buffers: shared hit=983
+        ->  Append  (cost=349.82..1082.65 rows=1833 width=153) (actual time=0.720..3.875 rows=1832 loops=1)
+              Buffers: shared hit=983
+              ->  Hash Join  (cost=349.82..655.08 rows=1666 width=151) (actual time=0.720..2.832 rows=1665 loops=1)
+                    Hash Cond: (i.settlement_id = s.id)
+                    Buffers: shared hit=308
+                    ->  Seq Scan on settlement_items i  (cost=0.00..254.00 rows=10000 width=75) (actual time=0.001..0.323 rows=10000 loops=1)
+                          Buffers: shared hit=154
+                    ->  Hash  (cost=329.00..329.00 rows=1666 width=44) (actual time=0.712..0.712 rows=1665 loops=1)
+                          Buckets: 2048  Batches: 1  Memory Usage: 140kB
+                          Buffers: shared hit=154
+                          ->  Seq Scan on settlements s  (cost=0.00..329.00 rows=1666 width=44) (actual time=0.003..0.591 rows=1665 loops=1)
+                                Filter: ((created_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (created_at < '2030-01-20 00:00:00'::timestamp without time zone) AND ((settlement_currency_code)::text = 'USD'::text))
+                                Rows Removed by Filter: 8335
+                                Buffers: shared hit=154
+              ->  Nested Loop  (cost=39.46..418.41 rows=167 width=178) (actual time=0.086..0.972 rows=167 loops=1)
+                    Buffers: shared hit=675
+                    ->  Hash Join  (cost=39.17..331.30 rows=167 width=76) (actual time=0.081..0.693 rows=167 loops=1)
+                          Hash Cond: (s_1.id = r.settlement_id)
+                          Buffers: shared hit=174
+                          ->  Seq Scan on settlements s_1  (cost=0.00..279.00 rows=5000 width=36) (actual time=0.001..0.424 rows=5000 loops=1)
+                                Filter: ((settlement_currency_code)::text = 'USD'::text)
+                                Rows Removed by Filter: 5000
+                                Buffers: shared hit=154
+                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.075..0.075 rows=334 loops=1)
+                                Buckets: 1024  Batches: 1  Memory Usage: 32kB
+                                Buffers: shared hit=20
+                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.001..0.055 rows=334 loops=1)
                                       Filter: ((reversed_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (reversed_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                       Rows Removed by Filter: 666
                                       Buffers: shared hit=20
@@ -964,30 +964,30 @@ Limit  (cost=1143.80..1143.93 rows=51 width=153) (actual time=4.235..4.239 rows=
                           Buffers: shared hit=501
 Planning:
   Buffers: shared hit=48
-Planning Time: 0.230 ms
-Execution Time: 4.290 ms
+Planning Time: 0.243 ms
+Execution Time: 4.141 ms
 SRM_FILTER_CASE|product_type
 SRM_FILTER_COUNT|product_type|999
 SRM_PLAN_CASE|product_type
-Limit  (cost=1088.86..1088.99 rows=51 width=153) (actual time=2.910..2.914 rows=51 loops=1)
+Limit  (cost=1088.86..1088.99 rows=51 width=153) (actual time=2.915..2.919 rows=51 loops=1)
   Buffers: shared hit=482
-  ->  Sort  (cost=1088.86..1091.91 rows=1221 width=153) (actual time=2.910..2.912 rows=51 loops=1)
+  ->  Sort  (cost=1088.86..1091.91 rows=1221 width=153) (actual time=2.915..2.917 rows=51 loops=1)
         Sort Key: s.created_at DESC, ((md5(('SETTLEMENT:'::text || (i.id)::text)))::uuid) DESC
         Sort Method: top-N heapsort  Memory: 47kB
         Buffers: shared hit=482
-        ->  Append  (cost=345.64..1048.13 rows=1221 width=153) (actual time=0.800..2.774 rows=999 loops=1)
+        ->  Append  (cost=345.64..1048.13 rows=1221 width=153) (actual time=0.785..2.779 rows=999 loops=1)
               Buffers: shared hit=482
-              ->  Hash Join  (cost=345.64..650.04 rows=1110 width=151) (actual time=0.800..2.118 rows=999 loops=1)
+              ->  Hash Join  (cost=345.64..650.04 rows=1110 width=151) (actual time=0.785..2.121 rows=999 loops=1)
                     Hash Cond: (i.settlement_id = s.id)
                     Buffers: shared hit=308
-                    ->  Seq Scan on settlement_items i  (cost=0.00..279.00 rows=3333 width=75) (actual time=0.002..0.429 rows=3333 loops=1)
+                    ->  Seq Scan on settlement_items i  (cost=0.00..279.00 rows=3333 width=75) (actual time=0.002..0.431 rows=3333 loops=1)
                           Filter: ((product_type_code)::text = 'POST_DATED_CHEQUE'::text)
                           Rows Removed by Filter: 6667
                           Buffers: shared hit=154
-                    ->  Hash  (cost=304.00..304.00 rows=3331 width=44) (actual time=0.789..0.789 rows=3331 loops=1)
+                    ->  Hash  (cost=304.00..304.00 rows=3331 width=44) (actual time=0.772..0.772 rows=3331 loops=1)
                           Buckets: 4096  Batches: 1  Memory Usage: 280kB
                           Buffers: shared hit=154
-                          ->  Seq Scan on settlements s  (cost=0.00..304.00 rows=3331 width=44) (actual time=0.002..0.554 rows=3331 loops=1)
+                          ->  Seq Scan on settlements s  (cost=0.00..304.00 rows=3331 width=44) (actual time=0.002..0.536 rows=3331 loops=1)
                                 Filter: ((created_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (created_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                 Rows Removed by Filter: 6669
                                 Buffers: shared hit=154
@@ -997,14 +997,14 @@ Limit  (cost=1088.86..1088.99 rows=51 width=153) (actual time=2.910..2.914 rows=
                     ->  Hash Join  (cost=39.17..326.92 rows=111 width=115) (actual time=0.620..0.620 rows=0 loops=1)
                           Hash Cond: (i_1.settlement_id = r.settlement_id)
                           Buffers: shared hit=174
-                          ->  Seq Scan on settlement_items i_1  (cost=0.00..279.00 rows=3333 width=75) (actual time=0.001..0.414 rows=3333 loops=1)
+                          ->  Seq Scan on settlement_items i_1  (cost=0.00..279.00 rows=3333 width=75) (actual time=0.001..0.415 rows=3333 loops=1)
                                 Filter: ((product_type_code)::text = 'POST_DATED_CHEQUE'::text)
                                 Rows Removed by Filter: 6667
                                 Buffers: shared hit=154
-                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.075..0.075 rows=334 loops=1)
+                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.079..0.079 rows=334 loops=1)
                                 Buckets: 1024  Batches: 1  Memory Usage: 32kB
                                 Buffers: shared hit=20
-                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.001..0.054 rows=334 loops=1)
+                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.001..0.056 rows=334 loops=1)
                                       Filter: ((reversed_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (reversed_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                       Rows Removed by Filter: 666
                                       Buffers: shared hit=20
@@ -1012,55 +1012,55 @@ Limit  (cost=1088.86..1088.99 rows=51 width=153) (actual time=2.910..2.914 rows=
                           Index Cond: (id = i_1.settlement_id)
 Planning:
   Buffers: shared hit=48
-Planning Time: 0.249 ms
-Execution Time: 2.959 ms
+Planning Time: 0.289 ms
+Execution Time: 2.968 ms
 SRM_FILTER_CASE|combined
 SRM_FILTER_COUNT|combined|166
 SRM_PLAN_CASE|combined
-Limit  (cost=706.97..707.05 rows=31 width=154) (actual time=0.652..0.655 rows=51 loops=1)
+Limit  (cost=706.97..707.05 rows=31 width=154) (actual time=0.670..0.674 rows=51 loops=1)
   Buffers: shared hit=508
-  ->  Sort  (cost=706.97..707.05 rows=31 width=154) (actual time=0.652..0.653 rows=51 loops=1)
+  ->  Sort  (cost=706.97..707.05 rows=31 width=154) (actual time=0.670..0.672 rows=51 loops=1)
         Sort Key: s.created_at DESC, ((md5(('SETTLEMENT:'::text || (i.id)::text)))::uuid) DESC
         Sort Method: top-N heapsort  Memory: 46kB
         Buffers: shared hit=508
-        ->  Append  (cost=254.51..706.20 rows=31 width=154) (actual time=0.161..0.615 rows=166 loops=1)
+        ->  Append  (cost=254.51..706.20 rows=31 width=154) (actual time=0.162..0.632 rows=166 loops=1)
               Buffers: shared hit=508
-              ->  Hash Join  (cost=254.51..438.30 rows=28 width=151) (actual time=0.161..0.444 rows=166 loops=1)
+              ->  Hash Join  (cost=254.51..438.30 rows=28 width=151) (actual time=0.162..0.459 rows=166 loops=1)
                     Hash Cond: (i.settlement_id = s.id)
                     Buffers: shared hit=326
-                    ->  Bitmap Heap Scan on settlement_items i  (cost=77.36..256.35 rows=1666 width=75) (actual time=0.092..0.178 rows=1666 loops=1)
+                    ->  Bitmap Heap Scan on settlement_items i  (cost=77.36..256.35 rows=1666 width=75) (actual time=0.091..0.181 rows=1666 loops=1)
                           Recheck Cond: (((asset_currency_code)::text = 'BRL'::text) AND ((product_type_code)::text = 'POST_DATED_CHEQUE'::text))
                           Heap Blocks: exact=154
                           Buffers: shared hit=169
-                          ->  Bitmap Index Scan on settlement_items_statement_dimensions_idx  (cost=0.00..76.94 rows=1666 width=0) (actual time=0.086..0.086 rows=1666 loops=1)
+                          ->  Bitmap Index Scan on settlement_items_statement_dimensions_idx  (cost=0.00..76.94 rows=1666 width=0) (actual time=0.083..0.083 rows=1666 loops=1)
                                 Index Cond: (((asset_currency_code)::text = 'BRL'::text) AND ((product_type_code)::text = 'POST_DATED_CHEQUE'::text))
                                 Buffers: shared hit=15
-                    ->  Hash  (cost=175.07..175.07 rows=167 width=44) (actual time=0.063..0.063 rows=166 loops=1)
+                    ->  Hash  (cost=175.07..175.07 rows=167 width=44) (actual time=0.065..0.065 rows=166 loops=1)
                           Buckets: 1024  Batches: 1  Memory Usage: 21kB
                           Buffers: shared hit=157
-                          ->  Bitmap Heap Scan on settlements s  (cost=10.83..175.07 rows=167 width=44) (actual time=0.021..0.052 rows=166 loops=1)
+                          ->  Bitmap Heap Scan on settlements s  (cost=10.83..175.07 rows=167 width=44) (actual time=0.021..0.053 rows=166 loops=1)
                                 Recheck Cond: ((assignor_id = '94ac745a-6e91-9427-67db-e09845bde1c0'::uuid) AND ((settlement_currency_code)::text = 'USD'::text) AND (created_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (created_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                 Heap Blocks: exact=153
                                 Buffers: shared hit=157
-                                ->  Bitmap Index Scan on settlements_statement_filter_idx  (cost=0.00..10.79 rows=167 width=0) (actual time=0.015..0.015 rows=166 loops=1)
+                                ->  Bitmap Index Scan on settlements_statement_filter_idx  (cost=0.00..10.79 rows=167 width=0) (actual time=0.014..0.015 rows=166 loops=1)
                                       Index Cond: ((assignor_id = '94ac745a-6e91-9427-67db-e09845bde1c0'::uuid) AND ((settlement_currency_code)::text = 'USD'::text) AND (created_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (created_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                       Buffers: shared hit=4
-              ->  Nested Loop  (cost=68.87..267.75 rows=3 width=178) (actual time=0.164..0.164 rows=0 loops=1)
+              ->  Nested Loop  (cost=68.87..267.75 rows=3 width=178) (actual time=0.161..0.162 rows=0 loops=1)
                     Buffers: shared hit=182
-                    ->  Hash Join  (cost=68.58..231.40 rows=17 width=76) (actual time=0.164..0.164 rows=0 loops=1)
+                    ->  Hash Join  (cost=68.58..231.40 rows=17 width=76) (actual time=0.161..0.161 rows=0 loops=1)
                           Hash Cond: (s_1.id = r.settlement_id)
                           Buffers: shared hit=182
-                          ->  Bitmap Heap Scan on settlements s_1  (cost=29.41..190.91 rows=500 width=36) (actual time=0.024..0.062 rows=500 loops=1)
+                          ->  Bitmap Heap Scan on settlements s_1  (cost=29.41..190.91 rows=500 width=36) (actual time=0.025..0.062 rows=500 loops=1)
                                 Recheck Cond: ((assignor_id = '94ac745a-6e91-9427-67db-e09845bde1c0'::uuid) AND ((settlement_currency_code)::text = 'USD'::text))
                                 Heap Blocks: exact=154
                                 Buffers: shared hit=162
-                                ->  Bitmap Index Scan on settlements_statement_filter_idx  (cost=0.00..29.29 rows=500 width=0) (actual time=0.018..0.018 rows=500 loops=1)
+                                ->  Bitmap Index Scan on settlements_statement_filter_idx  (cost=0.00..29.29 rows=500 width=0) (actual time=0.019..0.019 rows=500 loops=1)
                                       Index Cond: ((assignor_id = '94ac745a-6e91-9427-67db-e09845bde1c0'::uuid) AND ((settlement_currency_code)::text = 'USD'::text))
                                       Buffers: shared hit=8
-                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.080..0.080 rows=334 loops=1)
+                          ->  Hash  (cost=35.00..35.00 rows=334 width=40) (actual time=0.077..0.077 rows=334 loops=1)
                                 Buckets: 1024  Batches: 1  Memory Usage: 32kB
                                 Buffers: shared hit=20
-                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.001..0.059 rows=334 loops=1)
+                                ->  Seq Scan on settlement_reversals r  (cost=0.00..35.00 rows=334 width=40) (actual time=0.001..0.056 rows=334 loops=1)
                                       Filter: ((reversed_at >= '2030-01-10 00:00:00'::timestamp without time zone) AND (reversed_at < '2030-01-20 00:00:00'::timestamp without time zone))
                                       Rows Removed by Filter: 666
                                       Buffers: shared hit=20
@@ -1069,8 +1069,8 @@ Limit  (cost=706.97..707.05 rows=31 width=154) (actual time=0.652..0.655 rows=51
                           Filter: (((asset_currency_code)::text = 'BRL'::text) AND ((product_type_code)::text = 'POST_DATED_CHEQUE'::text))
 Planning:
   Buffers: shared hit=48
-Planning Time: 0.275 ms
-Execution Time: 0.712 ms
+Planning Time: 0.289 ms
+Execution Time: 0.715 ms
 ROLLBACK
 
 ── Index Scope ───────────────────────────────────────────────────────────────
