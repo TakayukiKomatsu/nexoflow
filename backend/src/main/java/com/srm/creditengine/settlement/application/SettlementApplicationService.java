@@ -41,9 +41,10 @@ public class SettlementApplicationService implements SettlementService {
     public Preview preview(List<UUID> orderedQuoteIds, String actor) {
         try {
             SettlementPolicy.requireOrderedUnique(orderedQuoteIds);
+            var quotes = settlements.findQuotes(orderedQuoteIds);
             Instant now = clock.instant();
             Preview preview = toPreview(SettlementPolicy.previewOf(
-                    validatedQuotes(orderedQuoteIds, settlements.findQuotes(orderedQuoteIds), now), now));
+                    validatedQuotes(orderedQuoteIds, quotes, now), now));
             telemetry.preview(preview.settlementCurrency(), "success");
             return preview;
         } catch (RuntimeException exception) {
@@ -64,8 +65,9 @@ public class SettlementApplicationService implements SettlementService {
             return replay(settlements.findResult(claim.settlementId()).orElseThrow());
         }
 
+        var lockedQuotes = settlements.lockQuotes(orderedQuoteIds);
         Instant now = clock.instant();
-        var quotes = validatedQuotes(orderedQuoteIds, settlements.lockQuotes(orderedQuoteIds), now);
+        var quotes = validatedQuotes(orderedQuoteIds, lockedQuotes, now);
         Preview preview = toPreview(SettlementPolicy.previewOf(quotes, now));
         var draft = new SettlementDraft(
                 UUID.randomUUID(), quotes.getFirst().assignorId(), preview.settlementCurrency(), preview.totalAmount(), quotes, now, actor);
