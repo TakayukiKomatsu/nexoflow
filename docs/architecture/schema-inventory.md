@@ -42,10 +42,13 @@ V19 use PostgreSQL triggers because H2 cannot execute PL/pgSQL; PostgreSQL
 integration tests are therefore required evidence for append-only behavior.
 V22 aligns every persisted financial actor snapshot with the identity email
 contract by widening the relevant authorship columns to `varchar(320)`.
-V23 reinterprets every legacy timestamp value as UTC while converting all
-persisted Instant columns to PostgreSQL `timestamp with time zone`. It also
-permits exactly one immutable-identity `PROCESSING` → `COMPLETED` update for an
-idempotency record and rejects every other update or deletion.
+V23 converts every persisted Instant column to PostgreSQL `timestamp with time
+zone`. Application-authored legacy wall timestamps are interpreted in the
+configured legacy writer zone; only six immutable reference-rate rows with
+stable Flyway IDs retain the UTC provenance of their migration literals. V23
+also permits exactly one immutable-identity `PROCESSING` → `COMPLETED` update,
+rejects deletion while a record is `PROCESSING`, keeps completed records
+update-immutable, and permits completed-row deletion only for explicit retention.
 
 The validator recognizes V22's generated alter-column loop and V23's explicit
 PostgreSQL type changes. Consequently, the ER widths and timezone semantics
@@ -60,9 +63,12 @@ declarations.
 
 ## Temporal storage
 
-All persisted Java `Instant` values use PostgreSQL `timestamp with time zone`;
-the V23 conversion uses `AT TIME ZONE 'UTC'` so existing timestamp-without-time-zone
-values retain their intended UTC instant:
+All persisted Java `Instant` values use PostgreSQL `timestamp with time zone`.
+During V23, application-authored timestamp-without-time-zone values use the
+validated legacy writer zone (`srm.migration.v23.legacy-time-zone`, then
+`SRM_MIGRATION_V23_LEGACY_TIME_ZONE`, then the JVM default). The six immutable
+Flyway reference-rate seed IDs use UTC. This preserves the original Instant
+semantics even when the upgrade host's zone differs from the legacy writer:
 
 - `schema_metadata.created_at`
 - `base_rate_versions.effective_at`
