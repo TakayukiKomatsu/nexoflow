@@ -31,6 +31,8 @@ import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
 import com.srm.creditengine.settlement.domain.AlreadyReversedException;
 import com.srm.creditengine.settlement.domain.PricingQuoteExpiredException;
+import com.srm.creditengine.settlement.application.ReversalIdempotencyKeyReusedException;
+import com.srm.creditengine.settlement.application.SettlementPricingQuoteExpiredException;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import com.srm.creditengine.shared.runtime.SafeOperationalLogger;
 
@@ -84,6 +86,14 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED", exception.getMessage(), request);
     }
 
+    @ExceptionHandler(ReversalIdempotencyKeyReusedException.class)
+    ProblemDetail reversalIdempotencyKeyReused(
+            ReversalIdempotencyKeyReusedException exception, HttpServletRequest request) {
+        telemetry.reversal("conflict");
+        operationalLogger.financialConflict();
+        return problem(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED", exception.getMessage(), request);
+    }
+
     @ExceptionHandler(AlreadySettledException.class)
     ProblemDetail alreadySettled(AlreadySettledException exception, HttpServletRequest request) {
         telemetry.settlement(exception.settlementCurrency(), "conflict");
@@ -100,6 +110,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(PricingQuoteExpiredException.class)
     ProblemDetail pricingQuoteExpired(
             PricingQuoteExpiredException exception, HttpServletRequest request) {
+        return problem(HttpStatus.CONFLICT, "PRICING_QUOTE_EXPIRED", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(SettlementPricingQuoteExpiredException.class)
+    ProblemDetail settlementPricingQuoteExpired(
+            SettlementPricingQuoteExpiredException exception, HttpServletRequest request) {
+        telemetry.settlement("UNKNOWN", "conflict");
         return problem(HttpStatus.CONFLICT, "PRICING_QUOTE_EXPIRED", exception.getMessage(), request);
     }
 

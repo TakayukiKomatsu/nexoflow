@@ -12,6 +12,8 @@ import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import com.srm.creditengine.settlement.domain.AlreadyReversedException;
 import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
+import com.srm.creditengine.settlement.application.ReversalIdempotencyKeyReusedException;
+import com.srm.creditengine.settlement.application.SettlementPricingQuoteExpiredException;
 import com.srm.creditengine.shared.api.DecimalString;
 import io.micrometer.core.instrument.MeterRegistry;
 import ch.qos.logback.classic.Logger;
@@ -152,6 +154,52 @@ class ApiErrorContractTest {
     }
 
     @Test
+    void reversalIdempotencyReuseRecordsOnlyAReversalConflict() throws Exception {
+        double reversalBefore = counter(
+                "srm_reversal_outcomes_total", "result", "CONFLICT");
+        double settlementBefore = counter(
+                "srm_settlement_outcomes_total",
+                "currency", "UNKNOWN",
+                "result", "CONFLICT");
+
+        assertConflict(
+                "/api/v1/runtime/currency-errors/reversal-idempotency-reused",
+                "IDEMPOTENCY_KEY_REUSED");
+
+        org.assertj.core.api.Assertions.assertThat(counter(
+                        "srm_reversal_outcomes_total", "result", "CONFLICT"))
+                .isEqualTo(reversalBefore + 1);
+        org.assertj.core.api.Assertions.assertThat(counter(
+                        "srm_settlement_outcomes_total",
+                        "currency", "UNKNOWN",
+                        "result", "CONFLICT"))
+                .isEqualTo(settlementBefore);
+    }
+
+    @Test
+    void settlementQuoteExpiryRecordsASettlementConflict() throws Exception {
+        double before = counter(
+                "srm_settlement_outcomes_total",
+                "currency", "UNKNOWN",
+                "result", "CONFLICT");
+
+        assertConflict(
+                "/api/v1/runtime/currency-errors/settlement-quote-expired",
+                "PRICING_QUOTE_EXPIRED");
+
+        org.assertj.core.api.Assertions.assertThat(counter(
+                        "srm_settlement_outcomes_total",
+                        "currency", "UNKNOWN",
+                        "result", "CONFLICT"))
+                .isEqualTo(before + 1);
+    }
+
+    private double counter(String name, String... tags) {
+        var counter = meterRegistry.find(name).tags(tags).counter();
+        return counter == null ? 0 : counter.count();
+    }
+
+    @Test
     void alreadySettledRemainsADistinctConflict() throws Exception {
         assertConflict("/api/v1/runtime/currency-errors/already-settled", "ALREADY_SETTLED");
     }
@@ -246,6 +294,16 @@ class ApiErrorContractTest {
         @GetMapping("/idempotency-reused")
         void idempotencyReused() {
             throw new IdempotencyKeyReusedException();
+        }
+
+        @GetMapping("/reversal-idempotency-reused")
+        void reversalIdempotencyReused() {
+            throw new ReversalIdempotencyKeyReusedException();
+        }
+
+        @GetMapping("/settlement-quote-expired")
+        void settlementQuoteExpired() {
+            throw new SettlementPricingQuoteExpiredException();
         }
 
         @GetMapping("/already-settled")

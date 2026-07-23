@@ -4,6 +4,7 @@ import com.srm.creditengine.settlement.domain.SettlementDraft;
 import com.srm.creditengine.settlement.domain.SettlementPolicy;
 import com.srm.creditengine.settlement.domain.SettlementPreview;
 import com.srm.creditengine.settlement.domain.LockedQuote;
+import com.srm.creditengine.settlement.domain.PricingQuoteExpiredException;
 import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.time.Clock;
@@ -67,7 +68,12 @@ public class SettlementApplicationService implements SettlementService {
 
         var lockedQuotes = settlements.lockQuotes(orderedQuoteIds);
         Instant now = clock.instant();
-        var quotes = validatedQuotes(orderedQuoteIds, lockedQuotes, now);
+        List<LockedQuote> quotes;
+        try {
+            quotes = validatedQuotes(orderedQuoteIds, lockedQuotes, now);
+        } catch (PricingQuoteExpiredException exception) {
+            throw new SettlementPricingQuoteExpiredException();
+        }
         Preview preview = toPreview(SettlementPolicy.previewOf(quotes, now));
         var draft = new SettlementDraft(
                 UUID.randomUUID(), quotes.getFirst().assignorId(), preview.settlementCurrency(), preview.totalAmount(), quotes, now, actor);
@@ -97,7 +103,7 @@ public class SettlementApplicationService implements SettlementService {
         String requestHash = SettlementPolicy.reversalRequestHash(settlementId, reason);
         var claim = idempotency.claim(actor, REVERSAL_OPERATION, idempotencyKey, requestHash, clock.instant());
         if (!claim.requestHash().equals(requestHash)) {
-            throw new IdempotencyKeyReusedException();
+            throw new ReversalIdempotencyKeyReusedException();
         }
         if (claim.completed()) {
             return replay(settlements.findReversal(claim.reversalId()).orElseThrow());
