@@ -46,6 +46,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers
 @SpringBootTest(properties = "srm.clock.fixed-instant=2030-01-15T12:00:00Z")
 class FinancialAuditAtomicityIntegrationTest {
+    private static final Instant BASE_RATE_ROLLBACK_EFFECTIVE_AT =
+            Instant.parse("2046-01-01T00:00:00Z");
+    private static final Instant PRODUCT_SPREAD_ROLLBACK_EFFECTIVE_AT =
+            Instant.parse("2046-01-02T00:00:00Z");
 
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
@@ -222,7 +226,7 @@ class FinancialAuditAtomicityIntegrationTest {
         assertThatThrownBy(() -> referenceRates.recordBaseRate(
                         "BRL",
                         new BigDecimal("0.0100000000"),
-                        Instant.parse("2030-01-01T00:00:00Z"),
+                        BASE_RATE_ROLLBACK_EFFECTIVE_AT,
                         actor))
                 .isInstanceOf(InjectedAuditFailure.class);
 
@@ -247,7 +251,7 @@ class FinancialAuditAtomicityIntegrationTest {
         assertThatThrownBy(() -> referenceRates.recordProductSpread(
                         "MERCANTILE_INVOICE",
                         new BigDecimal("0.0050000000"),
-                        Instant.parse("2030-01-01T00:00:00Z"),
+                        PRODUCT_SPREAD_ROLLBACK_EFFECTIVE_AT,
                         actor))
                 .isInstanceOf(InjectedAuditFailure.class);
 
