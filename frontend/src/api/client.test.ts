@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { loadSession } from "../session";
 import { ApiError, api, type ProblemDetail } from "./client";
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -90,6 +91,22 @@ describe("API client error contract", () => {
     );
   });
 
+  it("uses a status fallback when an error response is not JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(new Response("upstream unavailable", { status: 502 })),
+      ),
+    );
+
+    await expect(api.previewSettlement(["quote-1"], "token")).rejects.toEqual(
+      expect.objectContaining({
+        status: 502,
+        message: "Request failed (502).",
+      }),
+    );
+  });
+
   it("clears the shared session and announces expiry for any 401 response", async () => {
     localStorage.setItem(
       "srm-session",
@@ -123,6 +140,13 @@ describe("API client error contract", () => {
     expect(localStorage.getItem("srm-session")).toBeNull();
     expect(expired).toHaveBeenCalledOnce();
   });
+});
+
+it("discards malformed persisted session JSON", () => {
+  localStorage.setItem("srm-session", "{malformed");
+
+  expect(loadSession()).toBeUndefined();
+  expect(localStorage.getItem("srm-session")).toBeNull();
 });
 
 it("returns a session after loading the authenticated actor profile", async () => {
