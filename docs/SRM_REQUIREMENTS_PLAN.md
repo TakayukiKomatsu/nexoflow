@@ -52,7 +52,7 @@ These are documented as evolution paths rather than simulated with unnecessary c
 - Spring Security
 - Spring JDBC for transactional command and reporting paths; JPA for runtime integration/schema validation
 - PostgreSQL 16
-- Flyway SQL and Java migrations (V1–V22)
+- Flyway SQL and Java migrations (V1–V23)
 - Bean Validation
 - springdoc-openapi
 - Bounded retry and circuit-breaker behavior implemented in the FX HTTP adapter; no Resilience4j dependency
@@ -341,7 +341,7 @@ Important constraints and indexes:
 - Optimistic version on receivables
 - Foreign keys for all financial relationships
 - PostgreSQL immutability triggers protect exchange-rate, quote, settlement, settlement-item, reversal, and audit history; quote lifecycle permits only `ACTIVE` → `CONSUMED` without changing snapshot values.
-- Flyway migrations V1–V22 are the schema authority; [`architecture/er-diagram.mmd`](architecture/er-diagram.mmd) mirrors those tables and the derived ledger identity.
+- Flyway migrations V1–V23 are the schema authority; [`architecture/er-diagram.mmd`](architecture/er-diagram.mmd) mirrors those tables and the derived ledger identity.
 
 ---
 
