@@ -31,14 +31,23 @@ public class JdbcSettlementRepository implements SettlementRepository {
 
     @Override
     public List<LockedQuote> lockQuotes(List<UUID> orderedIds) {
+        lockReceivables(orderedIds);
         return queryQuotes(orderedIds, true);
+    }
+
+    private void lockReceivables(List<UUID> quoteIds) {
+        String placeholders = String.join(",", java.util.Collections.nCopies(quoteIds.size(), "?"));
+        String sql = "select r.id from receivables r where r.id in ("
+                + "select q.receivable_id from pricing_quotes q where q.id in (" + placeholders + ")) "
+                + "order by r.id for update";
+        jdbc.query(sql, (resultSet, rowNumber) -> resultSet.getObject(1, UUID.class), quoteIds.toArray());
     }
 
     private List<LockedQuote> queryQuotes(List<UUID> orderedIds, boolean lock) {
         String placeholders = String.join(",", java.util.Collections.nCopies(orderedIds.size(), "?"));
         String sql = "select q.id,q.receivable_id,q.settlement_currency_code,q.settlement_amount,q.expires_at,q.status,r.assignor_id,r.status,r.version,r.face_currency_code,r.product_type_code "
                 + "from pricing_quotes q join receivables r on r.id=q.receivable_id where q.id in (" + placeholders + ") "
-                + "order by q.id" + (lock ? " for update of q, r" : "");
+                + (lock ? "order by q.id for update of q" : "order by r.id,q.id");
         return jdbc.query(sql, (rs, row) -> new LockedQuote(
                 rs.getObject(1, UUID.class), rs.getObject(2, UUID.class), rs.getString(3), rs.getBigDecimal(4),
                 rs.getTimestamp(5).toInstant(), rs.getString(6), rs.getObject(7, UUID.class), rs.getString(8),

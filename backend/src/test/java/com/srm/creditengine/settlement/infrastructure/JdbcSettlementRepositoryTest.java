@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,7 +31,7 @@ class JdbcSettlementRepositoryTest {
     }
 
     @Test
-    void locksQuoteBatchesInStableDatabaseOrder() {
+    void locksReceivablesGloballyBeforeLockingTheRequestedQuotes() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
         var repository = new JdbcSettlementRepository(jdbc);
@@ -38,10 +39,15 @@ class JdbcSettlementRepositoryTest {
         repository.lockQuotes(List.of(UUID.randomUUID(), UUID.randomUUID()));
 
         var sql = ArgumentCaptor.forClass(String.class);
-        verify(jdbc).query(sql.capture(), any(RowMapper.class), any(Object[].class));
-        assertThat(sql.getValue())
+        verify(jdbc, times(2)).query(sql.capture(), any(RowMapper.class), any(Object[].class));
+        assertThat(sql.getAllValues().get(0))
+                .startsWith("select r.id from receivables r")
+                .contains("select q.receivable_id from pricing_quotes q")
+                .endsWith("order by r.id for update");
+        assertThat(sql.getAllValues().get(1))
                 .contains("order by q.id")
-                .endsWith("for update of q, r");
+                .endsWith("for update of q")
+                .doesNotContain("for update of q, r");
     }
 
     @Test
@@ -55,7 +61,7 @@ class JdbcSettlementRepositoryTest {
         var sql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).query(sql.capture(), any(RowMapper.class), any(Object[].class));
         assertThat(sql.getValue())
-                .contains("order by q.id")
+                .contains("order by r.id,q.id")
                 .doesNotContainIgnoringCase("for update");
     }
 
