@@ -17,10 +17,12 @@ import java.sql.Connection;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -98,9 +100,12 @@ class JdbcSettlementServiceConcurrencyIntegrationTest {
     static final class FaultInjectingJdbcTemplate extends JdbcTemplate {
         private static final ThreadLocal<String> ARMED = new ThreadLocal<>();
         private static final ThreadLocal<UUID> INSERTED_SETTLEMENT_ID = new ThreadLocal<>();
+        private static final Set<Long> REVERSAL_THREADS_AT_BARRIER = ConcurrentHashMap.newKeySet();
+        private static volatile CyclicBarrier receivableLockBarrier;
 
         FaultInjectingJdbcTemplate(DataSource dataSource) {
             super(dataSource);
+            setFetchSize(1);
         }
 
         static void arm(String faultId) {
@@ -111,6 +116,13 @@ class JdbcSettlementServiceConcurrencyIntegrationTest {
         static void disarm() {
             ARMED.remove();
             INSERTED_SETTLEMENT_ID.remove();
+            receivableLockBarrier = null;
+            REVERSAL_THREADS_AT_BARRIER.clear();
+        }
+
+        static void armReceivableLockBarrier() {
+            REVERSAL_THREADS_AT_BARRIER.clear();
+            receivableLockBarrier = new CyclicBarrier(2);
         }
 
         static UUID insertedSettlementId() {
@@ -125,7 +137,38 @@ class JdbcSettlementServiceConcurrencyIntegrationTest {
                 ARMED.remove();
                 throw new SettlementFaultInjectedException();
             }
+            CyclicBarrier barrier = receivableLockBarrier;
+            if (barrier != null
+                    && sql.startsWith("update receivables set status='REVERSED'")
+                    && REVERSAL_THREADS_AT_BARRIER.add(Thread.currentThread().threadId())) {
+                awaitReceivableLockCompetitor(barrier);
+            }
             return result;
+        }
+
+        @Override
+        public <T> List<T> query(String sql, RowMapper<T> rowMapper, Object... args) {
+            return super.query(sql, (resultSet, rowNumber) -> {
+                T row = rowMapper.mapRow(resultSet, rowNumber);
+                CyclicBarrier barrier = receivableLockBarrier;
+                if (barrier != null
+                        && rowNumber == 0
+                        && sql.startsWith("select r.id from receivables r")) {
+                    awaitReceivableLockCompetitor(barrier);
+                }
+                return row;
+            }, args);
+        }
+
+        private static void awaitReceivableLockCompetitor(CyclicBarrier barrier) {
+            try {
+                barrier.await(3, TimeUnit.SECONDS);
+            } catch (TimeoutException | BrokenBarrierException ignored) {
+                // Matching global order makes the competing first row wait until commit.
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while coordinating receivable locks", exception);
+            }
         }
     }
 
@@ -403,6 +446,48 @@ class JdbcSettlementServiceConcurrencyIntegrationTest {
     }
 
     @Test
+    void REVERSE_007_reversalAndAlternateSettlementShareGlobalReceivableLockOrder()
+            throws Exception {
+        UUID assignorId = newAssignor();
+        UUID lowerReceivable = UUID.fromString("00000000-0000-4000-8000-000000000051");
+        UUID higherReceivable = UUID.fromString("ffffffff-ffff-4fff-8fff-ffffffffffe5");
+        newReceivable(assignorId, lowerReceivable);
+        newReceivable(assignorId, higherReceivable);
+        UUID primaryLowQuote = pricing.createQuote(lowerReceivable, "BRL", ACTOR).id();
+        UUID primaryHighQuote = pricing.createQuote(higherReceivable, "BRL", ACTOR).id();
+        UUID alternateLowQuote = pricing.createQuote(lowerReceivable, "BRL", ACTOR).id();
+        UUID alternateHighQuote = pricing.createQuote(higherReceivable, "BRL", ACTOR).id();
+        var settlement = settlements.settle(
+                List.of(primaryHighQuote, primaryLowQuote),
+                "reversal-lock-seed-" + assignorId,
+                ACTOR);
+        assertThat(settlement.items())
+                .extracting(SettlementService.Item::receivableId)
+                .containsExactly(higherReceivable, lowerReceivable);
+
+        FaultInjectingJdbcTemplate.armReceivableLockBarrier();
+        List<OperationAttempt> outcomes = race(
+                () -> operationAttempt(() -> settlements.reverse(
+                        settlement.settlementId(),
+                        "global lock-order proof",
+                        "reversal-lock-reverse-" + assignorId,
+                        ACTOR)),
+                () -> operationAttempt(() -> settlements.settle(
+                        List.of(alternateLowQuote, alternateHighQuote),
+                        "reversal-lock-alternate-" + assignorId,
+                        ACTOR)));
+
+        assertThat(outcomes.get(0).error()).isNull();
+        assertThat(outcomes.get(0).result()).isInstanceOf(SettlementService.Reversal.class);
+        assertThat(outcomes.get(1).error()).isInstanceOf(AlreadySettledException.class);
+        assertThat(outcomes)
+                .extracting(OperationAttempt::error)
+                .noneMatch(org.springframework.dao.PessimisticLockingFailureException.class::isInstance);
+        assertThat(receivableStatus(lowerReceivable)).isEqualTo("REVERSED");
+        assertThat(receivableStatus(higherReceivable)).isEqualTo("REVERSED");
+    }
+
+    @Test
     void SETTLE_006_concurrentDifferentKeysRacingTheSameReceivableOnlyOneSucceeds() throws Exception {
         UUID assignorId = newAssignor();
         UUID receivableId = newReceivable(assignorId);
@@ -568,6 +653,16 @@ class JdbcSettlementServiceConcurrencyIntegrationTest {
         }
     }
 
+    private OperationAttempt operationAttempt(Callable<?> operation) {
+        try {
+            return new OperationAttempt(operation.call(), null);
+        } catch (RuntimeException exception) {
+            return new OperationAttempt(null, exception);
+        } catch (Exception exception) {
+            throw new IllegalStateException(exception);
+        }
+    }
+
     private void terminateBlockedClaimBackends(String barrierToken) {
         jdbc.query(
                 "select pg_terminate_backend(pid) from pg_stat_activity "
@@ -681,6 +776,8 @@ class JdbcSettlementServiceConcurrencyIntegrationTest {
 
     private record LockAttempt(int quoteCount, RuntimeException error) {}
 
+    private record OperationAttempt(Object result, RuntimeException error) {}
+
     private UUID newAssignor() {
         UUID assignorId = UUID.randomUUID();
         assignors.create(new AssignorService.CreateCommand(assignorId, "Concurrency Co", "CCY" + assignorId.toString().substring(0, 8), true, ACTOR));
@@ -689,8 +786,12 @@ class JdbcSettlementServiceConcurrencyIntegrationTest {
 
     private UUID newReceivable(UUID assignorId) {
         UUID receivableId = UUID.randomUUID();
-        receivables.register(new ReceivableService.RegisterCommand(receivableId, assignorId, "MERCANTILE_INVOICE", new BigDecimal("1000.00"), "BRL", LocalDate.parse("2030-01-01"), LocalDate.parse("2030-02-14"), ACTOR));
+        newReceivable(assignorId, receivableId);
         return receivableId;
+    }
+
+    private void newReceivable(UUID assignorId, UUID receivableId) {
+        receivables.register(new ReceivableService.RegisterCommand(receivableId, assignorId, "MERCANTILE_INVOICE", new BigDecimal("1000.00"), "BRL", LocalDate.parse("2030-01-01"), LocalDate.parse("2030-02-14"), ACTOR));
     }
 
     private UUID copyQuote(UUID sourceQuoteId, UUID copyId) {

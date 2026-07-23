@@ -92,7 +92,11 @@ public class JdbcSettlementRepository implements SettlementRepository {
         if (jdbc.queryForObject("select count(*) from settlement_reversals where settlement_id=?", Integer.class, lockedId) > 0) {
             throw new AlreadyReversedException();
         }
-        List<UUID> receivableIds = jdbc.query("select receivable_id from settlement_items where settlement_id=? order by item_position for update", (rs, row) -> rs.getObject(1, UUID.class), lockedId);
+        List<UUID> receivableIds = jdbc.query(
+                "select r.id from receivables r join settlement_items si on si.receivable_id=r.id "
+                        + "where si.settlement_id=? order by r.id for update of r",
+                (rs, row) -> rs.getObject(1, UUID.class),
+                lockedId);
         if (receivableIds.isEmpty()) {
             throw new IllegalArgumentException("Settlement has no items");
         }

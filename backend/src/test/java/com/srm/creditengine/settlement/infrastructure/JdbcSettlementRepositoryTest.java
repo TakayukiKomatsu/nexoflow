@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -84,6 +85,41 @@ class JdbcSettlementRepositoryTest {
 
         assertThatThrownBy(() -> repository.lockSettlement(UUID.randomUUID()))
                 .isInstanceOf(com.srm.creditengine.shared.domain.DomainResourceNotFoundException.class);
+    }
+
+    @Test
+    void locksReversalReceivablesInTheGlobalUuidOrder() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UUID settlementId = UUID.randomUUID();
+        UUID lowerReceivable = UUID.fromString("00000000-0000-4000-8000-000000000041");
+        UUID higherReceivable = UUID.fromString("ffffffff-ffff-4fff-8fff-ffffffffffe1");
+        when(jdbc.query(
+                        startsWith("select id from settlements"),
+                        any(RowMapper.class),
+                        any(Object[].class)))
+                .thenReturn(List.of(settlementId));
+        when(jdbc.queryForObject(
+                        startsWith("select count(*) from settlement_reversals"),
+                        org.mockito.ArgumentMatchers.eq(Integer.class),
+                        any(Object[].class)))
+                .thenReturn(0);
+        when(jdbc.query(
+                        startsWith("select r.id from receivables r"),
+                        any(RowMapper.class),
+                        any(Object[].class)))
+                .thenReturn(List.of(lowerReceivable, higherReceivable));
+        var repository = new JdbcSettlementRepository(jdbc);
+
+        LockedSettlement locked = repository.lockSettlement(settlementId);
+
+        assertThat(locked.receivableIds()).containsExactly(lowerReceivable, higherReceivable);
+        verify(jdbc).query(
+                argThat(sql -> sql.startsWith("select r.id from receivables r")
+                        && sql.contains("join settlement_items")
+                        && sql.contains("order by r.id")
+                        && sql.endsWith("for update of r")),
+                any(RowMapper.class),
+                any(Object[].class));
     }
 
     @Test
