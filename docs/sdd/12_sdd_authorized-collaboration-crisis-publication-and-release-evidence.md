@@ -63,7 +63,7 @@ An increment is accepted only with: stable scenario report IDs; RED and GREEN ou
 2. **Authorized remote collaboration:** only after explicit confirmation of account, remote, target, permission, and desired PR set, push without force; create real PRs using `gh`; attach test/security evidence; wait for required checks/review; merge with documented strategy. Missing authorization/credentials/checks/review = `blocked`.
 3. **Isolated crisis gate:** clone the release candidate into a disposable repository whose local branch is named `main`, commit a harmless simulation-only regression there, prove its dedicated test fails, perform actual `git revert`, prove it passes, and assert the complete reverted tree equals the release-candidate tree. Never mutate the real repository's `main`, deploy the defect, use a financial/security defect, or leak secrets. This is the sole red-commit exception.
 4. **Authorized publication:** before creating a public remote/changing visibility, obtain explicit owner/account/repository-name approval and pass full-history secret/privacy/license scans. Never infer consent.
-5. **Authorized release:** only after reviewed merge SHA is on `main` and CI/security/E2E green, obtain explicit approval for exact SHA and version; create immutable annotated `v1.0.0`, push tag, publish release notes. Never move/reuse tag.
+5. **Authorized release:** the historical local annotated `v1.0.0` is immutable and cannot represent the remediated HEAD. Only after a reviewed merge SHA is on `main` and CI/security/E2E are green, obtain explicit approval for the exact SHA and a **new** version; create that annotated tag, push it, and publish release notes. Never move, delete, or reuse `v1.0.0`.
 
 **Non-goals:** Force-push, unsolicited public repository, fake PR/check/release URLs, defective real-main commit, post-tag evidence commit, or tag before review.
 
@@ -89,11 +89,11 @@ Feature: REL authorized release provenance
 
 **Test mapping:** `REL-004` → authorization checklist dry-run test and command audit; `CRISIS-002` → dedicated harmless fixture/test plus Git tree/hash assertions. Remote gate → independently accessible URL/SHA/check API verification. Tag gate → local and remote object/SHA verification.
 
-**Verification:** Focused: locally run `git status --short && git diff --cached --quiet && make test-crisis-evidence && git range-diff <old>...<new>`. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: `gh pr checks <url>`, `git show --no-patch v1.0.0`, `git ls-remote --tags origin v1.0.0`, and URL access checks.
+**Verification:** Focused: locally run `git status --short`, `git diff --cached --quiet`, `make test-local-collaboration-evidence`, and `make test-crisis-evidence`. The local collaboration script captures an actual autosquash `range-diff`. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: `gh pr checks <url>`, `git show --no-patch <new-version>`, `git ls-remote --tags origin <new-version>`, and URL access checks.
 
 **Evidence:** Old/new rebase hashes/range-diff; crisis defect/revert hashes and failing/passing output; final clean status/empty index; actual PR/repository/release URLs and check/review conclusions when authorized; exact reviewed merge SHA; annotated/local/remote tag resolution. External evidence belongs in PR/release/final report, avoiding a circular post-tag commit.
 
-**Commit outcome:** Use prior feature commits; before review add `docs(release): prepare v1.0.0 evidence and notes`. Merge/tag/publication are authorized remote evidence, not source commits.
+**Commit outcome:** Use prior feature commits; before review add `docs(release): prepare authorized release evidence and notes`. Merge/tag/publication are authorized remote evidence, not source commits.
 
 ## Final suite audit
 

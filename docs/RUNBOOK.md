@@ -22,16 +22,21 @@ docker compose down -v --remove-orphans
 
 ### Native (backend + frontend processes)
 
-Prerequisites: Java 21, Node 26, and a reachable PostgreSQL instance.
+Prerequisites: Java 21, Node 26 with npm, and a reachable PostgreSQL 16 instance
+with database `srm_credit_engine` already created. Use two terminals because
+`bootRun` remains in the foreground.
 
 ```bash
 cp .env.example .env
+npm --prefix frontend ci
 set -a; source .env; set +a
 ./scripts/with-java21.sh ./backend/gradlew -p backend bootRun
+# In a second terminal:
+set -a; source .env; set +a
 npm --prefix frontend run dev
 ```
 
-Required environment variables (see `.env.example`): `SRM_DB_URL`, `SRM_DB_USERNAME`, `SRM_DB_PASSWORD`, `SRM_JWT_SECRET` (≥32 bytes). With `SPRING_PROFILES_ACTIVE=dev`, the `SRM_DEV_OPERATOR_*` and `SRM_DEV_ADMIN_*` pairs independently seed local `OPERATOR` and `ADMIN` users through `DevelopmentOperatorSeeder` (`backend/src/main/java/com/srm/creditengine/identity/infrastructure/DevelopmentOperatorSeeder.java`). A blank pair is skipped independently. The seeder never runs outside `dev`; `test` and production profiles seed no credentials.
+Required environment variables (see `.env.example`): `SRM_DB_URL`, `SRM_DB_USERNAME`, `SRM_DB_PASSWORD`, `SRM_JWT_SECRET` (≥32 random bytes). With `SPRING_PROFILES_ACTIVE=dev`, the `SRM_DEV_OPERATOR_*` and `SRM_DEV_ADMIN_*` pairs independently seed local `OPERATOR` and `ADMIN` users through `DevelopmentOperatorSeeder` (`backend/src/main/java/com/srm/creditengine/identity/infrastructure/DevelopmentOperatorSeeder.java`). A blank pair is skipped independently. The seeder never runs outside `dev`; `test` and production profiles seed no credentials. `VITE_API_PROXY_TARGET` defaults to `http://127.0.0.1:8080` and is used only by the native Vite proxy; Compose routes `/api` through nginx.
 
 ## 2. Verification suite
 
@@ -44,7 +49,7 @@ Run in this order; each target maps directly to a `Makefile` recipe.
 | `make verify` | `verify-fast` plus credential/identifier log-redaction checks | Command result |
 | `make build` | Backend Gradle build and frontend production build | `backend/build/`, `frontend/dist/` |
 | `make verify-compose` | Clean Compose lifecycle: full-stack smoke, deterministic fixtures, PostgreSQL readiness loss/recovery, and authenticated bounded metrics inspection | Command result; stack is removed on exit |
-| `make test-api-features` | Ten executable Cucumber scenarios against Spring and PostgreSQL Testcontainers | `backend/build/reports/cucumber.json`, `backend/build/reports/cucumber.html` |
+| `make test-api-features` | Twelve executable Cucumber scenarios against Spring and PostgreSQL Testcontainers | `backend/build/reports/cucumber.json`, `backend/build/reports/cucumber.html` |
 | `make test-ui-features` | Playwright E2E-001 against a real browser, backend, and PostgreSQL | `frontend/playwright-report/`, `frontend/test-results/` |
 | `make e2e-fixed` | Deterministic fixture-backed browser path | Playwright report and Compose output |
 | `make explain-statements-representative` | PostgreSQL 16 representative 10,000-row statement query plan; not a production-scale benchmark | `docs/evidence/reporting-explain.txt` |
@@ -53,6 +58,7 @@ Run in this order; each target maps directly to a `Makefile` recipe.
 | `make validate-docs` | Links, required docs, Mermaid rendering, migration/ER consistency, OpenAPI reachability, and prohibited-claim checks | Command result and rendered `backend/build/mermaid/` |
 | `make validate-traceability` | Every stable SDD scenario ID resolves to an exact matrix row and executable artifact | Command result |
 | `make test-crisis-evidence` | Disposable local regression/revert proof without touching publication branches | Temporary clone output |
+| `make test-local-collaboration-evidence` | Remote-free local PR description/ref, real interactive autosquash, range-diff, review checks, and fast-forward proof | Disposable clone output |
 | `make release-check` | Aggregate of local quality, log-redaction, build, runtime, acceptance, performance-evidence, security, docs, traceability, and crisis gates | All evidence above |
 
 Docker-dependent targets exit with explicit `BLOCKED` rather than a false pass when Docker is unavailable. CodeQL is a separate pinned GitHub Actions job; it is not represented as a local scan.

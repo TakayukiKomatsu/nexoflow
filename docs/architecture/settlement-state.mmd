@@ -1,0 +1,32 @@
+stateDiagram-v2
+    direction LR
+
+    state "Pricing Quote" as Quote {
+        [*] --> Q_ACTIVE: persisted for 15 minutes
+        Q_ACTIVE --> Q_CONSUMED: atomic Settlement commit
+        Q_ACTIVE --> Q_EXPIRED: clock passes expiresAt
+        Q_CONSUMED --> Q_CONSUMED: immutable
+        Q_EXPIRED --> Q_EXPIRED: rejected
+    }
+
+    state "Receivable" as Receivable {
+        [*] --> R_REGISTERED
+        R_REGISTERED --> R_SETTLED: optimistic version + unique item
+        R_SETTLED --> R_REVERSED: whole-Settlement reversal
+        R_REVERSED --> R_REVERSED: terminal
+    }
+
+    state "Idempotency record" as Idempotency {
+        [*] --> I_MISSING
+        I_MISSING --> I_PROCESSING: actor + operation + key + request hash
+        I_PROCESSING --> I_COMPLETED: financial transaction commits
+        I_PROCESSING --> I_MISSING: transaction rolls back
+        I_COMPLETED --> I_COMPLETED: same hash returns stored result
+        I_COMPLETED --> I_CONFLICT: different hash returns 409
+    }
+
+    state "Settlement" as Settlement {
+        [*] --> S_COMPLETED: all rows commit together
+        S_COMPLETED --> S_REVERSED: append compensating reversal
+        S_REVERSED --> S_REVERSED: original and reversal remain immutable
+    }

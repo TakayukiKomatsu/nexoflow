@@ -15,10 +15,10 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | Operator simulation and paginated ledger | **Implemented** | Auth, server-authoritative stale/cancel-safe simulation, quote/preview/intent retry, URL-backed ledger, accessibility and browser critical path; `frontend/src/App.test.tsx`, `frontend/src/a11y.test.tsx`, `frontend/e2e/operator-critical-path.spec.ts` | `make test-ui-features` |
 | Docker/Compose and operational quality | **Implemented** | Internal PostgreSQL/backend/mock-FX network, edge-only frontend, deterministic fixtures, dependency-aware readiness, authenticated bounded metrics; `compose.yaml` | `make verify-compose` |
 | Hooks, CI, security, SBOM, licenses, docs | **Implemented** | Immutable CI actions, CodeQL job, Gitleaks/Trivy/Syft/license gates, Mermaid/schema/OpenAPI/link/claim validation; `.github/workflows/ci.yml`, `scripts/security-scan.sh` | `make security-scan && make validate-docs && make validate-traceability` |
-| ADRs, ER, runbook, crisis proof, usage disclosure | **Implemented** | ADRs, migrations V1–V16 mirrored by ER, runbook, permission matrix, AI/tooling records, disposable regression/revert proof; `docs/architecture/er-diagram.mmd`, `docs/RUNBOOK.md`, `AI_USAGE.md`, `HT_USAGE.md` | `make test-crisis-evidence` |
-| Evolution to 1M transactions/minute, EDA, partitioning | **Proposed** | Design analysis only in this plan and architecture artifacts; no production throughput/capacity proof | `make validate-docs` |
+| ADRs, ER, runbook, crisis proof, usage disclosure | **Implemented** | Full decision records, SQL/Java migration inventory mirrored by ER, state/sequence diagrams, runbook, permission matrix, AI/tooling records, and exact-tree crisis proof; `docs/architecture/schema-inventory.md`, `docs/architecture/settlement-sequence.mmd`, `docs/RUNBOOK.md`, `AI_USAGE.md`, `HT_USAGE.md` | `make validate-docs` |
+| Evolution to 1M transactions/minute, EDA, partitioning | **Proposed** | Quantitative design proposal in `README.md` and `docs/architecture/scale-evolution.mmd`; explicitly not implemented and no production throughput/capacity proof | `make validate-docs` |
 | External OIDC, real market FX, Kubernetes/Terraform, microservices | **Gap** | Deliberately outside the exercise; local JWT/BCrypt and deterministic mock FX remain the implemented adapters | `make validate-docs` |
-| Remote collaboration, publication, tag, release | **Gap** | Blocked pending explicit human authorization under SDD 12; no remote mutation is claimed | `make test-crisis-evidence` |
+| Remote collaboration, publication, tag, release | **Gap** | No remote is configured, so hosted PR/check/review/publication and a new release remain blocked under SDD 12. Historical local `v1.0.0` at `af898ef` predates current HEAD and is not remote release evidence | `make test-local-collaboration-evidence` |
 
 ## Stable SDD scenario mapping
 
@@ -30,8 +30,10 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | OPS-FIX-002 | **Implemented** | `scripts/verify-e2e-fixtures.sh` | `make fixtures-e2e`; deterministic checksum output |
 | AUTH-003 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
 | FX-004 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
+| FX-003 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
 | FX-RES-006 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
 | PRICE-001 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
+| PRICE-002 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
 | QUOTE-005 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
 | SETTLE-006 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
 | SETTLE-ROLLBACK-008 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
@@ -59,6 +61,8 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | DOC-CLAIM-005 | **Implemented** | `docs/sdd/11_sdd_staff-artifacts-and-reviewer-documentation.md`; `scripts/validate-docs.sh` | `make validate-docs`; forbidden-claim scan |
 | AUTHORITY-001 | **Implemented** | `frontend/scripts/validate-authoritative-pricing.mjs` | `make validate-frontend-authority`; browser-side financial-arithmetic guard |
 | API-CONTRACT-001 | **Implemented** | `frontend/scripts/validate-pricing-quote-contract.mjs` | `make validate-frontend-api-contract`; frontend quote/OpenAPI boundary guard |
+| DOC-OPENAPI-006 | **Implemented** | `scripts/validate-api-docs.mjs`; `docs/architecture/api-endpoints.md` | `make validate-docs`; exact controller-to-inventory endpoint comparison plus executable OpenAPI contract |
+| FIN-GIT-003 | **Implemented** | `scripts/tests/test_pre_commit_secret_hook.sh` | `make test-hooks`; generic credential assignment rejection and explicit-placeholder acceptance |
 
 ## Supplementary SDD 04–10 proof matrix
 

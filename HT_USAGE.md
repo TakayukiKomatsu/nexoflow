@@ -25,7 +25,7 @@ This document separates human authority and deterministic engineering tools from
 | Gitleaks, Trivy, Syft/CycloneDX, dependency-license checkers | Full-history/content secret detection, filesystem/runtime-image CVEs and misconfiguration, immutable image digests, SBOM, production-license allowlists |
 | GitHub Actions and CodeQL | Pinned CI orchestration, least-privilege permissions, and remote static analysis when the workflow runs |
 | Mermaid CLI and repository validators | Diagram parsing, migration-to-ER coverage, links, OpenAPI reachability, traceability, CI-contract, and prohibited-claim checks |
-| Git hooks | Conventional commit-message and staged-secret policy plus pre-push unit verification |
+| Git hooks | Conventional commit-message policy; fast staged canary/private-key/credential-assignment guard with explicit placeholder rules; pre-push unit verification. Full-history/content Gitleaks and Trivy remain the authoritative secret gates |
 
 ## Evidence map
 
@@ -40,6 +40,7 @@ This document separates human authority and deterministic engineering tools from
 | Documentation | `make validate-docs` | Link, Mermaid, schema, OpenAPI, and claim-validation results |
 | Scenario mapping | `make validate-traceability` | Exact SDD ID → source/command validation |
 | Crisis/revert | `make test-crisis-evidence` | Disposable local branch/hash/recovery output |
+| Local PR/rebase | `make test-local-collaboration-evidence` | Disposable remote-free PR description/ref, actual interactive autosquash, range-diff, and fast-forward output |
 | Aggregate local gate | `make release-check` | All local build, runtime, acceptance, security, docs, and crisis evidence above |
 
 Generated artifacts can be stale. A reviewer should pair each artifact with the current command result and inspect failures rather than accepting file presence.
@@ -55,4 +56,4 @@ Generated artifacts can be stale. A reviewer should pair each artifact with the 
 
 ## Limitations
 
-Implemented evidence is local or CI-oriented exercise evidence. It does not establish a real OIDC provider, real market-data integration, refresh-token lifecycle, FX triangulation, Kubernetes/Terraform, microservices, production throughput, one million transactions per minute, or an authorized remote publication/tag/release. Those remain Proposed or Gap items in [`docs/REQUIREMENT_TRACEABILITY.md`](docs/REQUIREMENT_TRACEABILITY.md).
+Implemented evidence is local or CI-oriented exercise evidence. It does not establish a real OIDC provider, real market-data integration, refresh-token lifecycle, FX triangulation, Kubernetes/Terraform, microservices, production throughput, one million transactions per minute, or an authorized remote publication/release. A historical local annotated `v1.0.0` exists at `af898ef`; it is not evidence for the current HEAD and was not moved or reused. Hosted PR/check/review state and any future version tag remain Gap items in [`docs/REQUIREMENT_TRACEABILITY.md`](docs/REQUIREMENT_TRACEABILITY.md).

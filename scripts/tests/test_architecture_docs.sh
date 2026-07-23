@@ -8,6 +8,11 @@ for required in \
   "$repo_root/docs/architecture/er-diagram.mmd" \
   "$repo_root/docs/architecture/c4-context.mmd" \
   "$repo_root/docs/architecture/c4-container.mmd" \
+  "$repo_root/docs/architecture/settlement-state.mmd" \
+  "$repo_root/docs/architecture/settlement-sequence.mmd" \
+  "$repo_root/docs/architecture/scale-evolution.mmd" \
+  "$repo_root/docs/architecture/schema-inventory.md" \
+  "$repo_root/docs/architecture/api-endpoints.md" \
   "$repo_root/docs/REQUIREMENT_TRACEABILITY.md" \
   "$repo_root/docs/adr/0001-modular-monolith.md" \
   "$repo_root/docs/adr/0002-postgresql-write-model.md" \
@@ -38,32 +43,44 @@ grep -Fq 'GitHub Flow' "$repo_root/docs/GIT_WORKFLOW.md"
 grep -Fq 'receivables' "$repo_root/docs/architecture/er-diagram.mmd"
 grep -Fq 'README_case_dev_srm.md' "$repo_root/docs/REQUIREMENT_TRACEABILITY.md"
 
+for adr in "$repo_root"/docs/adr/[0-9][0-9][0-9][0-9]-*.md; do
+  for heading in '## Status' '## Context' '## Decision' '## Alternatives considered' '## Consequences' '## Revisit triggers'; do
+    grep -Fq "$heading" "$adr" \
+      || { echo "ADR missing required section '$heading': $adr" >&2; exit 1; }
+  done
+done
+
 while IFS= read -r markdown; do
   while IFS= read -r target; do
     case "$target" in
       http://*|https://*|mailto:*|\#*|'') continue ;;
     esac
+    target="${target#<}"
+    target="${target%>}"
     target="${target%%#*}"
     if [[ ! -e "$(dirname "$markdown")/$target" ]]; then
       echo "broken local Markdown link in $markdown: $target" >&2
       exit 1
     fi
-  done < <(sed -nE 's/.*\]\(([^)]+)\).*/\1/p' "$markdown")
-done < <(find "$repo_root/docs" -type f -name '*.md' -not -path '*/.omc/*' -not -path '*/.pi-subagents/*')
+  done < <(grep -oE '\]\([^)]+\)' "$markdown" | sed -E 's/^\]\((.*)\)$/\1/')
+done < <(
+  find "$repo_root/docs" -type f -name '*.md' -not -path '*/.omc/*' -not -path '*/.pi-subagents/*'
+  printf '%s\n' "$repo_root/README.md" "$repo_root/AI_USAGE.md" "$repo_root/HT_USAGE.md" "$repo_root/frontend/README.md"
+)
 
 while IFS= read -r table; do
   if ! grep -Eq "^[[:space:]]*$table[[:space:]]*\\{" "$repo_root/docs/architecture/er-diagram.mmd"; then
     echo "migration table missing from ER diagram: $table" >&2
     exit 1
   fi
-done < <(sed -nE 's/^create table ([a-z_]+).*/\1/p' "$repo_root"/backend/src/main/resources/db/migration/*.sql | grep -v '^schema_metadata$')
+done < <(sed -nE 's/^create table ([a-z_]+).*/\1/p' "$repo_root"/backend/src/main/resources/db/migration/*.sql)
+
+node "$repo_root/scripts/validate-schema-docs.mjs"
+node "$repo_root/scripts/validate-api-docs.mjs"
 
 render_dir="$repo_root/backend/build/mermaid"
 mkdir -p "$render_dir"
-for diagram in \
-  "$repo_root/docs/architecture/er-diagram.mmd" \
-  "$repo_root/docs/architecture/c4-context.mmd" \
-  "$repo_root/docs/architecture/c4-container.mmd"; do
+for diagram in "$repo_root"/docs/architecture/*.mmd; do
   output="$render_dir/$(basename "${diagram%.mmd}").svg"
   npm --prefix "$repo_root/frontend" exec -- mmdc -i "$diagram" -o "$output" >/dev/null
   if [[ ! -s "$output" ]]; then

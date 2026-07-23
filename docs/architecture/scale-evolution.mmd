@@ -1,0 +1,20 @@
+flowchart LR
+    Client[Clients] --> Edge[Proposed API gateway<br/>auth, quotas, request limits]
+    Edge --> Ingest[Proposed command ingress<br/>idempotency + durable acceptance]
+    Ingest --> Log[(Proposed partitioned event log<br/>128 partitions initially)]
+    Log --> Workers[Proposed Settlement workers<br/>ordered by assignor/Receivable key]
+    Workers --> Shards[(Proposed PostgreSQL shards<br/>strong consistency per partition)]
+    Workers --> Outbox[(Transactional outbox)]
+    Outbox --> Projection[Idempotent statement projectors]
+    Projection --> Read[(Partitioned statement read model)]
+    Rates[(Versioned rate store)] --> Cache[Immutable-key rate cache]
+    Cache --> Workers
+    Log --> DLQ[Quarantine + replay tooling]
+    Shards --> Reconcile[Independent reconciliation]
+    Read --> Query[Statement query API]
+
+    subgraph Current[Implemented exercise boundary]
+        Monolith[Modular monolith]
+        Database[(Single PostgreSQL)]
+        Monolith --> Database
+    end

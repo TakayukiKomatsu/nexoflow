@@ -17,6 +17,12 @@ erDiagram
     settlements ||--o{ idempotency_records : settlement_replay
     settlement_reversals ||--o{ idempotency_records : reversal_replay
 
+    schema_metadata {
+        int id PK
+        string schema_name UK
+        datetime created_at
+    }
+
     users {
         uuid id PK
         string email UK
