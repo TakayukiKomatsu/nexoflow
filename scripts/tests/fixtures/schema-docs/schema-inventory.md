@@ -7,6 +7,9 @@ Migrations:
 - `scripts/tests/fixtures/schema-docs/sql-inline-mutated/V1__fixture.sql`
 - `scripts/tests/fixtures/schema-docs/sql-type-mutated/V1__fixture.sql`
 - `scripts/tests/fixtures/schema-docs/sql-nullability-mutated/V1__fixture.sql`
+- `scripts/tests/fixtures/schema-docs/sql-alter-type-mutated/V1__fixture.sql`
+- `scripts/tests/fixtures/schema-docs/sql-alter-nullability-mutated/V1__fixture.sql`
+- `scripts/tests/fixtures/schema-docs/sql-drop-constraint-mutated/V1__fixture.sql`
 - `scripts/tests/fixtures/schema-docs/java-valid/V2__fixture.java`
 - `scripts/tests/fixtures/schema-docs/java-mutated/V2__fixture.java`
 

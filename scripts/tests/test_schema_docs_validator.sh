@@ -22,7 +22,12 @@ java_failure="$(mktemp)"
 inline_failure="$(mktemp)"
 type_failure="$(mktemp)"
 nullability_failure="$(mktemp)"
-trap 'rm -f "$sql_failure" "$java_failure" "$inline_failure" "$type_failure" "$nullability_failure"' EXIT
+alter_type_failure="$(mktemp)"
+alter_nullability_failure="$(mktemp)"
+drop_constraint_failure="$(mktemp)"
+stale_artifact_inventory="$(mktemp)"
+stale_artifact_failure="$(mktemp)"
+trap 'rm -f "$sql_failure" "$java_failure" "$inline_failure" "$type_failure" "$nullability_failure" "$alter_type_failure" "$alter_nullability_failure" "$drop_constraint_failure" "$stale_artifact_inventory" "$stale_artifact_failure"' EXIT
 
 if run_validator "$fixtures/sql-mutated" "$fixtures/java-valid" >"$sql_failure" 2>&1; then
   echo "schema validator accepted mutated SQL constraint structures" >&2
@@ -57,4 +62,35 @@ if run_validator "$fixtures/sql-nullability-mutated" "$fixtures/java-valid" >"$n
 fi
 grep -Fq 'children.numeric(money:numeric(19,4):nullable)' "$nullability_failure"
 
-echo "DOC-SCHEMA-MUTATION-001 passed: constraint, type, and financial-nullability drift is rejected"
+if run_validator "$fixtures/sql-alter-type-mutated" "$fixtures/java-valid" >"$alter_type_failure" 2>&1; then
+  echo "schema validator accepted a later migration changing exact decimal storage" >&2
+  exit 1
+fi
+grep -Fq 'ER type mismatch: children.money migration double_precision, ER decimal_19_4' "$alter_type_failure"
+grep -Fq 'schema inventory documents absent financial column: children.numeric(money:numeric(19,4):not-null)' "$alter_type_failure"
+
+if run_validator "$fixtures/sql-alter-nullability-mutated" "$fixtures/java-valid" >"$alter_nullability_failure" 2>&1; then
+  echo "schema validator accepted a later migration dropping financial nullability" >&2
+  exit 1
+fi
+grep -Fq 'schema inventory omits financial column: children.numeric(money:numeric(19,4):nullable)' "$alter_nullability_failure"
+
+if run_validator "$fixtures/sql-drop-constraint-mutated" "$fixtures/java-valid" >"$drop_constraint_failure" 2>&1; then
+  echo "schema validator accepted a later migration dropping a documented constraint" >&2
+  exit 1
+fi
+grep -Fq 'schema inventory documents absent structural constraint: children.fk(parent_id->parents.id)' "$drop_constraint_failure"
+
+sed 's/`children_code_unique`/`children_code_unique`, `fabricated_index`/' \
+  "$fixtures/schema-inventory.md" >"$stale_artifact_inventory"
+if SRM_SCHEMA_SQL_DIR="$fixtures/sql-valid" \
+  SRM_SCHEMA_JAVA_DIR="$fixtures/java-valid" \
+  SRM_SCHEMA_ER_DOCUMENT="$fixtures/er-diagram.mmd" \
+  SRM_SCHEMA_INVENTORY_DOCUMENT="$stale_artifact_inventory" \
+    node "$validator" >"$stale_artifact_failure" 2>&1; then
+  echo "schema validator accepted a fabricated named artifact" >&2
+  exit 1
+fi
+grep -Fq 'schema inventory documents absent named constraint/index/trigger: fabricated_index' "$stale_artifact_failure"
+
+echo "DOC-SCHEMA-MUTATION-001 passed: final-state constraint, type, and financial-nullability drift is rejected"

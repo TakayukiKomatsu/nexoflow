@@ -31,10 +31,13 @@ checks it against both SQL and Java migration source.
 - [V16 reversal immutability](../../backend/src/main/java/db/migration/V16__protect_settlement_reversal_history.java)
 - [V19 reference-rate immutability](../../backend/src/main/java/db/migration/V19__protect_reference_rate_history.java)
 - [V20 maximum receivable and quote terms](../../backend/src/main/java/db/migration/V20__bound_receivable_maturity.java)
+- [V22 actor identity column alignment](../../backend/src/main/java/db/migration/V22__widen_actor_identity_columns.java)
 
 V15 adds `pricing_quotes.product_type_code` and its foreign key. V12–V16 and
 V19 use PostgreSQL triggers because H2 cannot execute PL/pgSQL; PostgreSQL
 integration tests are therefore required evidence for append-only behavior.
+V22 aligns every persisted financial actor snapshot with the identity email
+contract by widening the relevant authorship columns to `varchar(320)`.
 
 ## Named constraints, indexes, and triggers
 
@@ -121,7 +124,6 @@ Inline checks retain normalized expressions:
 - `settlement_items.check(item_position>0)`
 - `settlement_items.check(settlement_amount>0)`
 - `idempotency_records.check(statusin('processing','completed'))`
-- `idempotency_records.check((status='processing'andsettlement_idisnullandcompleted_atisnull)or(status='completed'andsettlement_idisnotnullandcompleted_atisnotnull))`
 - `settlement_reversals.check(length(trim(reason))>0)`
 - `pricing_quotes.check(statusin('active','consumed'))`
 

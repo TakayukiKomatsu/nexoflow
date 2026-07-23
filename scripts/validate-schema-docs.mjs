@@ -29,7 +29,10 @@ function filesWithExtension(directory, extension) {
 
 const sqlFiles = filesWithExtension(sqlDir, '.sql');
 const javaFiles = filesWithExtension(javaDir, '.java');
-const migrationFiles = [...sqlFiles, ...javaFiles].sort();
+const migrationFiles = [...sqlFiles, ...javaFiles].sort((left, right) => {
+  const version = (file) => Number.parseInt(path.basename(file).match(/^V(\d+)__/)?.[1] ?? '0', 10);
+  return version(left) - version(right) || left.localeCompare(right);
+});
 
 function javaExecuteArguments(source) {
   const argumentsFound = [];
@@ -155,13 +158,14 @@ function javaStringExpression(argument, variables) {
   return pieces.join('');
 }
 
-const sqlText = sqlFiles.map((file) => fs.readFileSync(file, 'utf8')).join('\n');
-const javaSqlText = javaFiles.flatMap((file) => {
+const migrationText = migrationFiles.map((file) => {
+  if (file.endsWith('.sql')) return fs.readFileSync(file, 'utf8');
   const source = fs.readFileSync(file, 'utf8');
   const variables = javaStringVariables(source);
-  return javaExecuteArguments(source).map((argument) => `${javaStringExpression(argument, variables)};`);
-}).join('\n');
-const migrationText = `${sqlText}\n${javaSqlText}`.toLowerCase();
+  return javaExecuteArguments(source)
+    .map((argument) => `${javaStringExpression(argument, variables)};`)
+    .join('\n');
+}).join('\n').toLowerCase();
 const erText = fs.readFileSync(erPath, 'utf8');
 const inventoryText = fs.readFileSync(inventoryPath, 'utf8');
 
@@ -192,7 +196,7 @@ function normalizedExpression(expression) {
 
 const schema = new Map();
 const constraintSignatures = new Set();
-const financialColumnSignatures = new Set();
+const namedConstraintEvents = [];
 
 function sqlColumnType(definition) {
   const type = definition.replace(/^[a-z_][a-z0-9_]*\s+/, '').trim();
@@ -216,19 +220,34 @@ function sqlColumnType(definition) {
   return null;
 }
 
-function recordColumnConstraints(table, column, definition) {
-  if (/\bprimary\s+key\b/.test(definition)) constraintSignatures.add(`${table}.primary(${column})`);
-  if (/\bunique\b/.test(definition)) constraintSignatures.add(`${table}.unique(${column})`);
+function columnConstraintSignatures(table, column, definition) {
+  const signatures = [];
+  if (/\bprimary\s+key\b/.test(definition)) signatures.push(`${table}.primary(${column})`);
+  if (/\bunique\b/.test(definition)) signatures.push(`${table}.unique(${column})`);
   const reference = definition.match(/\breferences\s+([a-z_][a-z0-9_]*)\s*\(\s*([a-z_][a-z0-9_]*)\s*\)/);
-  if (reference) constraintSignatures.add(`${table}.fk(${column}->${reference[1]}.${reference[2]})`);
+  if (reference) signatures.push(`${table}.fk(${column}->${reference[1]}.${reference[2]})`);
   const check = definition.match(/\bcheck\s*\(([\s\S]*)\)\s*$/);
-  if (check) constraintSignatures.add(`${table}.check(${normalizedExpression(check[1])})`);
-  const type = sqlColumnType(definition);
-  if (type?.financial) {
-    const nullability = /\b(?:not\s+null|primary\s+key)\b/.test(definition) ? 'not-null' : 'nullable';
-    financialColumnSignatures.add(
-      `${table}.numeric(${column}:${type.inventory}:${nullability})`,
-    );
+  if (check) signatures.push(`${table}.check(${normalizedExpression(check[1])})`);
+  return signatures;
+}
+
+function tableConstraintSignature(table, definition) {
+  const primary = definition.match(/primary\s+key\s*\(([^)]+)\)/);
+  if (primary) return `${table}.primary(${normalizedColumns(primary[1])})`;
+  const unique = definition.match(/\bunique\s*\(([^)]+)\)/);
+  if (unique) return `${table}.unique(${normalizedColumns(unique[1])})`;
+  const foreignKey = definition.match(/foreign\s+key\s*\(([^)]+)\)\s+references\s+([a-z_][a-z0-9_]*)\s*\(([^)]+)\)/);
+  if (foreignKey) {
+    return `${table}.fk(${normalizedColumns(foreignKey[1])}->${foreignKey[2]}.${normalizedColumns(foreignKey[3])})`;
+  }
+  const check = definition.match(/\bcheck\s*\(([\s\S]*)\)\s*$/);
+  if (check) return `${table}.check(${normalizedExpression(check[1])})`;
+  return null;
+}
+
+function recordColumnConstraints(table, column, definition) {
+  for (const signature of columnConstraintSignatures(table, column, definition)) {
+    constraintSignatures.add(signature);
   }
 }
 
@@ -245,18 +264,12 @@ for (const match of migrationText.matchAll(createTablePattern)) {
       recordColumnConstraints(table, column, definition);
       continue;
     }
-    const primary = definition.match(/primary\s+key\s*\(([^)]+)\)/);
-    if (primary) constraintSignatures.add(`${table}.primary(${normalizedColumns(primary[1])})`);
-    const unique = definition.match(/\bunique\s*\(([^)]+)\)/);
-    if (unique) constraintSignatures.add(`${table}.unique(${normalizedColumns(unique[1])})`);
-    const foreignKey = definition.match(/foreign\s+key\s*\(([^)]+)\)\s+references\s+([a-z_][a-z0-9_]*)\s*\(([^)]+)\)/);
-    if (foreignKey) {
-      constraintSignatures.add(
-        `${table}.fk(${normalizedColumns(foreignKey[1])}->${foreignKey[2]}.${normalizedColumns(foreignKey[3])})`,
-      );
+    const signature = tableConstraintSignature(table, definition);
+    if (signature) constraintSignatures.add(signature);
+    const named = definition.match(/^constraint\s+([a-z_][a-z0-9_]*)\s+/);
+    if (named && signature) {
+      namedConstraintEvents.push({ index: match.index, table, name: named[1], signature });
     }
-    const check = definition.match(/\bcheck\s*\(([\s\S]*)\)\s*$/);
-    if (check) constraintSignatures.add(`${table}.check(${normalizedExpression(check[1])})`);
   }
   schema.set(table, columns);
 }
@@ -269,17 +282,71 @@ for (const match of migrationText.matchAll(/alter\s+table\s+([a-z_][a-z0-9_]*)\s
 }
 
 for (const match of migrationText.matchAll(/alter\s+table\s+([a-z_][a-z0-9_]*)\s+add\s+constraint\s+([a-z_][a-z0-9_]*)\s+([\s\S]*?);/g)) {
-  const [, table, , definition] = match;
-  const foreignKey = definition.match(/foreign\s+key\s*\(([^)]+)\)\s+references\s+([a-z_][a-z0-9_]*)\s*\(([^)]+)\)/);
-  if (foreignKey) {
-    constraintSignatures.add(
-      `${table}.fk(${normalizedColumns(foreignKey[1])}->${foreignKey[2]}.${normalizedColumns(foreignKey[3])})`,
-    );
+  const [, table, name, definition] = match;
+  const signature = tableConstraintSignature(table, definition);
+  if (signature) {
+    constraintSignatures.add(signature);
+    namedConstraintEvents.push({ index: match.index, table, name, signature });
   }
-  const unique = definition.match(/^\s*unique\s*\(([^)]+)\)/);
-  if (unique) constraintSignatures.add(`${table}.unique(${normalizedColumns(unique[1])})`);
-  const check = definition.match(/^\s*check\s*\(([\s\S]*)\)\s*$/);
-  if (check) constraintSignatures.add(`${table}.check(${normalizedExpression(check[1])})`);
+}
+
+for (const match of migrationText.matchAll(/alter\s+table\s+([a-z_][a-z0-9_]*)\s+drop\s+constraint\s+(?:if\s+exists\s+)?([a-z_][a-z0-9_]*)\s*;/g)) {
+  namedConstraintEvents.push({ index: match.index, table: match[1], name: match[2], signature: null });
+}
+
+const historicalNamedSignatures = new Set(
+  namedConstraintEvents.map(({ signature }) => signature).filter(Boolean),
+);
+for (const signature of historicalNamedSignatures) constraintSignatures.delete(signature);
+const finalNamedConstraints = new Map();
+for (const event of namedConstraintEvents.sort((left, right) => left.index - right.index)) {
+  const key = `${event.table}.${event.name}`;
+  if (event.signature) finalNamedConstraints.set(key, event.signature);
+  else finalNamedConstraints.delete(key);
+}
+for (const signature of finalNamedConstraints.values()) constraintSignatures.add(signature);
+
+function replaceColumnType(definition, nextType) {
+  const column = definition.match(/^([a-z_][a-z0-9_]*)\s+/)?.[1];
+  if (!column) return definition;
+  const remainder = definition.slice(column.length).trim();
+  const constraintOffset = remainder.search(
+    /\s+(?=(?:not\s+null|null|primary\s+key|unique|references|check|default)\b)/,
+  );
+  const constraints = constraintOffset < 0 ? '' : remainder.slice(constraintOffset);
+  return `${column} ${nextType.trim()}${constraints}`;
+}
+
+for (const match of migrationText.matchAll(/alter\s+table\s+([a-z_][a-z0-9_]*)\s+alter\s+column\s+([a-z_][a-z0-9_]*)\s+(?:set\s+data\s+)?type\s+([\s\S]*?);/g)) {
+  const [, table, column, nextTypeWithUsing] = match;
+  const columns = schema.get(table);
+  if (!columns?.has(column)) throw new Error(`alter-column migration refers to unknown column ${table}.${column}`);
+  const nextType = nextTypeWithUsing.replace(/\s+using\s+[\s\S]*$/i, '');
+  columns.set(column, replaceColumnType(columns.get(column), nextType));
+}
+
+const nullabilityEvents = [];
+for (const match of migrationText.matchAll(/alter\s+table\s+([a-z_][a-z0-9_]*)\s+alter\s+column\s+([a-z_][a-z0-9_]*)\s+(set|drop)\s+not\s+null\s*;/g)) {
+  nullabilityEvents.push({ index: match.index, table: match[1], column: match[2], action: match[3] });
+}
+for (const event of nullabilityEvents.sort((left, right) => left.index - right.index)) {
+  const columns = schema.get(event.table);
+  if (!columns?.has(event.column)) {
+    throw new Error(`alter-column migration refers to unknown column ${event.table}.${event.column}`);
+  }
+  let definition = columns.get(event.column).replace(/\s+not\s+null\b/gi, '');
+  if (event.action === 'set') definition = `${definition} not null`;
+  columns.set(event.column, definition);
+}
+
+const financialColumnSignatures = new Set();
+for (const [table, columns] of schema) {
+  for (const [column, definition] of columns) {
+    const type = sqlColumnType(definition);
+    if (!type?.financial) continue;
+    const nullability = /\b(?:not\s+null|primary\s+key)\b/.test(definition) ? 'not-null' : 'nullable';
+    financialColumnSignatures.add(`${table}.numeric(${column}:${type.inventory}:${nullability})`);
+  }
 }
 
 const erSchema = new Map();
@@ -322,22 +389,57 @@ for (const table of erSchema.keys()) {
   if (!schema.has(table)) failures.push(`ER table has no migration authority: ${table}`);
 }
 
-const namedArtifacts = new Set();
-for (const pattern of [
-  /\bconstraint\s+([a-z_][a-z0-9_]*)/g,
-  /create\s+(?:unique\s+)?index\s+([a-z_][a-z0-9_]*)/g,
-  /create\s+trigger\s+([a-z_][a-z0-9_]*)/g,
-]) {
-  for (const match of migrationText.matchAll(pattern)) namedArtifacts.add(match[1]);
+const namedArtifacts = new Set(
+  [...finalNamedConstraints.keys()].map((key) => key.slice(key.indexOf('.') + 1)),
+);
+const artifactEvents = [];
+for (const match of migrationText.matchAll(/create\s+(?:unique\s+)?index\s+([a-z_][a-z0-9_]*)/g)) {
+  artifactEvents.push({ index: match.index, name: match[1], present: true });
+}
+for (const match of migrationText.matchAll(/drop\s+index\s+(?:if\s+exists\s+)?([a-z_][a-z0-9_]*)/g)) {
+  artifactEvents.push({ index: match.index, name: match[1], present: false });
+}
+for (const match of migrationText.matchAll(/create\s+trigger\s+([a-z_][a-z0-9_]*)/g)) {
+  artifactEvents.push({ index: match.index, name: match[1], present: true });
+}
+for (const match of migrationText.matchAll(/drop\s+trigger\s+(?:if\s+exists\s+)?([a-z_][a-z0-9_]*)/g)) {
+  artifactEvents.push({ index: match.index, name: match[1], present: false });
+}
+for (const event of artifactEvents.sort((left, right) => left.index - right.index)) {
+  if (event.present) namedArtifacts.add(event.name);
+  else namedArtifacts.delete(event.name);
 }
 for (const artifact of namedArtifacts) {
   if (!inventoryText.includes(`\`${artifact}\``)) failures.push(`schema inventory omits named constraint/index/trigger: ${artifact}`);
 }
+for (const section of inventoryText.matchAll(
+  /^(?:- )?(?:Named constraints|Constraints|Indexes|PostgreSQL triggers):\s*([\s\S]*?)(?=\n\s*\n|(?![\s\S]))/gm,
+)) {
+  for (const documented of section[1].matchAll(/`([a-z_][a-z0-9_]*)`/g)) {
+    if (!namedArtifacts.has(documented[1])) {
+      failures.push(`schema inventory documents absent named constraint/index/trigger: ${documented[1]}`);
+    }
+  }
+}
 for (const signature of constraintSignatures) {
   if (!inventoryText.includes(`\`${signature}\``)) failures.push(`schema inventory omits structural constraint: ${signature}`);
 }
+for (const match of inventoryText.matchAll(/`([a-z_][a-z0-9_]*\.(?:primary|unique|fk|check)\([^`]+\))`/g)) {
+  const signature = match[1];
+  const table = signature.slice(0, signature.indexOf('.'));
+  if (schema.has(table) && !constraintSignatures.has(signature)) {
+    failures.push(`schema inventory documents absent structural constraint: ${signature}`);
+  }
+}
 for (const signature of financialColumnSignatures) {
   if (!inventoryText.includes(`\`${signature}\``)) failures.push(`schema inventory omits financial column: ${signature}`);
+}
+for (const match of inventoryText.matchAll(/`([a-z_][a-z0-9_]*\.numeric\([^`]+\))`/g)) {
+  const signature = match[1];
+  const table = signature.slice(0, signature.indexOf('.'));
+  if (schema.has(table) && !financialColumnSignatures.has(signature)) {
+    failures.push(`schema inventory documents absent financial column: ${signature}`);
+  }
 }
 for (const file of migrationFiles) {
   const relative = path.relative(repoRoot, file);
@@ -350,4 +452,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`DOC-SCHEMA-002 passed: ${schema.size} tables, exact column types, financial nullability, structural constraints, indexes, and Java-migration triggers match the ER inventory`);
+console.log(`DOC-SCHEMA-002 passed: ${schema.size} tables, ER type families, exact financial numeric storage/nullability, structural constraints, indexes, and Java-migration triggers match the inventory`);
