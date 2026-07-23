@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { basename, dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
 
@@ -21,8 +21,51 @@ const arithmeticOperators = new Set([
   ts.SyntaxKind.AsteriskAsteriskToken,
 ]);
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
-const sourceFiles = ["src/App.tsx", "src/api/client.ts"].map((path) =>
-  resolve(scriptDirectory, "..", path),
+const defaultSourceRoot = resolve(scriptDirectory, "../src");
+
+function sourceRootFromArguments(arguments_) {
+  if (arguments_.length === 0) return defaultSourceRoot;
+  if (
+    arguments_.length !== 2 ||
+    arguments_[0] !== "--source-root" ||
+    !arguments_[1]
+  ) {
+    throw new Error(
+      "AUTHORITY-001 usage: validate-authoritative-pricing [--source-root PATH]",
+    );
+  }
+  return resolve(arguments_[1]);
+}
+
+function isProductionTypeScript(fileName) {
+  const extension = extname(fileName);
+  if (extension !== ".ts" && extension !== ".tsx") return false;
+  const name = basename(fileName);
+  return (
+    !name.endsWith(".d.ts") &&
+    !name.includes(".test.") &&
+    !name.includes(".spec.") &&
+    name !== "setup.ts" &&
+    name !== "setup.tsx"
+  );
+}
+
+function productionSourceFiles(directory) {
+  return readdirSync(directory, { withFileTypes: true })
+    .flatMap((entry) => {
+      const path = resolve(directory, entry.name);
+      if (entry.isDirectory()) {
+        return ["test", "tests", "__tests__"].includes(entry.name)
+          ? []
+          : productionSourceFiles(path);
+      }
+      return entry.isFile() && isProductionTypeScript(path) ? [path] : [];
+    })
+    .sort();
+}
+
+const sourceFiles = productionSourceFiles(
+  sourceRootFromArguments(process.argv.slice(2)),
 );
 
 function accessesFinancialField(node) {
