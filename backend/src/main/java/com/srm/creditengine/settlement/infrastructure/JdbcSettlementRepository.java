@@ -7,6 +7,7 @@ import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.domain.LockedQuote;
 import com.srm.creditengine.settlement.domain.LockedSettlement;
 import com.srm.creditengine.settlement.domain.SettlementDraft;
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -68,7 +69,7 @@ public class JdbcSettlementRepository implements SettlementRepository {
     @Override
     public LockedSettlement lockSettlement(UUID settlementId) {
         UUID lockedId = jdbc.query("select id from settlements where id=? for update", (rs, row) -> rs.getObject(1, UUID.class), settlementId)
-                .stream().findFirst().orElseThrow(() -> new IllegalArgumentException("Settlement not found"));
+                .stream().findFirst().orElseThrow(DomainResourceNotFoundException::new);
         if (jdbc.queryForObject("select count(*) from settlement_reversals where settlement_id=?", Integer.class, lockedId) > 0) {
             throw new AlreadyReversedException();
         }

@@ -1,6 +1,7 @@
 package com.srm.creditengine.receivable.application;
 
 import com.srm.creditengine.receivable.domain.ReceivableRegistration;
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
@@ -51,7 +52,7 @@ class ReceivableApplicationService implements ReceivableService {
     public ReceivableService.Receivable get(UUID id) {
         return receivableRepository.findById(id)
                 .map(ReceivableApplicationService::toServiceRecord)
-                .orElseThrow(() -> new IllegalArgumentException("Receivable not found"));
+                .orElseThrow(DomainResourceNotFoundException::new);
     }
 
     @Override

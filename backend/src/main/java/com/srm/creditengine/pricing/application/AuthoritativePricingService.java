@@ -5,6 +5,7 @@ import com.srm.creditengine.currency.application.ReferenceRateService;
 import com.srm.creditengine.pricing.domain.PricingQuoteSnapshot;
 import com.srm.creditengine.pricing.domain.PricingStrategy;
 import com.srm.creditengine.receivable.application.ReceivableService;
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -77,7 +78,7 @@ class AuthoritativePricingService implements PricingService {
     public Quote createQuote(UUID receivableId, String settlementCurrency, String actor) {
         var receivable = requireQuoteReader()
                 .lockRegistered(receivableId)
-                .orElseThrow(() -> new IllegalArgumentException("Receivable not found"));
+                .orElseThrow(DomainResourceNotFoundException::new);
         if (!"REGISTERED".equals(receivable.status())) {
             throw new IllegalArgumentException("Only REGISTERED receivables can be quoted");
         }
@@ -124,7 +125,7 @@ class AuthoritativePricingService implements PricingService {
         return requireQuoteRepository()
                 .findById(quoteId)
                 .map(snapshot -> toQuote(snapshot, clock.instant()))
-                .orElseThrow(() -> new IllegalArgumentException("Pricing quote not found"));
+                .orElseThrow(DomainResourceNotFoundException::new);
     }
     private Breakdown calculate(Input input, Instant at) {
         if (input.faceAmount() == null || input.faceAmount().signum() <= 0 || input.faceAmount().scale() > 4) {

@@ -1,6 +1,7 @@
 package com.srm.creditengine.receivable.infrastructure;
 
 import com.srm.creditengine.receivable.application.AssignorStatusReader;
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -23,6 +24,6 @@ class JdbcAssignorStatusReader implements AssignorStatusReader {
                         assignorId)
                 .stream()
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Assignor not found"));
+                .orElseThrow(DomainResourceNotFoundException::new);
     }
 }

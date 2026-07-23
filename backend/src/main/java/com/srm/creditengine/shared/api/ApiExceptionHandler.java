@@ -1,5 +1,7 @@
 package com.srm.creditengine.shared.api;
 
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import io.micrometer.core.instrument.Metrics;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import com.srm.creditengine.currency.domain.FxRateMissingException;
@@ -125,6 +128,26 @@ public class ApiExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     ProblemDetail invalidRequest(IllegalArgumentException exception, HttpServletRequest request) {
         return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(DomainResourceNotFoundException.class)
+    ProblemDetail domainResourceNotFound(
+            DomainResourceNotFoundException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.NOT_FOUND,
+                "RESOURCE_NOT_FOUND",
+                "The requested domain resource was not found.",
+                request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ProblemDetail dataConflict(
+            DataIntegrityViolationException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.CONFLICT,
+                "DATA_CONFLICT",
+                "The request conflicts with existing data.",
+                request);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

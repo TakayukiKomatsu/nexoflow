@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import com.srm.creditengine.settlement.infrastructure.JdbcAuditEventRecorder;
 import com.srm.creditengine.settlement.infrastructure.JdbcIdempotencyRepository;
 import com.srm.creditengine.settlement.infrastructure.JdbcSettlementRepository;
@@ -62,8 +63,8 @@ class JdbcSettlementServiceTest {
         JdbcTemplate missingJdbc = mock(JdbcTemplate.class);
         stubQuotes(missingJdbc, List.of());
         assertThatThrownBy(() -> service(missingJdbc).preview(List.of(QUOTE), "operator"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("One or more pricing quotes were not found");
+                .isInstanceOf(DomainResourceNotFoundException.class)
+                .hasMessage("The requested domain resource was not found.");
 
         UUID secondQuote = UUID.fromString("00000000-0000-0000-0000-000000000202");
         assertMixedBatchFailure(List.of(

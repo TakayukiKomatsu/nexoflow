@@ -1,6 +1,7 @@
 package com.srm.creditengine.assignor.application;
 
 import com.srm.creditengine.assignor.domain.TaxId;
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -38,7 +39,7 @@ class AssignorApplicationService implements AssignorService {
     public Assignor get(UUID id) {
         return repository.findById(id)
                 .map(a -> new Assignor(a.id(), a.legalName(), a.taxId(), a.active(), a.createdAt()))
-                .orElseThrow(() -> new IllegalArgumentException("Assignor not found"));
+                .orElseThrow(DomainResourceNotFoundException::new);
     }
 
     @Override

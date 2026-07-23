@@ -3,6 +3,8 @@ package com.srm.creditengine.settlement.application;
 import com.srm.creditengine.settlement.domain.SettlementDraft;
 import com.srm.creditengine.settlement.domain.SettlementPolicy;
 import com.srm.creditengine.settlement.domain.SettlementPreview;
+import com.srm.creditengine.settlement.domain.LockedQuote;
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.time.Clock;
 import java.time.Instant;
@@ -39,8 +41,7 @@ public class SettlementApplicationService implements SettlementService {
     public Preview preview(List<UUID> orderedQuoteIds, String actor) {
         SettlementPolicy.requireOrderedUnique(orderedQuoteIds);
         Instant now = clock.instant();
-        return toPreview(SettlementPolicy.previewOf(
-                SettlementPolicy.validateQuotes(orderedQuoteIds, settlements.lockQuotes(orderedQuoteIds), now), now));
+        return toPreview(SettlementPolicy.previewOf(validatedQuotes(orderedQuoteIds, now), now));
     }
 
     @Override
@@ -56,7 +57,7 @@ public class SettlementApplicationService implements SettlementService {
         }
 
         Instant now = clock.instant();
-        var quotes = SettlementPolicy.validateQuotes(orderedQuoteIds, settlements.lockQuotes(orderedQuoteIds), now);
+        var quotes = validatedQuotes(orderedQuoteIds, now);
         Preview preview = toPreview(SettlementPolicy.previewOf(quotes, now));
         var draft = new SettlementDraft(
                 UUID.randomUUID(), quotes.getFirst().assignorId(), preview.settlementCurrency(), preview.totalAmount(), quotes, now, actor);
@@ -77,7 +78,7 @@ public class SettlementApplicationService implements SettlementService {
         if (settlementId == null) {
             throw new IllegalArgumentException("Settlement ID is required");
         }
-        return settlements.findResult(settlementId).orElseThrow();
+        return settlements.findResult(settlementId).orElseThrow(DomainResourceNotFoundException::new);
     }
 
     @Override
@@ -108,6 +109,14 @@ public class SettlementApplicationService implements SettlementService {
 
     private static Reversal replay(Reversal reversal) {
         return new Reversal(reversal.reversalId(), reversal.settlementId(), reversal.reason(), reversal.reversedAt(), true);
+    }
+
+    private List<LockedQuote> validatedQuotes(List<UUID> orderedQuoteIds, Instant now) {
+        List<LockedQuote> locked = settlements.lockQuotes(orderedQuoteIds);
+        if (locked.size() != orderedQuoteIds.size()) {
+            throw new DomainResourceNotFoundException();
+        }
+        return SettlementPolicy.validateQuotes(orderedQuoteIds, locked, now);
     }
 
     private static Preview toPreview(SettlementPreview preview) {
