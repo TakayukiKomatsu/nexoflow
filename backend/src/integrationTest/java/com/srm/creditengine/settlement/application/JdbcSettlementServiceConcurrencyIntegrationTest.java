@@ -1,5 +1,7 @@
 package com.srm.creditengine.settlement.application;
 
+import com.srm.creditengine.settlement.domain.AlreadySettledException;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;

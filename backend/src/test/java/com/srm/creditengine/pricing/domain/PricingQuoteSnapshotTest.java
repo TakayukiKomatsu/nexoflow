@@ -19,7 +19,8 @@ class PricingQuoteSnapshotTest {
                 new BigDecimal("966.1800"), "BRL", "USD", new BigDecimal("0.2000000000"), "TEST",
                 Instant.parse("2030-01-15T12:00:00Z"), new BigDecimal("966.18"), "operator", "ACTIVE");
 
-        assertThat(snapshot.toQuote(Instant.parse("2030-01-15T12:00:00Z")).breakdown().settlementAmount())
-                .isEqualByComparingTo("966.18");
+        assertThat(snapshot.settlementAmount()).isEqualByComparingTo("966.18");
+        assertThat(snapshot.strategyCode()).isEqualTo("INVOICE");
+        assertThat(snapshot.fxObservedAt()).isEqualTo(Instant.parse("2030-01-15T12:00:00Z"));
     }
 }

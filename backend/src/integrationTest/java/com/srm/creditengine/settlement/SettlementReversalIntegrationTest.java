@@ -7,7 +7,7 @@ import com.srm.creditengine.assignor.application.AssignorService;
 import com.srm.creditengine.pricing.application.PricingService;
 import com.srm.creditengine.receivable.application.ReceivableService;
 import com.srm.creditengine.reporting.application.SettlementStatementService;
-import com.srm.creditengine.settlement.application.AlreadyReversedException;
+import com.srm.creditengine.settlement.domain.AlreadyReversedException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
 import com.srm.creditengine.settlement.application.SettlementService;
 import java.math.BigDecimal;

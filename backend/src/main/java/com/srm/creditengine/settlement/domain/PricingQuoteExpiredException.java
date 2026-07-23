@@ -1,4 +1,4 @@
-package com.srm.creditengine.settlement.application;
+package com.srm.creditengine.settlement.domain;
 
 public class PricingQuoteExpiredException extends RuntimeException {
     public PricingQuoteExpiredException() {

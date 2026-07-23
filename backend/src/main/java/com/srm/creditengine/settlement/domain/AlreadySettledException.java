@@ -1,4 +1,4 @@
-package com.srm.creditengine.settlement.application;
+package com.srm.creditengine.settlement.domain;
 
 public class AlreadySettledException extends RuntimeException {
     private final String settlementCurrency;

@@ -1,9 +1,9 @@
 package com.srm.creditengine.settlement.infrastructure;
 
-import com.srm.creditengine.settlement.application.AlreadyReversedException;
-import com.srm.creditengine.settlement.application.AlreadySettledException;
 import com.srm.creditengine.settlement.application.SettlementRepository;
 import com.srm.creditengine.settlement.application.SettlementService;
+import com.srm.creditengine.settlement.domain.AlreadyReversedException;
+import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.domain.LockedQuote;
 import com.srm.creditengine.settlement.domain.LockedSettlement;
 import com.srm.creditengine.settlement.domain.SettlementDraft;

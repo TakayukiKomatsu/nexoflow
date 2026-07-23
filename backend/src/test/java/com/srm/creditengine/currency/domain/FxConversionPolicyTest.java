@@ -3,7 +3,6 @@ package com.srm.creditengine.currency.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.srm.creditengine.currency.application.FxRateStaleException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;

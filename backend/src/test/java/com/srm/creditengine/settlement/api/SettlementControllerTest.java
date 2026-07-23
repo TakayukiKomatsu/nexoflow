@@ -15,7 +15,7 @@ import com.srm.creditengine.identity.application.ActorContext;
 import com.srm.creditengine.identity.application.ActorRole;
 import com.srm.creditengine.identity.application.CurrentActor;
 import com.srm.creditengine.settlement.application.SettlementService;
-import com.srm.creditengine.settlement.application.PricingQuoteExpiredException;
+import com.srm.creditengine.settlement.domain.PricingQuoteExpiredException;
 import java.math.BigDecimal;
 import com.srm.creditengine.shared.runtime.SafeOperationalLogger;
 import java.time.Instant;

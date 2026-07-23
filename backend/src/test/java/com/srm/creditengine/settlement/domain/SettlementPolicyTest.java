@@ -3,8 +3,6 @@ package com.srm.creditengine.settlement.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.srm.creditengine.settlement.application.AlreadySettledException;
-import com.srm.creditengine.settlement.application.PricingQuoteExpiredException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;

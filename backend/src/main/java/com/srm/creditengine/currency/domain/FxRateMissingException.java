@@ -1,4 +1,4 @@
-package com.srm.creditengine.currency.application;
+package com.srm.creditengine.currency.domain;
 
 public final class FxRateMissingException extends RuntimeException {
     public FxRateMissingException() {

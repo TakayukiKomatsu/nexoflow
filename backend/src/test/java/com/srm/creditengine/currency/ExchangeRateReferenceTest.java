@@ -10,7 +10,7 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import java.math.BigDecimal;
 import com.srm.creditengine.currency.application.CurrencyService;
-import com.srm.creditengine.currency.application.FxRateStaleException;
+import com.srm.creditengine.currency.domain.FxRateStaleException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;

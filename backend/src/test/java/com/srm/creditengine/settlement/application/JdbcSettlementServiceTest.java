@@ -1,5 +1,8 @@
 package com.srm.creditengine.settlement.application;
 
+import com.srm.creditengine.settlement.domain.AlreadySettledException;
+import com.srm.creditengine.settlement.domain.PricingQuoteExpiredException;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.startsWith;

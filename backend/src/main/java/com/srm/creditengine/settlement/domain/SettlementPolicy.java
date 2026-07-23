@@ -1,8 +1,5 @@
 package com.srm.creditengine.settlement.domain;
 
-import com.srm.creditengine.settlement.application.AlreadySettledException;
-import com.srm.creditengine.settlement.application.PricingQuoteExpiredException;
-import com.srm.creditengine.settlement.application.SettlementService;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -59,11 +56,12 @@ public final class SettlementPolicy {
         return List.copyOf(ordered);
     }
 
-    public static SettlementService.Preview previewOf(List<LockedQuote> quotes, Instant asOf) {
+    public static SettlementPreview previewOf(List<LockedQuote> quotes, Instant asOf) {
         BigDecimal total = quotes.stream().map(LockedQuote::settlementAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
         Instant earliest = quotes.stream().map(LockedQuote::expiresAt).min(Instant::compareTo).orElseThrow();
-        return new SettlementService.Preview(
-                quotes.stream().map(quote -> new SettlementService.Item(quote.quoteId(), quote.receivableId(), quote.settlementAmount())).toList(),
+        return new SettlementPreview(
+                quotes.stream().map(quote -> new SettlementPreview.Item(
+                        quote.quoteId(), quote.receivableId(), quote.settlementAmount())).toList(),
                 quotes.getFirst().settlementCurrency(), total, asOf, earliest);
     }
 

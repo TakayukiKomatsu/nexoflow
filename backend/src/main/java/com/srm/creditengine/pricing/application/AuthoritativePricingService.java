@@ -117,15 +117,15 @@ class AuthoritativePricingService implements PricingService {
                 "ACTIVE");
         requireQuoteRepository().save(snapshot, actor);
         telemetry.quote(receivable.productType(), settlementCurrency, "success");
-        return snapshot.toQuote(clock.instant());
+        return toQuote(snapshot, clock.instant());
     }
 
     @Override
     public Quote getQuote(UUID quoteId) {
         return requireQuoteRepository()
                 .findById(quoteId)
-                .orElseThrow(() -> new IllegalArgumentException("Pricing quote not found"))
-                .toQuote(clock.instant());
+                .map(snapshot -> toQuote(snapshot, clock.instant()))
+                .orElseThrow(() -> new IllegalArgumentException("Pricing quote not found"));
     }
 
     private Breakdown calculate(Input input, Instant at) {
@@ -164,6 +164,39 @@ class AuthoritativePricingService implements PricingService {
                 fx.observation().observedAt(),
                 fx.settlementAmount(),
                 at);
+    }
+
+    private static Quote toQuote(PricingQuoteSnapshot snapshot, Instant now) {
+        BigDecimal effectiveFxRate = "IDENTITY".equals(snapshot.fxSource()) ? BigDecimal.ONE : snapshot.fxRate();
+        var breakdown = new Breakdown(
+                snapshot.faceAmount().setScale(4, RoundingMode.HALF_EVEN),
+                snapshot.faceCurrency(),
+                snapshot.settlementCurrency(),
+                snapshot.baseRate(),
+                snapshot.spread(),
+                snapshot.strategyCode(),
+                snapshot.dayCountConvention(),
+                snapshot.termInMonths(),
+                snapshot.discountedAmount().setScale(4, RoundingMode.HALF_EVEN),
+                snapshot.fxBaseCurrency(),
+                snapshot.fxQuoteCurrency(),
+                effectiveFxRate,
+                snapshot.fxSource(),
+                snapshot.fxObservedAt(),
+                snapshot.settlementAmount().setScale(2, RoundingMode.HALF_EVEN),
+                snapshot.pricedAt());
+        String status = "ACTIVE".equals(snapshot.status()) && !now.isBefore(snapshot.expiresAt())
+                ? "EXPIRED"
+                : snapshot.status();
+        return new Quote(
+                snapshot.id(),
+                snapshot.receivableId(),
+                snapshot.productType(),
+                snapshot.dueDate(),
+                breakdown,
+                snapshot.expiresAt(),
+                status,
+                snapshot.createdBy());
     }
 
     private BigDecimal effectiveBaseRate(String currencyCode, Instant at) {

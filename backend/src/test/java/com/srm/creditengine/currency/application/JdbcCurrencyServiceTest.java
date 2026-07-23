@@ -1,5 +1,8 @@
 package com.srm.creditengine.currency.application;
 
+import com.srm.creditengine.currency.domain.FxRateMissingException;
+import com.srm.creditengine.currency.domain.FxRateStaleException;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;

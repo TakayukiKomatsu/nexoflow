@@ -2,7 +2,7 @@ package com.srm.creditengine.settlement;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.srm.creditengine.settlement.application.AlreadySettledException;
+import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.SettlementService;
 import java.math.BigDecimal;
 import java.sql.Timestamp;

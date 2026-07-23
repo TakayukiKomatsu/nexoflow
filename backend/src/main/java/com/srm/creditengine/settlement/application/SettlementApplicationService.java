@@ -2,6 +2,7 @@ package com.srm.creditengine.settlement.application;
 
 import com.srm.creditengine.settlement.domain.SettlementDraft;
 import com.srm.creditengine.settlement.domain.SettlementPolicy;
+import com.srm.creditengine.settlement.domain.SettlementPreview;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.time.Clock;
 import java.time.Instant;
@@ -38,8 +39,8 @@ public class SettlementApplicationService implements SettlementService {
     public Preview preview(List<UUID> orderedQuoteIds, String actor) {
         SettlementPolicy.requireOrderedUnique(orderedQuoteIds);
         Instant now = clock.instant();
-        return SettlementPolicy.previewOf(
-                SettlementPolicy.validateQuotes(orderedQuoteIds, settlements.lockQuotes(orderedQuoteIds), now), now);
+        return toPreview(SettlementPolicy.previewOf(
+                SettlementPolicy.validateQuotes(orderedQuoteIds, settlements.lockQuotes(orderedQuoteIds), now), now));
     }
 
     @Override
@@ -56,7 +57,7 @@ public class SettlementApplicationService implements SettlementService {
 
         Instant now = clock.instant();
         var quotes = SettlementPolicy.validateQuotes(orderedQuoteIds, settlements.lockQuotes(orderedQuoteIds), now);
-        Preview preview = SettlementPolicy.previewOf(quotes, now);
+        Preview preview = toPreview(SettlementPolicy.previewOf(quotes, now));
         var draft = new SettlementDraft(
                 UUID.randomUUID(), quotes.getFirst().assignorId(), preview.settlementCurrency(), preview.totalAmount(), quotes, now, actor);
         settlements.saveCompleted(draft);
@@ -107,5 +108,16 @@ public class SettlementApplicationService implements SettlementService {
 
     private static Reversal replay(Reversal reversal) {
         return new Reversal(reversal.reversalId(), reversal.settlementId(), reversal.reason(), reversal.reversedAt(), true);
+    }
+
+    private static Preview toPreview(SettlementPreview preview) {
+        return new Preview(
+                preview.items().stream()
+                        .map(item -> new Item(item.quoteId(), item.receivableId(), item.settlementAmount()))
+                        .toList(),
+                preview.settlementCurrency(),
+                preview.totalAmount(),
+                preview.asOf(),
+                preview.earliestExpiry());
     }
 }

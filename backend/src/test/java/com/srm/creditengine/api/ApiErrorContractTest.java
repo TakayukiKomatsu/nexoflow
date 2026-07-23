@@ -6,11 +6,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.srm.creditengine.currency.application.FxRateMissingException;
-import com.srm.creditengine.currency.application.FxRateStaleException;
+import com.srm.creditengine.currency.domain.FxRateMissingException;
+import com.srm.creditengine.currency.domain.FxRateStaleException;
 import com.srm.creditengine.currency.application.UnsupportedCurrencyException;
-import com.srm.creditengine.settlement.application.AlreadyReversedException;
-import com.srm.creditengine.settlement.application.AlreadySettledException;
+import com.srm.creditengine.settlement.domain.AlreadyReversedException;
+import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
 import com.srm.creditengine.shared.api.DecimalString;
 import io.micrometer.core.instrument.MeterRegistry;

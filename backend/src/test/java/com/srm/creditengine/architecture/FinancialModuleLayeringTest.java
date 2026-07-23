@@ -109,6 +109,16 @@ class FinancialModuleLayeringTest {
         }
     }
 
+    @Test
+    void domainDoesNotDependOnOuterLayers() {
+        for (String module : MODULES) {
+            noClasses().that().resideInAPackage(".." + module + ".domain..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "..api..", "..application..", "..infrastructure..")
+                    .check(classes);
+        }
+    }
+
     // ── Rule 3 ──────────────────────────────────────────────────────────────────────────────────
 
     /**
@@ -124,6 +134,16 @@ class FinancialModuleLayeringTest {
             noClasses().that().resideInAPackage(".." + module + ".application..")
                     .should().dependOnClassesThat().resideInAnyPackage(
                             "org.springframework.jdbc..", "java.sql..", "javax.sql..")
+                    .check(classes);
+        }
+    }
+
+    @Test
+    void applicationDoesNotDependOnApiOrInfrastructure() {
+        for (String module : MODULES) {
+            noClasses().that().resideInAPackage(".." + module + ".application..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "..api..", "..infrastructure..")
                     .check(classes);
         }
     }
