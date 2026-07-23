@@ -7,7 +7,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 class ReceivableRegistrationTest {
 
@@ -93,5 +97,30 @@ class ReceivableRegistrationTest {
         assertThatThrownBy(() -> ReceivableRegistration.validate(command))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Receivable maturity must not exceed ten years");
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidActors")
+    void rejectsMissingBlankAndOversizedActors(String actor) {
+        var command = new RegisterCommand(
+                null,
+                UUID.randomUUID(),
+                "MERCANTILE_INVOICE",
+                new BigDecimal("1000.0000"),
+                "BRL",
+                LocalDate.of(2030, 1, 15),
+                LocalDate.of(2030, 2, 15),
+                actor);
+
+        assertThatThrownBy(() -> ReceivableRegistration.validate(command))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Receivable actor must not exceed 320 characters");
+    }
+
+    static Stream<Arguments> invalidActors() {
+        return Stream.of(
+                Arguments.of((String) null),
+                Arguments.of(" "),
+                Arguments.of("x".repeat(321)));
     }
 }

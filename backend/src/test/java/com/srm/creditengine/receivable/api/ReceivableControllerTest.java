@@ -130,6 +130,16 @@ class ReceivableControllerTest {
                 .andExpect(jsonPath("$[0].faceAmount").value("1000.2500"));
     }
 
+    @Test
+    void RECEIVABLE_007_rejectsFaceAmountWithMoreThanFifteenIntegerDigits() throws Exception {
+        mvc.perform(post("/api/v1/receivables")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validRequest("\"1000000000000000.0000\"")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(service);
+    }
+
     private static String validRequest(String faceAmountJson) {
         return "{\"id\":\"" + RECEIVABLE_ID
                 + "\",\"assignorId\":\"" + ASSIGNOR_ID

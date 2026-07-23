@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Clock;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -309,6 +311,67 @@ class ReferenceRateAuditContractTest {
                                 """.formatted("x".repeat(51))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void monthlyReferenceRatesRejectZeroAndValuesAboveTheExactMaximum() throws Exception {
+        String token = adminToken("reference-boundary-admin@srm.local");
+
+        mvc.perform(post("/api/v1/base-rates")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "currency": "BRL",
+                                  "monthlyRate": "0",
+                                  "effectiveAt": "2048-01-01T00:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(post("/api/v1/product-spreads")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productType": "MERCANTILE_INVOICE",
+                                  "monthlySpread": "1.0000000001",
+                                  "effectiveAt": "2048-01-02T00:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void exchangeRatesRejectZeroBeforePersistence() throws Exception {
+        String token = adminToken("fx-boundary-admin@srm.local");
+
+        mvc.perform(post("/api/v1/exchange-rates")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "base": "USD",
+                                  "quote": "BRL",
+                                  "rate": "0",
+                                  "source": "boundary-contract",
+                                  "observedAt": "2048-01-03T00:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 101})
+    void auditQueriesRejectSizesOutsideThePublishedBounds(int size) throws Exception {
+        mvc.perform(get("/api/v1/audit-events")
+                        .header("Authorization", "Bearer " + adminToken("audit-boundary-admin@srm.local"))
+                        .param("size", Integer.toString(size)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.detail").value("size is out of bounds"));
     }
 
     private String adminToken(String email) {
