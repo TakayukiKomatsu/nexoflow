@@ -54,6 +54,15 @@ class JdbcCurrencyServiceTest {
                 NOW, "admin@srm.local"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Rate source is required");
+        assertThatThrownBy(() -> service.recordObservation(
+                        "USD", "BRL", new BigDecimal("1.12345678901"), "provider", NOW, "admin@srm.local"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A rate must have at most 9 integer and 10 fractional digits");
+        assertThatThrownBy(() -> service.recordObservation(
+                        "USD", "BRL", new BigDecimal("1000000000.0000000000"), "provider", NOW, "admin@srm.local"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A rate must have at most 9 integer and 10 fractional digits");
+        verifyNoInteractions(jdbc);
     }
 
     @Test

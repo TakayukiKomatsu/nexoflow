@@ -15,7 +15,7 @@ Feature: SRM executable acceptance
     Given the ADMIN user is authenticated
     When the ADMIN gets "/api/v1/exchange-rates?base=USD&quote=BRL"
     Then the response status is 200
-    When the ADMIN posts to "/api/v1/exchange-rates" with body "{\"base\":\"USD\",\"quote\":\"BRL\",\"rate\":5.2000000000,\"source\":\"auth-matrix\",\"observedAt\":\"2030-01-10T00:00:00Z\"}"
+    When the ADMIN posts to "/api/v1/exchange-rates" with body "{\"base\":\"USD\",\"quote\":\"BRL\",\"rate\":\"5.2000000000\",\"source\":\"auth-matrix\",\"observedAt\":\"2030-01-10T00:00:00Z\"}"
     Then the response status is 201
     When the OPERATOR gets "/api/v1/settlement-statements"
     Then the response status is 200

@@ -62,7 +62,15 @@ public final class SettlementPolicy {
     }
 
     public static SettlementPreview previewOf(List<LockedQuote> quotes, Instant asOf) {
-        BigDecimal total = quotes.stream().map(LockedQuote::settlementAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = quotes.stream()
+                .map(LockedQuote::settlementAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(4, java.math.RoundingMode.HALF_EVEN);
+        int integerDigits = Math.max(0, total.precision() - total.scale());
+        if (total.signum() <= 0 || integerDigits > 15) {
+            throw new IllegalArgumentException(
+                    "Settlement total must be positive and fit within 15 integer digits");
+        }
         Instant earliest = quotes.stream().map(LockedQuote::expiresAt).min(Instant::compareTo).orElseThrow();
         return new SettlementPreview(
                 quotes.stream().map(quote -> new SettlementPreview.Item(

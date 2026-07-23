@@ -7,6 +7,7 @@ import com.srm.creditengine.shared.api.DecimalString;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -60,7 +61,7 @@ class PricingController {
                     decimal(breakdown.fxRate()),
                     breakdown.fxSource(),
                     breakdown.fxObservedAt(),
-                    decimal(breakdown.settlementAmount()),
+                    money(breakdown.settlementAmount()),
                     breakdown.pricedAt());
         }
     }
@@ -81,4 +82,5 @@ class PricingController {
         }
     }
     private static String decimal(BigDecimal value) { return value.toPlainString(); }
+    private static String money(BigDecimal value) { return value.setScale(2, RoundingMode.HALF_EVEN).toPlainString(); }
 }

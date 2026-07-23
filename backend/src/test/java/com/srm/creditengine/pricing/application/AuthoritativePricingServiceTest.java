@@ -3,6 +3,7 @@ package com.srm.creditengine.pricing.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -152,6 +153,67 @@ class AuthoritativePricingServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Unsupported product type: UNKNOWN");
         verifyNoInteractions(references, currency);
+    }
+
+    @Test
+    void rejectsDiscountedAmountsThatRoundToZeroBeforeFxOrPersistence() {
+        Instant now = Instant.parse("2030-01-15T12:00:00Z");
+        ReferenceRateService references = mock(ReferenceRateService.class);
+        when(references.baseRates("BRL", now)).thenReturn(List.of(
+                new ReferenceRateService.BaseRate("BRL", BigDecimal.ONE, now, "fixture")));
+        PricingStrategy strategy = mock(PricingStrategy.class);
+        when(strategy.productType()).thenReturn("MERCANTILE_INVOICE");
+        when(strategy.riskSpread(references, now)).thenReturn(
+                new ReferenceRateService.ProductSpread(
+                        "MERCANTILE_INVOICE", BigDecimal.ONE, now, "fixture"));
+        when(strategy.discount(any(), any(), any(), any())).thenReturn(new BigDecimal("0.00004"));
+        CurrencyService currency = mock(CurrencyService.class);
+        var service = new AuthoritativePricingService(
+                references,
+                currency,
+                new PricingStrategyRegistry(List.of(strategy)),
+                null,
+                null,
+                Clock.fixed(now, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.simulate(input(
+                        BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", "2040-01-15", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Discounted amount must round to a positive value within 15 integer digits");
+        verifyNoInteractions(currency);
+    }
+
+    @Test
+    void rejectsSettlementAmountsThatCannotFitThePersistedMoneyDomain() {
+        Instant now = Instant.parse("2030-01-15T12:00:00Z");
+        ReferenceRateService references = mock(ReferenceRateService.class);
+        when(references.baseRates("BRL", now)).thenReturn(List.of(
+                new ReferenceRateService.BaseRate("BRL", new BigDecimal("0.01"), now, "fixture")));
+        PricingStrategy strategy = mock(PricingStrategy.class);
+        when(strategy.productType()).thenReturn("MERCANTILE_INVOICE");
+        when(strategy.riskSpread(references, now)).thenReturn(
+                new ReferenceRateService.ProductSpread(
+                        "MERCANTILE_INVOICE", new BigDecimal("0.01"), now, "fixture"));
+        when(strategy.discount(any(), any(), any(), any())).thenReturn(BigDecimal.ONE);
+        CurrencyService currency = mock(CurrencyService.class);
+        when(currency.resolveConversion("BRL", "USD", BigDecimal.ONE, now)).thenReturn(
+                new CurrencyService.Conversion(
+                        new CurrencyService.Observation(
+                                "BRL", "USD", BigDecimal.ONE, "fixture", now),
+                        new BigDecimal("1000000000000000.00"),
+                        new BigDecimal("1000000000000000.00")));
+        var service = new AuthoritativePricingService(
+                references,
+                currency,
+                new PricingStrategyRegistry(List.of(strategy)),
+                null,
+                null,
+                Clock.fixed(now, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.simulate(input(
+                        BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", "2030-02-14", "USD")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Settlement amount must round to a positive value within 15 integer digits");
     }
     @Test
     void quoteExpiryIsActiveAtFourteenMinutesFiftyNinePointNineNineNineSecondsAndExpiredAtTheBoundary() {

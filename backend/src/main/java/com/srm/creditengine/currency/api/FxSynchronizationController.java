@@ -1,6 +1,5 @@
 package com.srm.creditengine.currency.api;
 
-import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.FxSynchronizationService;
 import com.srm.creditengine.identity.application.ActorContext;
 import jakarta.validation.constraints.NotBlank;
@@ -17,7 +16,8 @@ class FxSynchronizationController {
     private final ActorContext actor;
     FxSynchronizationController(FxSynchronizationService synchronization, ActorContext actor) { this.synchronization = synchronization; this.actor = actor; }
     @PostMapping @ResponseStatus(HttpStatus.CREATED)
-    CurrencyService.Observation synchronize(@RequestParam @NotBlank String base, @RequestParam @NotBlank String quote) {
-        return synchronization.synchronize(base, quote, actor.currentActor().email());
+    CurrencyApiResponse.Observation synchronize(@RequestParam @NotBlank String base, @RequestParam @NotBlank String quote) {
+        return CurrencyApiResponse.observation(
+                synchronization.synchronize(base, quote, actor.currentActor().email()));
     }
 }

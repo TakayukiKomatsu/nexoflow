@@ -38,6 +38,10 @@ class ReferenceRateApplicationServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("A reference rate must be at most 1.0000000000");
         assertThatThrownBy(() -> service.recordBaseRate(
+                        "BRL", new BigDecimal("0.12345678901"), NOW, "admin@srm.local"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A reference rate must have at most 10 fractional digits");
+        assertThatThrownBy(() -> service.recordBaseRate(
                         "BRL", BigDecimal.ONE, null, "admin@srm.local"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Reference rate effective time is required");
@@ -55,7 +59,7 @@ class ReferenceRateApplicationServiceTest {
         var service = service(rates, audit);
         var id = ArgumentCaptor.forClass(UUID.class);
 
-        service.recordBaseRate("BRL", new BigDecimal("0.023"), NOW, "admin@srm.local");
+        service.recordBaseRate(" brl ", new BigDecimal("0.023"), NOW, "admin@srm.local");
 
         verify(rates).recordBaseRate(
                 id.capture(),

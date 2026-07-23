@@ -9,6 +9,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -60,16 +61,16 @@ class SettlementController {
     record ReversalRequest(@NotBlank @Size(max = 500) String reason) {}
     @Schema(requiredProperties = {"quoteId", "receivableId", "settlementAmount"})
     record ItemResponse(UUID quoteId, UUID receivableId, String settlementAmount) {
-        static ItemResponse from(SettlementService.Item item) { return new ItemResponse(item.quoteId(), item.receivableId(), decimal(item.settlementAmount())); }
+        static ItemResponse from(SettlementService.Item item) { return new ItemResponse(item.quoteId(), item.receivableId(), money(item.settlementAmount())); }
     }
     @Schema(requiredProperties = {"items", "settlementCurrency", "totalAmount", "asOf", "earliestExpiry"})
     record PreviewResponse(List<ItemResponse> items, String settlementCurrency, String totalAmount, Instant asOf, Instant earliestExpiry) {
-        static PreviewResponse from(SettlementService.Preview preview) { return new PreviewResponse(preview.items().stream().map(ItemResponse::from).toList(), preview.settlementCurrency(), decimal(preview.totalAmount()), preview.asOf(), preview.earliestExpiry()); }
+        static PreviewResponse from(SettlementService.Preview preview) { return new PreviewResponse(preview.items().stream().map(ItemResponse::from).toList(), preview.settlementCurrency(), money(preview.totalAmount()), preview.asOf(), preview.earliestExpiry()); }
     }
     @Schema(requiredProperties = {"settlementId", "status", "items", "settlementCurrency", "totalAmount", "completedAt"})
     record SettlementResponse(UUID settlementId, String status, List<ItemResponse> items, String settlementCurrency, String totalAmount, Instant completedAt) {
-        static SettlementResponse from(SettlementService.Result result) { return new SettlementResponse(result.settlementId(), result.status(), result.items().stream().map(ItemResponse::from).toList(), result.settlementCurrency(), decimal(result.totalAmount()), result.completedAt()); }
+        static SettlementResponse from(SettlementService.Result result) { return new SettlementResponse(result.settlementId(), result.status(), result.items().stream().map(ItemResponse::from).toList(), result.settlementCurrency(), money(result.totalAmount()), result.completedAt()); }
     }
     record ReversalResponse(UUID reversalId, UUID settlementId, String reason, Instant reversedAt) { static ReversalResponse from(SettlementService.Reversal reversal) { return new ReversalResponse(reversal.reversalId(), reversal.settlementId(), reversal.reason(), reversal.reversedAt()); } }
-    private static String decimal(BigDecimal amount) { return amount.toPlainString(); }
+    private static String money(BigDecimal amount) { return amount.setScale(2, RoundingMode.HALF_EVEN).toPlainString(); }
 }

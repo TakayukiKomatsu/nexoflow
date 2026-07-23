@@ -65,6 +65,9 @@ public class CurrencyApplicationService implements CurrencyService {
             String base, String quote, BigDecimal rate, String source, Instant observedAt, String actor) {
         if (base.equals(quote)) throw new IllegalArgumentException("Base and quote currencies must differ");
         if (rate == null || rate.signum() <= 0) throw new IllegalArgumentException("A rate must be positive");
+        if (rate.scale() > 10 || rate.precision() - rate.scale() > 9) {
+            throw new IllegalArgumentException("A rate must have at most 9 integer and 10 fractional digits");
+        }
         if (source == null || source.isBlank()) throw new IllegalArgumentException("Rate source is required");
         if (observedAt == null) throw new IllegalArgumentException("Rate observation time is required");
         if (actor == null || actor.isBlank()) throw new IllegalArgumentException("Actor is required");

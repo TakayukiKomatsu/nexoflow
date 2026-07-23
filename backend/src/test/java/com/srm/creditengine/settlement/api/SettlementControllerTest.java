@@ -54,7 +54,10 @@ class SettlementControllerTest {
         when(settlements.preview(any(), eq("operator@srm.local"))).thenReturn(new SettlementService.Preview(
                 List.of(new SettlementService.Item(quote, receivable, new BigDecimal("1900.0000"))), "BRL", new BigDecimal("1900.0000"), Instant.parse("2030-01-15T12:00:00Z"), Instant.parse("2030-01-15T12:15:00Z")));
         mvc.perform(post("/api/v1/settlement-previews").contentType(MediaType.APPLICATION_JSON).content("{\"quoteIds\":[\"" + quote + "\"]}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].quoteId").value(quote.toString())).andExpect(jsonPath("$.totalAmount").value("1900.0000"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].quoteId").value(quote.toString()))
+                .andExpect(jsonPath("$.items[0].settlementAmount").value("1900.00"))
+                .andExpect(jsonPath("$.totalAmount").value("1900.00"));
         verify(settlements).preview(List.of(quote), "operator@srm.local");
     }
 
@@ -97,7 +100,11 @@ class SettlementControllerTest {
         when(actors.currentActor()).thenReturn(actor());
         when(settlements.settle(any(), eq("replay-004"), eq("operator@srm.local"))).thenReturn(new SettlementService.Result(settlement, "COMPLETED", List.of(new SettlementService.Item(quote, receivable, new BigDecimal("1900.0000"))), "BRL", new BigDecimal("1900.0000"), Instant.parse("2030-01-15T12:00:00Z"), true));
         mvc.perform(post("/api/v1/settlements").header("Idempotency-Key", "replay-004").contentType(MediaType.APPLICATION_JSON).content("{\"quoteIds\":[\"" + quote + "\"]}"))
-                .andExpect(status().isCreated()).andExpect(header().string("Idempotent-Replay", "true")).andExpect(jsonPath("$.settlementId").value(settlement.toString())).andExpect(jsonPath("$.totalAmount").value("1900.0000"));
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Idempotent-Replay", "true"))
+                .andExpect(jsonPath("$.settlementId").value(settlement.toString()))
+                .andExpect(jsonPath("$.items[0].settlementAmount").value("1900.00"))
+                .andExpect(jsonPath("$.totalAmount").value("1900.00"));
     }
 
     @Test

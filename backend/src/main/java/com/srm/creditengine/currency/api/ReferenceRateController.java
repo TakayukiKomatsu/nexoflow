@@ -2,12 +2,13 @@ package com.srm.creditengine.currency.api;
 
 import com.srm.creditengine.currency.application.ReferenceRateService;
 import com.srm.creditengine.identity.application.ActorContext;
+import com.srm.creditengine.shared.api.DecimalString;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import java.math.BigDecimal;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -31,24 +32,63 @@ class ReferenceRateController {
     @PostMapping("/api/v1/base-rates") @ResponseStatus(HttpStatus.CREATED)
     void createBase(@Valid @RequestBody BaseRateRequest request) {
         references.recordBaseRate(
-                request.currency(), request.monthlyRate(), request.effectiveAt(), actors.currentActor().email());
+                request.currency(), request.monthlyRate().value(), request.effectiveAt(), actors.currentActor().email());
     }
     @GetMapping("/api/v1/base-rates")
-    List<ReferenceRateService.BaseRate> listBase(@RequestParam String currency, @RequestParam Instant effectiveAt) { return references.baseRates(currency, effectiveAt); }
+    List<BaseRateResponse> listBase(@RequestParam String currency, @RequestParam Instant effectiveAt) {
+        return references.baseRates(currency, effectiveAt).stream().map(BaseRateResponse::from).toList();
+    }
     @PostMapping("/api/v1/product-spreads") @ResponseStatus(HttpStatus.CREATED)
     void createSpread(@Valid @RequestBody ProductSpreadRequest request) {
         references.recordProductSpread(
-                request.productType(), request.monthlySpread(), request.effectiveAt(), actors.currentActor().email());
+                request.productType(), request.monthlySpread().value(), request.effectiveAt(), actors.currentActor().email());
     }
     @GetMapping("/api/v1/product-spreads")
-    List<ReferenceRateService.ProductSpread> listSpread(@RequestParam String productType, @RequestParam Instant effectiveAt) { return references.productSpreads(productType, effectiveAt); }
+    List<ProductSpreadResponse> listSpread(@RequestParam String productType, @RequestParam Instant effectiveAt) {
+        return references.productSpreads(productType, effectiveAt).stream().map(ProductSpreadResponse::from).toList();
+    }
 
     record BaseRateRequest(
             @NotBlank String currency,
-            @NotNull @DecimalMin(value = "0", inclusive = false) @DecimalMax("1.0000000000") BigDecimal monthlyRate,
-            @NotNull Instant effectiveAt) {}
+            @NotNull @Schema(type = "string", description = "Positive monthly rate at most 1.0000000000 with at most 10 fractional digits") DecimalString monthlyRate,
+            @NotNull Instant effectiveAt) {
+        @AssertTrue(message = "monthlyRate must be positive, at most 1.0000000000, with at most 10 fractional digits")
+        boolean isMonthlyRateValid() { return validMonthlyRate(monthlyRate); }
+    }
     record ProductSpreadRequest(
-            @NotBlank String productType,
-            @NotNull @DecimalMin(value = "0", inclusive = false) @DecimalMax("1.0000000000") BigDecimal monthlySpread,
-            @NotNull Instant effectiveAt) {}
+            @NotBlank @Size(max = 50) String productType,
+            @NotNull @Schema(type = "string", description = "Positive monthly spread at most 1.0000000000 with at most 10 fractional digits") DecimalString monthlySpread,
+            @NotNull Instant effectiveAt) {
+        @AssertTrue(message = "monthlySpread must be positive, at most 1.0000000000, with at most 10 fractional digits")
+        boolean isMonthlySpreadValid() { return validMonthlyRate(monthlySpread); }
+    }
+
+    @Schema(
+            name = "BaseRate",
+            requiredProperties = {"currency", "monthlyRate", "effectiveAt", "createdBy"})
+    record BaseRateResponse(String currency, String monthlyRate, Instant effectiveAt, String createdBy) {
+        static BaseRateResponse from(ReferenceRateService.BaseRate value) {
+            return new BaseRateResponse(
+                    value.currency(), value.monthlyRate().toPlainString(), value.effectiveAt(), value.createdBy());
+        }
+    }
+
+    @Schema(
+            name = "ProductSpread",
+            requiredProperties = {"productType", "monthlySpread", "effectiveAt", "createdBy"})
+    record ProductSpreadResponse(
+            String productType, String monthlySpread, Instant effectiveAt, String createdBy) {
+        static ProductSpreadResponse from(ReferenceRateService.ProductSpread value) {
+            return new ProductSpreadResponse(
+                    value.productType(), value.monthlySpread().toPlainString(), value.effectiveAt(), value.createdBy());
+        }
+    }
+
+    private static boolean validMonthlyRate(DecimalString decimal) {
+        if (decimal == null) return true;
+        var value = decimal.value();
+        return value.signum() > 0
+                && value.compareTo(new java.math.BigDecimal("1.0000000000")) <= 0
+                && value.scale() <= 10;
+    }
 }

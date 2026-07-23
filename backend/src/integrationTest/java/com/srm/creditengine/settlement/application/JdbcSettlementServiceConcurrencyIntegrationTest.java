@@ -210,6 +210,9 @@ class JdbcSettlementServiceConcurrencyIntegrationTest {
                 .isEqualTo(quote1.toString());
         assertThat(response.path("items").get(1).path("quoteId").asText())
                 .isEqualTo(quote2.toString());
+        assertThat(response.path("totalAmount").asText()).matches("\\d+\\.\\d{2}");
+        response.path("items").forEach(item ->
+                assertThat(item.path("settlementAmount").asText()).matches("\\d+\\.\\d{2}"));
 
         UUID settlementId = UUID.fromString(response.path("settlementId").asText());
         assertThat(rowCount("select count(*) from settlements where id=?", settlementId)).isEqualTo(1);

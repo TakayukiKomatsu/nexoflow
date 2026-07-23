@@ -162,6 +162,12 @@ class RuntimeMetadataContractTest {
                         .path("enum"))
                 .extracting(JsonNode::asText)
                 .containsExactly("SETTLEMENT", "REVERSAL");
+        assertThat(schemas.path("EntryResponse")
+                        .path("properties")
+                        .path("reversalId")
+                        .path("type"))
+                .extracting(JsonNode::asText)
+                .containsExactlyInAnyOrder("string", "null");
         assertThat(schemas.path("CurrentUser")
                         .path("properties")
                         .path("roles")
@@ -182,10 +188,48 @@ class RuntimeMetadataContractTest {
                 .path("components")
                 .path("schemas");
 
-        assertThat(schemas.path("BaseRateRequest").path("properties").path("monthlyRate").path("maximum").decimalValue())
-                .isEqualByComparingTo("1.0000000000");
-        assertThat(schemas.path("ProductSpreadRequest").path("properties").path("monthlySpread").path("maximum").decimalValue())
-                .isEqualByComparingTo("1.0000000000");
+        assertThat(schemas.path("BaseRateRequest").path("properties").path("monthlyRate").path("type").asText())
+                .isEqualTo("string");
+        assertThat(schemas.path("BaseRateRequest").path("properties").path("monthlyRate").path("description").asText())
+                .contains("1.0000000000");
+        assertThat(schemas.path("ProductSpreadRequest").path("properties").path("monthlySpread").path("type").asText())
+                .isEqualTo("string");
+        assertThat(schemas.path("ProductSpreadRequest").path("properties").path("monthlySpread").path("description").asText())
+                .contains("1.0000000000");
+    }
+
+    @Test
+    void documentsEveryCurrencyApiFinancialValueAsAString() throws Exception {
+        JsonNode document = new ObjectMapper()
+                .readTree(mockMvc.perform(get("/v3/api-docs"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString());
+        JsonNode schemas = document.path("components").path("schemas");
+
+        assertThat(schemas.path("ExchangeRateRequest").path("properties").path("rate").path("type").asText())
+                .isEqualTo("string");
+        assertThat(schemas.path("Observation").path("properties").path("rate").path("type").asText())
+                .isEqualTo("string");
+        assertThat(schemas.path("Conversion").path("properties").path("unroundedConvertedAmount").path("type").asText())
+                .isEqualTo("string");
+        assertThat(schemas.path("Conversion").path("properties").path("settlementAmount").path("type").asText())
+                .isEqualTo("string");
+        assertThat(schemas.path("BaseRate").path("properties").path("monthlyRate").path("type").asText())
+                .isEqualTo("string");
+        assertThat(schemas.path("ProductSpread").path("properties").path("monthlySpread").path("type").asText())
+                .isEqualTo("string");
+        JsonNode amountParameter = StreamSupport.stream(document.path("paths")
+                                .path("/api/v1/conversions")
+                                .path("get")
+                                .path("parameters")
+                                .spliterator(), false)
+                .filter(parameter -> parameter.path("name").asText().equals("amount"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(amountParameter.path("schema").path("type").asText())
+                .isEqualTo("string");
     }
 
     @Test

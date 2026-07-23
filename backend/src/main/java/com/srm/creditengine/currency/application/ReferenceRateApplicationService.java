@@ -1,6 +1,7 @@
 package com.srm.creditengine.currency.application;
 
 import com.srm.creditengine.currency.domain.ReferenceRatePolicy;
+import com.srm.creditengine.currency.domain.SupportedCurrency;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -28,15 +29,16 @@ public class ReferenceRateApplicationService implements ReferenceRateService {
     @Transactional
     public void recordBaseRate(
             String currency, BigDecimal monthlyRate, Instant effectiveAt, String actor) {
+        String canonicalCurrency = SupportedCurrency.require(currency);
         ReferenceRatePolicy.validate(monthlyRate, effectiveAt, actor);
         UUID id = UUID.randomUUID();
-        rates.recordBaseRate(id, currency, monthlyRate, effectiveAt, actor);
+        rates.recordBaseRate(id, canonicalCurrency, monthlyRate, effectiveAt, actor);
         audit.record(actor, "BASE_RATE_RECORDED", "BASE_RATE_VERSION", id, clock.instant());
     }
 
     @Override
     public List<BaseRate> baseRates(String currency, Instant effectiveAt) {
-        return rates.baseRates(currency, effectiveAt);
+        return rates.baseRates(SupportedCurrency.require(currency), effectiveAt);
     }
 
     @Override

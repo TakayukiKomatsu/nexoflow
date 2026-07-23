@@ -88,6 +88,21 @@ class JdbcSettlementServiceTest {
     }
 
     @Test
+    void previewRejectsAnAggregateThatCannotFitThePersistedMoneyDomain() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UUID secondQuote = UUID.fromString("00000000-0000-0000-0000-000000000202");
+        stubQuotes(jdbc, List.of(
+                row(QUOTE, "ACTIVE", "REGISTERED", ASSIGNOR, "BRL", NOW.plusSeconds(60),
+                        new BigDecimal("999999999999999.0000")),
+                row(secondQuote, "ACTIVE", "REGISTERED", ASSIGNOR, "BRL", NOW.plusSeconds(60),
+                        new BigDecimal("999999999999999.0000"))));
+
+        assertThatThrownBy(() -> service(jdbc).preview(List.of(QUOTE, secondQuote), "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Settlement total must be positive and fit within 15 integer digits");
+    }
+
+    @Test
     void getAndReverseRejectMissingRequiredIdentifiersAndReason() {
         SettlementService service = service(mock(JdbcTemplate.class));
 
@@ -253,16 +268,27 @@ class JdbcSettlementServiceTest {
     }
 
     private static QuoteRow row(UUID id, String quoteStatus, String receivableStatus, UUID assignor, String currency, Instant expiresAt) {
-        return new QuoteRow(id, UUID.fromString("00000000-0000-0000-0000-0000000003" + id.toString().substring(id.toString().length() - 2)), quoteStatus, receivableStatus, assignor, currency, expiresAt);
+        return row(id, quoteStatus, receivableStatus, assignor, currency, expiresAt, new BigDecimal("100.00"));
     }
 
-    private record QuoteRow(UUID id, UUID receivableId, String quoteStatus, String receivableStatus, UUID assignorId, String currency, Instant expiresAt) {
+    private static QuoteRow row(
+            UUID id,
+            String quoteStatus,
+            String receivableStatus,
+            UUID assignor,
+            String currency,
+            Instant expiresAt,
+            BigDecimal amount) {
+        return new QuoteRow(id, UUID.fromString("00000000-0000-0000-0000-0000000003" + id.toString().substring(id.toString().length() - 2)), quoteStatus, receivableStatus, assignor, currency, expiresAt, amount);
+    }
+
+    private record QuoteRow(UUID id, UUID receivableId, String quoteStatus, String receivableStatus, UUID assignorId, String currency, Instant expiresAt, BigDecimal amount) {
         ResultSet resultSet() throws Exception {
             ResultSet rs = mock(ResultSet.class);
             when(rs.getObject(1, UUID.class)).thenReturn(id);
             when(rs.getObject(2, UUID.class)).thenReturn(receivableId);
             when(rs.getString(3)).thenReturn(currency);
-            when(rs.getBigDecimal(4)).thenReturn(new BigDecimal("100.00"));
+            when(rs.getBigDecimal(4)).thenReturn(amount);
             when(rs.getTimestamp(5)).thenReturn(java.sql.Timestamp.from(expiresAt));
             when(rs.getString(6)).thenReturn(quoteStatus);
             when(rs.getObject(7, UUID.class)).thenReturn(assignorId);

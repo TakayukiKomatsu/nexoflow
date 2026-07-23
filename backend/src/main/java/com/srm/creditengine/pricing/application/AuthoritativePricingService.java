@@ -145,7 +145,9 @@ class AuthoritativePricingService implements PricingService {
         BigDecimal term = BigDecimal.valueOf(ChronoUnit.DAYS.between(pricingDate, input.dueDate()))
                 .divide(BigDecimal.valueOf(30), 10, RoundingMode.HALF_EVEN);
         BigDecimal discounted = strategy.discount(input.faceAmount(), base, spread, term);
+        BigDecimal persistedDiscounted = monetaryBoundary(discounted, 4, "Discounted amount");
         var fx = currency.resolveConversion(input.faceCurrency(), input.settlementCurrency(), discounted, at);
+        BigDecimal settlementAmount = monetaryBoundary(fx.settlementAmount(), 2, "Settlement amount");
         return new Breakdown(
                 input.faceAmount().setScale(4, RoundingMode.HALF_EVEN),
                 input.faceCurrency(),
@@ -155,14 +157,24 @@ class AuthoritativePricingService implements PricingService {
                 strategy.code(),
                 "ACTUAL_DAYS_30_MONTH",
                 term,
-                discounted.setScale(4, RoundingMode.HALF_EVEN),
+                persistedDiscounted,
                 fx.observation().base(),
                 fx.observation().quote(),
                 fx.observation().rate(),
                 fx.observation().source(),
                 fx.observation().observedAt(),
-                fx.settlementAmount(),
+                settlementAmount,
                 at);
+    }
+
+    private static BigDecimal monetaryBoundary(BigDecimal value, int scale, String name) {
+        BigDecimal rounded = value.setScale(scale, RoundingMode.HALF_EVEN);
+        int integerDigits = Math.max(0, rounded.precision() - rounded.scale());
+        if (rounded.signum() <= 0 || integerDigits > 15) {
+            throw new IllegalArgumentException(
+                    name + " must round to a positive value within 15 integer digits");
+        }
+        return rounded;
     }
 
     private static Quote toQuote(PricingQuoteSnapshot snapshot, Instant now) {

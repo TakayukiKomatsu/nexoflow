@@ -16,6 +16,9 @@ public final class ReferenceRatePolicy {
         if (value.compareTo(MAX_MONTHLY_RATE) > 0) {
             throw new IllegalArgumentException("A reference rate must be at most 1.0000000000");
         }
+        if (value.scale() > 10) {
+            throw new IllegalArgumentException("A reference rate must have at most 10 fractional digits");
+        }
         if (effectiveAt == null) {
             throw new IllegalArgumentException("Reference rate effective time is required");
         }

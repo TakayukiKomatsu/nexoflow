@@ -3,6 +3,7 @@ package com.srm.creditengine.reporting.api;
 import com.srm.creditengine.reporting.application.SettlementStatementService;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -35,12 +36,15 @@ class SettlementStatementController {
             String signedAmount,
             Instant effectiveAt,
             UUID settlementId,
-            UUID reversalId,
+            @Schema(types = {"string", "null"}, format = "uuid") UUID reversalId,
             UUID assignorId,
             String assetCurrency,
             String settlementCurrency,
             String productType,
             UUID receivableId) {
-        static EntryResponse from(SettlementStatementService.Entry e) { return new EntryResponse(e.entryId(), e.entryType(), e.signedAmount().toPlainString(), e.effectiveAt(), e.settlementId(), e.reversalId(), e.assignorId(), e.assetCurrency(), e.settlementCurrency(), e.productType(), e.receivableId()); }
+        static EntryResponse from(SettlementStatementService.Entry e) { return new EntryResponse(e.entryId(), e.entryType(), money(e.signedAmount()), e.effectiveAt(), e.settlementId(), e.reversalId(), e.assignorId(), e.assetCurrency(), e.settlementCurrency(), e.productType(), e.receivableId()); }
+    }
+    private static String money(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.HALF_EVEN).toPlainString();
     }
 }
