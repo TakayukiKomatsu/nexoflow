@@ -13,11 +13,13 @@ class PricingReferenceTest {
     @Autowired DataSource dataSource;
 
     @Test
-    void seedsInvoiceAndChequeRiskSpreads() throws Exception {
+    void seedsNativeAndAcceptanceVersionsForInvoiceAndCheque() throws Exception {
         try (Connection connection = dataSource.getConnection();
-             var result = connection.createStatement().executeQuery("select count(*) from product_spread_versions")) {
+             var result = connection.createStatement().executeQuery(
+                     "select count(*), count(distinct product_type_code) from product_spread_versions")) {
             result.next();
-            assertThat(result.getInt(1)).isEqualTo(2);
+            assertThat(result.getInt(1)).isEqualTo(4);
+            assertThat(result.getInt(2)).isEqualTo(2);
         }
     }
 }

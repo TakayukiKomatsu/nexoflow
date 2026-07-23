@@ -91,20 +91,26 @@ class PricingExactVectorTest {
             String baseRate, Map<String, String> spreads, CurrencyService currency) {
         ReferenceRateService references = new ReferenceRateService() {
             @Override
-            public void recordBaseRate(String currency, BigDecimal rate, Instant effectiveAt) {}
+            public void recordBaseRate(
+                    String currency, BigDecimal rate, Instant effectiveAt, String actor) {}
 
             @Override
-            public void recordProductSpread(String productType, BigDecimal spread, Instant effectiveAt) {}
+            public void recordProductSpread(
+                    String productType, BigDecimal spread, Instant effectiveAt, String actor) {}
 
             @Override
             public List<BaseRate> baseRates(String currency, Instant effectiveAt) {
-                return List.of(new BaseRate(currency, new BigDecimal(baseRate), PRICED_AT));
+                return List.of(new BaseRate(
+                        currency, new BigDecimal(baseRate), PRICED_AT, "fixture"));
             }
 
             @Override
             public List<ProductSpread> productSpreads(String productType, Instant effectiveAt) {
                 return List.of(new ProductSpread(
-                        productType, new BigDecimal(spreads.get(productType)), PRICED_AT));
+                        productType,
+                        new BigDecimal(spreads.get(productType)),
+                        PRICED_AT,
+                        "fixture"));
             }
         };
         return new AuthoritativePricingService(

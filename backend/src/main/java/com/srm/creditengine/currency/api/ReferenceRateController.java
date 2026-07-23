@@ -1,6 +1,7 @@
 package com.srm.creditengine.currency.api;
 
 import com.srm.creditengine.currency.application.ReferenceRateService;
+import com.srm.creditengine.identity.application.ActorContext;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.DecimalMax;
@@ -21,14 +22,24 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class ReferenceRateController {
     private final ReferenceRateService references;
-    ReferenceRateController(ReferenceRateService references) { this.references = references; }
+    private final ActorContext actors;
+    ReferenceRateController(ReferenceRateService references, ActorContext actors) {
+        this.references = references;
+        this.actors = actors;
+    }
 
     @PostMapping("/api/v1/base-rates") @ResponseStatus(HttpStatus.CREATED)
-    void createBase(@Valid @RequestBody BaseRateRequest request) { references.recordBaseRate(request.currency(), request.monthlyRate(), request.effectiveAt()); }
+    void createBase(@Valid @RequestBody BaseRateRequest request) {
+        references.recordBaseRate(
+                request.currency(), request.monthlyRate(), request.effectiveAt(), actors.currentActor().email());
+    }
     @GetMapping("/api/v1/base-rates")
     List<ReferenceRateService.BaseRate> listBase(@RequestParam String currency, @RequestParam Instant effectiveAt) { return references.baseRates(currency, effectiveAt); }
     @PostMapping("/api/v1/product-spreads") @ResponseStatus(HttpStatus.CREATED)
-    void createSpread(@Valid @RequestBody ProductSpreadRequest request) { references.recordProductSpread(request.productType(), request.monthlySpread(), request.effectiveAt()); }
+    void createSpread(@Valid @RequestBody ProductSpreadRequest request) {
+        references.recordProductSpread(
+                request.productType(), request.monthlySpread(), request.effectiveAt(), actors.currentActor().email());
+    }
     @GetMapping("/api/v1/product-spreads")
     List<ReferenceRateService.ProductSpread> listSpread(@RequestParam String productType, @RequestParam Instant effectiveAt) { return references.productSpreads(productType, effectiveAt); }
 

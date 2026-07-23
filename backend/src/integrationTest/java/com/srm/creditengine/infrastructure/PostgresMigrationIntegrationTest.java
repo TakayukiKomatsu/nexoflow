@@ -71,18 +71,48 @@ class PostgresMigrationIntegrationTest {
         Instant effectiveAt = Instant.parse("2040-01-01T00:00:00Z");
 
         assertThatThrownBy(() -> jdbc.update(
-                        "insert into base_rate_versions (id,currency_code,monthly_rate,effective_at) values (?,?,?,?)",
+                        "insert into base_rate_versions (id,currency_code,monthly_rate,effective_at,created_by) values (?,?,?,?,?)",
                         UUID.randomUUID(),
                         "BRL",
                         new BigDecimal("1.0000000001"),
-                        Timestamp.from(effectiveAt)))
+                        Timestamp.from(effectiveAt),
+                        "migration-test"))
                 .hasMessageContaining("base_rate_versions_monthly_rate_domain");
         assertThatThrownBy(() -> jdbc.update(
-                        "insert into product_spread_versions (id,product_type_code,monthly_spread,effective_at) values (?,?,?,?)",
+                        "insert into product_spread_versions (id,product_type_code,monthly_spread,effective_at,created_by) values (?,?,?,?,?)",
                         UUID.randomUUID(),
                         "MERCANTILE_INVOICE",
                         new BigDecimal("999"),
-                        Timestamp.from(effectiveAt)))
+                        Timestamp.from(effectiveAt),
+                        "migration-test"))
                 .hasMessageContaining("product_spread_versions_monthly_spread_domain");
+    }
+
+    @Test
+    void referenceRateHistoryRejectsMutationAndDeletion() {
+        UUID baseRateId = UUID.randomUUID();
+        UUID spreadId = UUID.randomUUID();
+        Timestamp effectiveAt = Timestamp.from(Instant.parse("2043-01-01T00:00:00Z"));
+        jdbc.update(
+                "insert into base_rate_versions (id,currency_code,monthly_rate,effective_at,created_by) values (?,?,?,?,?)",
+                baseRateId,
+                "BRL",
+                new BigDecimal("0.0310000000"),
+                effectiveAt,
+                "migration-test");
+        jdbc.update(
+                "insert into product_spread_versions (id,product_type_code,monthly_spread,effective_at,created_by) values (?,?,?,?,?)",
+                spreadId,
+                "MERCANTILE_INVOICE",
+                new BigDecimal("0.0410000000"),
+                effectiveAt,
+                "migration-test");
+
+        assertThatThrownBy(() -> jdbc.update(
+                        "update base_rate_versions set monthly_rate=0.99 where id=?", baseRateId))
+                .hasMessageContaining("base_rate_versions rows are immutable");
+        assertThatThrownBy(() -> jdbc.update(
+                        "delete from product_spread_versions where id=?", spreadId))
+                .hasMessageContaining("product_spread_versions rows are immutable");
     }
 }

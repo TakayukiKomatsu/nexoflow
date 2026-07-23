@@ -29,9 +29,10 @@ class AuthoritativePricingServiceTest {
     void PRICE_001_serverSimulatesInvoiceWithoutPersistingAQuote() {
         Instant now = Instant.parse("2030-01-15T12:00:00Z");
         ReferenceRateService rates = new ReferenceRateService() {
-            public void recordBaseRate(String c, BigDecimal r, Instant e) {} public void recordProductSpread(String p, BigDecimal r, Instant e) {}
-            public List<BaseRate> baseRates(String c, Instant e) { return List.of(new BaseRate("BRL",new BigDecimal("0.010"),now)); }
-            public List<ProductSpread> productSpreads(String p, Instant e) { return List.of(new ProductSpread(p,new BigDecimal("0.015"),now)); }
+            public void recordBaseRate(String c, BigDecimal r, Instant e, String actor) {}
+            public void recordProductSpread(String p, BigDecimal r, Instant e, String actor) {}
+            public List<BaseRate> baseRates(String c, Instant e) { return List.of(new BaseRate("BRL",new BigDecimal("0.010"),now,"fixture")); }
+            public List<ProductSpread> productSpreads(String p, Instant e) { return List.of(new ProductSpread(p,new BigDecimal("0.015"),now,"fixture")); }
         };
         CurrencyService currency = new CurrencyService() {
             public void recordObservation(String a,String b,BigDecimal r,String s,Instant o,String actor) {} public List<Observation> observations(String a,String b) { return List.of(); }
@@ -52,12 +53,12 @@ class AuthoritativePricingServiceTest {
         ReferenceRateService references = mock(ReferenceRateService.class);
         when(references.baseRates("BRL", now))
                 .thenReturn(List.of(new ReferenceRateService.BaseRate(
-                        "BRL", new BigDecimal("0.010"), now)));
+                        "BRL", new BigDecimal("0.010"), now, "fixture")));
         PricingStrategy strategy = mock(PricingStrategy.class);
         when(strategy.productType()).thenReturn("MERCANTILE_INVOICE");
         when(strategy.code()).thenReturn("OWNED_STRATEGY");
         var selectedSpread = new ReferenceRateService.ProductSpread(
-                "MERCANTILE_INVOICE", new BigDecimal("0.015"), now);
+                "MERCANTILE_INVOICE", new BigDecimal("0.015"), now, "fixture");
         when(references.productSpreads("MERCANTILE_INVOICE", now)).thenReturn(List.of(selectedSpread));
         when(strategy.riskSpread(List.of(new BigDecimal("0.015"))))
                 .thenReturn(new BigDecimal("0.015"));

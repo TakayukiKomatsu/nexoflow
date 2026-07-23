@@ -64,7 +64,8 @@ class PricingQuoteSnapshotTest {
         rates.recordProductSpread(
                 "MERCANTILE_INVOICE",
                 new BigDecimal("0.020"),
-                Instant.parse("2030-01-15T12:01:00Z"));
+                Instant.parse("2030-01-15T12:01:00Z"),
+                "admin@srm.local");
 
         var immediatelyBeforeExpiry =
                 serviceAt(created.expiresAt().minusNanos(1)).getQuote(created.id());
