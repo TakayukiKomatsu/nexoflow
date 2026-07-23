@@ -33,6 +33,9 @@ class JdbcSettlementStatementServiceTest {
         assertThatThrownBy(() -> service.query(filter(null, null, -1, 50)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("page and size are out of bounds");
+        assertThatThrownBy(() -> service.query(filter(null, null, 0, 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("page and size are out of bounds");
         assertThatThrownBy(() -> service.query(filter(null, null, 0, 101)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("page and size are out of bounds");

@@ -77,6 +77,17 @@ class JdbcSettlementRepositoryTest {
     }
 
     @Test
+    void rejectsWhenQuoteConsumptionWinsButReceivableConsumptionLoses() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.update(startsWith("update pricing_quotes"), any(Object[].class))).thenReturn(1);
+        when(jdbc.update(startsWith("update receivables"), any(Object[].class))).thenReturn(0);
+        var repository = new JdbcSettlementRepository(jdbc);
+
+        assertThatThrownBy(() -> repository.consumeQuoteAndReceivable(quote()))
+                .isInstanceOf(AlreadySettledException.class);
+    }
+
+    @Test
     void rejectsMissingLockedSettlement() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         when(jdbc.query(startsWith("select id from settlements"), any(RowMapper.class), any(Object[].class)))
@@ -120,6 +131,32 @@ class JdbcSettlementRepositoryTest {
                         && sql.endsWith("for update of r")),
                 any(RowMapper.class),
                 any(Object[].class));
+    }
+
+    @Test
+    void rejectsASettlementHeaderThatHasNoLockableItems() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UUID settlementId = UUID.randomUUID();
+        when(jdbc.query(
+                        startsWith("select id from settlements"),
+                        any(RowMapper.class),
+                        any(Object[].class)))
+                .thenReturn(List.of(settlementId));
+        when(jdbc.queryForObject(
+                        startsWith("select count(*) from settlement_reversals"),
+                        org.mockito.ArgumentMatchers.eq(Integer.class),
+                        any(Object[].class)))
+                .thenReturn(0);
+        when(jdbc.query(
+                        startsWith("select r.id from receivables r"),
+                        any(RowMapper.class),
+                        any(Object[].class)))
+                .thenReturn(List.of());
+        var repository = new JdbcSettlementRepository(jdbc);
+
+        assertThatThrownBy(() -> repository.lockSettlement(settlementId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Settlement has no items");
     }
 
     @Test

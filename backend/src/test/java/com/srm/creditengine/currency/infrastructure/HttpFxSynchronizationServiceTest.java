@@ -51,6 +51,25 @@ class HttpFxSynchronizationServiceTest {
     }
 
     @Test
+    void identicalSupportedCurrenciesAreRejectedBeforeAnyProviderAttempt() {
+        CurrencyService currency = mock(CurrencyService.class);
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        var registry = new SimpleMeterRegistry();
+        var service = service(
+                currency, builder, Clock.fixed(NOW, ZoneOffset.UTC), new ArrayList<>(), registry);
+
+        assertThatThrownBy(() -> service.synchronize(" usd ", "USD", "admin@srm.local"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Base and quote currencies must differ");
+
+        verifyNoInteractions(currency);
+        assertThat(syncOutcomes(registry, "REJECTED")).isEqualTo(1);
+        assertThat(totalSyncOutcomes(registry)).isEqualTo(1);
+        server.verify();
+    }
+
+    @Test
     void resourceAccessFailuresRetryThreeTimesWithExponentialDelays() {
         CurrencyService currency = mock(CurrencyService.class);
         RestClient.Builder builder = RestClient.builder();

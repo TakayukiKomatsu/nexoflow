@@ -244,6 +244,10 @@ class JdbcCurrencyServiceTest {
                 "BRL", "USD", BigDecimal.ONE, "provider", NOW, null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Actor is required");
+        assertThatThrownBy(() -> service.recordObservation(
+                        "BRL", "USD", BigDecimal.ONE, "provider", NOW, "a".repeat(321)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Actor must not exceed 320 characters");
         verifyNoInteractions(jdbc);
     }
     private static List<FxObservation> latestQuery(JdbcTemplate jdbc) {

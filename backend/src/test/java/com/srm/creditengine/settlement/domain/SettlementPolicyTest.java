@@ -62,6 +62,46 @@ class SettlementPolicyTest {
     }
 
     @Test
+    void previewRejectsAPositiveTotalBeyondThePersistedMoneyDomain() {
+        var oversized = new LockedQuote(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "BRL",
+                new BigDecimal("1000000000000000.0000"),
+                NOW.plusSeconds(60),
+                "ACTIVE",
+                UUID.randomUUID(),
+                "REGISTERED",
+                0,
+                "BRL",
+                "MERCANTILE_INVOICE");
+
+        assertThatThrownBy(() -> SettlementPolicy.previewOf(List.of(oversized), NOW))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Settlement total must be positive and fit within 15 integer digits");
+    }
+
+    @Test
+    void previewRejectsANonPositiveTotalBeforeExpirySelection() {
+        var negative = new LockedQuote(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "BRL",
+                new BigDecimal("-0.0001"),
+                NOW.plusSeconds(60),
+                "ACTIVE",
+                UUID.randomUUID(),
+                "REGISTERED",
+                0,
+                "BRL",
+                "MERCANTILE_INVOICE");
+
+        assertThatThrownBy(() -> SettlementPolicy.previewOf(List.of(negative), NOW))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Settlement total must be positive and fit within 15 integer digits");
+    }
+
+    @Test
     void rejectsMissingExpiredConsumedAndAlreadySettledQuotes() {
         var assignor = UUID.randomUUID();
         var active = quote(assignor, "BRL", "ACTIVE", "REGISTERED", NOW.plusSeconds(60));

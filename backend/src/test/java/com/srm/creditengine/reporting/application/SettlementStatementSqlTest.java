@@ -3,6 +3,8 @@ package com.srm.creditengine.reporting.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
@@ -73,6 +75,51 @@ class SettlementStatementSqlTest {
                         ":limit",
                         ":offset");
         assertThat(query.arguments()).containsExactly(51, 0L);
+    }
+
+    @Test
+    void failsClearlyWhenTheProductionSqlResourceIsMissing() throws Exception {
+        var resource = SettlementStatementSql.class
+                .getClassLoader()
+                .getResource(SettlementStatementSql.RESOURCE);
+        assertThat(resource).isNotNull();
+        assertThat(resource.getProtocol()).isEqualTo("file");
+        Path sqlResource = Path.of(resource.toURI());
+        Path hiddenResource = sqlResource.resolveSibling(
+                sqlResource.getFileName() + ".coverage-hidden-" + UUID.randomUUID());
+        Files.move(sqlResource, hiddenResource);
+
+        try {
+            assertThatThrownBy(SettlementStatementSql::fromClasspath)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Missing statement SQL resource: " + SettlementStatementSql.RESOURCE);
+        } finally {
+            Files.move(hiddenResource, sqlResource);
+        }
+    }
+
+    @Test
+    void rejectsAnUnresolvedNamedParameterBeforeJdbcExecution() {
+        String template = """
+                select :unownedParameter
+                where true
+                /*?from*/ and effective_at >= :from
+                /*?to*/ and effective_at < :to
+                /*?assignorId*/ and assignor_id = :assignorId
+                /*?assetCurrency*/ and asset_currency_code = :assetCurrency
+                /*?settlementCurrency*/ and settlement_currency_code = :settlementCurrency
+                /*?productType*/ and product_type_code = :productType
+                limit :limit offset :offset
+                """;
+        var renderer = SettlementStatementSql.fromTemplate(template);
+
+        assertThatThrownBy(() -> renderer.render(
+                        new SettlementStatementService.Filter(
+                                null, null, null, null, null, null, 0, 50),
+                        51,
+                        0))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Unresolved statement SQL parameter: :unownedParameter");
     }
 
     @Test

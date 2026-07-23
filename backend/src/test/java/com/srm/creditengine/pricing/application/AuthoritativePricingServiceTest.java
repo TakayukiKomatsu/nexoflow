@@ -338,6 +338,10 @@ class AuthoritativePricingServiceTest {
         assertThatThrownBy(() -> service.simulate(input(BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", null, "BRL")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Pricing input is incomplete");
+        assertThatThrownBy(() -> service.simulate(input(
+                        BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", "2030-02-14", null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Pricing input is incomplete");
         assertThatThrownBy(() -> service.simulate(input(BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", "2030-01-15", "BRL")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Due date must be after pricing date");
