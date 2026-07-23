@@ -53,14 +53,14 @@ erDiagram
     product_spread_versions {
         uuid id PK
         string product_type_code FK
-        decimal monthly_spread
+        decimal_19_10 monthly_spread
         datetime effective_at
         string created_by
     }
     base_rate_versions {
         uuid id PK
         string currency_code FK
-        decimal monthly_rate
+        decimal_19_10 monthly_rate
         datetime effective_at
         string created_by
     }
@@ -68,7 +68,7 @@ erDiagram
         uuid id PK
         string base_currency_code FK
         string quote_currency_code FK
-        decimal rate
+        decimal_19_10 rate
         string source
         datetime observed_at
         datetime created_at
@@ -85,7 +85,7 @@ erDiagram
         uuid assignor_id FK
         string product_type_code FK
         string face_currency_code FK
-        decimal face_amount
+        decimal_19_4 face_amount
         date issue_date
         date due_date
         string status
@@ -97,24 +97,24 @@ erDiagram
         uuid id PK
         uuid receivable_id FK
         string settlement_currency_code FK
-        decimal face_amount
+        decimal_19_4 face_amount
         string face_currency_code FK
         string product_type_code FK
         date due_date
         datetime pricing_at
         datetime expires_at
-        decimal base_rate
-        decimal spread
+        decimal_19_10 base_rate
+        decimal_19_10 spread
         string strategy_code
         string day_count_convention
-        decimal term_in_months
-        decimal discounted_amount
+        decimal_19_10 term_in_months
+        decimal_19_4 discounted_amount
         string fx_base_currency_code FK
         string fx_quote_currency_code FK
-        decimal fx_rate
+        decimal_19_10 fx_rate
         string fx_source
         datetime fx_observed_at
-        decimal settlement_amount
+        decimal_19_4 settlement_amount
         string created_by
         string status
     }
@@ -122,7 +122,7 @@ erDiagram
         uuid id PK
         uuid assignor_id FK
         string settlement_currency_code FK
-        decimal total_amount
+        decimal_19_4 total_amount
         string status
         datetime created_at
         string created_by
@@ -133,7 +133,7 @@ erDiagram
         uuid quote_id UK,FK
         uuid receivable_id UK,FK
         int item_position
-        decimal settlement_amount
+        decimal_19_4 settlement_amount
         string asset_currency_code FK
         string product_type_code FK
     }

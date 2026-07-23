@@ -44,6 +44,22 @@ integration tests are therefore required evidence for append-only behavior.
 
 ## Structural constraint signatures
 
+Exact financial storage and nullability:
+
+- `base_rate_versions.numeric(monthly_rate:numeric(19,10):not-null)`
+- `product_spread_versions.numeric(monthly_spread:numeric(19,10):not-null)`
+- `exchange_rates.numeric(rate:numeric(19,10):not-null)`
+- `receivables.numeric(face_amount:numeric(19,4):not-null)`
+- `pricing_quotes.numeric(face_amount:numeric(19,4):not-null)`
+- `pricing_quotes.numeric(base_rate:numeric(19,10):not-null)`
+- `pricing_quotes.numeric(spread:numeric(19,10):not-null)`
+- `pricing_quotes.numeric(term_in_months:numeric(19,10):not-null)`
+- `pricing_quotes.numeric(discounted_amount:numeric(19,4):not-null)`
+- `pricing_quotes.numeric(fx_rate:numeric(19,10):not-null)`
+- `pricing_quotes.numeric(settlement_amount:numeric(19,4):not-null)`
+- `settlements.numeric(total_amount:numeric(19,4):not-null)`
+- `settlement_items.numeric(settlement_amount:numeric(19,4):not-null)`
+
 Primary keys: `schema_metadata.primary(id)`, `users.primary(id)`,
 `user_roles.primary(user_id,role)`, `currencies.primary(code)`,
 `product_types.primary(code)`, `base_rate_versions.primary(id)`,
@@ -91,15 +107,23 @@ Foreign keys added after initial table creation:
 `pricing_quotes.fk(fx_quote_currency_code->currencies.code)`, and
 `pricing_quotes.fk(product_type_code->product_types.code)`.
 
-Inline checks: `base_rate_versions.check(monthly_rate)`,
-`product_spread_versions.check(monthly_spread)`, `exchange_rates.check(rate)`,
-`exchange_rates.check(table)`, `receivables.check(face_amount)`,
-`receivables.check(due_date)`, `receivables.check(status)`,
-`settlements.check(total_amount)`, `settlements.check(status)`,
-`settlement_items.check(item_position)`,
-`settlement_items.check(settlement_amount)`,
-`idempotency_records.check(status)`, `idempotency_records.check(table)`,
-`settlement_reversals.check(reason)`, and `pricing_quotes.check(status)`.
+Inline checks retain normalized expressions:
+
+- `base_rate_versions.check(monthly_rate>0)`
+- `product_spread_versions.check(monthly_spread>0)`
+- `exchange_rates.check(rate>0)`
+- `exchange_rates.check(base_currency_code<>quote_currency_code)`
+- `receivables.check(face_amount>0)`
+- `receivables.check(due_date>issue_date)`
+- `receivables.check(statusin('registered','settled','reversed'))`
+- `settlements.check(total_amount>0)`
+- `settlements.check(status='completed')`
+- `settlement_items.check(item_position>0)`
+- `settlement_items.check(settlement_amount>0)`
+- `idempotency_records.check(statusin('processing','completed'))`
+- `idempotency_records.check((status='processing'andsettlement_idisnullandcompleted_atisnull)or(status='completed'andsettlement_idisnotnullandcompleted_atisnotnull))`
+- `settlement_reversals.check(length(trim(reason))>0)`
+- `pricing_quotes.check(statusin('active','consumed'))`
 
 Checks added after initial table creation retain their normalized expressions so
 changing an operator, bound, or state combination cannot pass by preserving only

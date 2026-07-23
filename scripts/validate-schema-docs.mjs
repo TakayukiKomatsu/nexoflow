@@ -192,13 +192,44 @@ function normalizedExpression(expression) {
 
 const schema = new Map();
 const constraintSignatures = new Set();
+const financialColumnSignatures = new Set();
+
+function sqlColumnType(definition) {
+  const type = definition.replace(/^[a-z_][a-z0-9_]*\s+/, '').trim();
+  const numeric = type.match(/^numeric\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/);
+  if (numeric) {
+    return {
+      inventory: `numeric(${numeric[1]},${numeric[2]})`,
+      er: `decimal_${numeric[1]}_${numeric[2]}`,
+      financial: true,
+    };
+  }
+  if (/^double\s+precision\b/.test(type)) return { inventory: 'double precision', er: 'double_precision' };
+  if (/^bigint\b/.test(type)) return { inventory: 'bigint', er: 'bigint' };
+  if (/^(?:integer|int)\b/.test(type)) return { inventory: 'integer', er: 'int' };
+  if (/^uuid\b/.test(type)) return { inventory: 'uuid', er: 'uuid' };
+  if (/^boolean\b/.test(type)) return { inventory: 'boolean', er: 'boolean' };
+  if (/^timestamp\b/.test(type)) return { inventory: 'timestamp', er: 'datetime' };
+  if (/^date\b/.test(type)) return { inventory: 'date', er: 'date' };
+  if (/^(?:varchar|character\s+varying|char|text)\b/.test(type)) return { inventory: 'string', er: 'string' };
+  if (/^(?:json|jsonb)\b/.test(type)) return { inventory: 'json', er: 'json' };
+  return null;
+}
 
 function recordColumnConstraints(table, column, definition) {
   if (/\bprimary\s+key\b/.test(definition)) constraintSignatures.add(`${table}.primary(${column})`);
   if (/\bunique\b/.test(definition)) constraintSignatures.add(`${table}.unique(${column})`);
   const reference = definition.match(/\breferences\s+([a-z_][a-z0-9_]*)\s*\(\s*([a-z_][a-z0-9_]*)\s*\)/);
   if (reference) constraintSignatures.add(`${table}.fk(${column}->${reference[1]}.${reference[2]})`);
-  if (/\bcheck\s*\(/.test(definition)) constraintSignatures.add(`${table}.check(${column})`);
+  const check = definition.match(/\bcheck\s*\(([\s\S]*)\)\s*$/);
+  if (check) constraintSignatures.add(`${table}.check(${normalizedExpression(check[1])})`);
+  const type = sqlColumnType(definition);
+  if (type?.financial) {
+    const nullability = /\b(?:not\s+null|primary\s+key)\b/.test(definition) ? 'not-null' : 'nullable';
+    financialColumnSignatures.add(
+      `${table}.numeric(${column}:${type.inventory}:${nullability})`,
+    );
+  }
 }
 
 const createTablePattern = /create\s+table\s+([a-z_][a-z0-9_]*)\s*\(([\s\S]*?)\)\s*;/g;
@@ -218,7 +249,14 @@ for (const match of migrationText.matchAll(createTablePattern)) {
     if (primary) constraintSignatures.add(`${table}.primary(${normalizedColumns(primary[1])})`);
     const unique = definition.match(/\bunique\s*\(([^)]+)\)/);
     if (unique) constraintSignatures.add(`${table}.unique(${normalizedColumns(unique[1])})`);
-    if (/\bcheck\s*\(/.test(definition)) constraintSignatures.add(`${table}.check(table)`);
+    const foreignKey = definition.match(/foreign\s+key\s*\(([^)]+)\)\s+references\s+([a-z_][a-z0-9_]*)\s*\(([^)]+)\)/);
+    if (foreignKey) {
+      constraintSignatures.add(
+        `${table}.fk(${normalizedColumns(foreignKey[1])}->${foreignKey[2]}.${normalizedColumns(foreignKey[3])})`,
+      );
+    }
+    const check = definition.match(/\bcheck\s*\(([\s\S]*)\)\s*$/);
+    if (check) constraintSignatures.add(`${table}.check(${normalizedExpression(check[1])})`);
   }
   schema.set(table, columns);
 }
@@ -249,8 +287,8 @@ const erBlockPattern = /^ {4}([a-z_][a-z0-9_]*) \{\n([\s\S]*?)^ {4}\}/gm;
 for (const match of erText.matchAll(erBlockPattern)) {
   const attributes = new Map();
   for (const line of match[2].split('\n').map((value) => value.trim()).filter(Boolean)) {
-    const [, column, ...markers] = line.split(/\s+/);
-    attributes.set(column, markers.join(' '));
+    const [type, column, ...markers] = line.split(/\s+/);
+    attributes.set(column, { type, markers: markers.join(' ') });
   }
   erSchema.set(match[1], attributes);
 }
@@ -264,7 +302,14 @@ for (const [table, columns] of schema) {
   }
   for (const [column, definition] of columns) {
     if (!documented.has(column)) failures.push(`migration column missing from ER: ${table}.${column}`);
-    const markers = documented.get(column) ?? '';
+    const attribute = documented.get(column);
+    const markers = attribute?.markers ?? '';
+    const migrationType = sqlColumnType(definition);
+    if (attribute && migrationType && attribute.type !== migrationType.er) {
+      failures.push(
+        `ER type mismatch: ${table}.${column} migration ${migrationType.er}, ER ${attribute.type}`,
+      );
+    }
     if (/\bprimary\s+key\b/.test(definition) && !markers.includes('PK')) failures.push(`ER lacks PK marker: ${table}.${column}`);
     if (/\bunique\b/.test(definition) && !markers.includes('UK')) failures.push(`ER lacks UK marker: ${table}.${column}`);
     if (/\breferences\b/.test(definition) && !markers.includes('FK')) failures.push(`ER lacks FK marker: ${table}.${column}`);
@@ -291,6 +336,9 @@ for (const artifact of namedArtifacts) {
 for (const signature of constraintSignatures) {
   if (!inventoryText.includes(`\`${signature}\``)) failures.push(`schema inventory omits structural constraint: ${signature}`);
 }
+for (const signature of financialColumnSignatures) {
+  if (!inventoryText.includes(`\`${signature}\``)) failures.push(`schema inventory omits financial column: ${signature}`);
+}
 for (const file of migrationFiles) {
   const relative = path.relative(repoRoot, file);
   if (!inventoryText.includes(relative)) failures.push(`schema inventory lacks DDL/migration link: ${relative}`);
@@ -302,4 +350,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`DOC-SCHEMA-002 passed: ${schema.size} tables, migration columns, structural constraints, indexes, and Java-migration triggers match the ER inventory`);
+console.log(`DOC-SCHEMA-002 passed: ${schema.size} tables, exact column types, financial nullability, structural constraints, indexes, and Java-migration triggers match the ER inventory`);

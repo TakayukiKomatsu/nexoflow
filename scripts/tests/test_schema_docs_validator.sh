@@ -19,7 +19,10 @@ run_validator "$fixtures/sql-valid" "$fixtures/java-valid" >/dev/null
 
 sql_failure="$(mktemp)"
 java_failure="$(mktemp)"
-trap 'rm -f "$sql_failure" "$java_failure"' EXIT
+inline_failure="$(mktemp)"
+type_failure="$(mktemp)"
+nullability_failure="$(mktemp)"
+trap 'rm -f "$sql_failure" "$java_failure" "$inline_failure" "$type_failure" "$nullability_failure"' EXIT
 
 if run_validator "$fixtures/sql-mutated" "$fixtures/java-valid" >"$sql_failure" 2>&1; then
   echo "schema validator accepted mutated SQL constraint structures" >&2
@@ -35,4 +38,23 @@ if run_validator "$fixtures/sql-valid" "$fixtures/java-mutated" >"$java_failure"
 fi
 grep -Fq 'children.fk(java_parent_id->parents.code)' "$java_failure"
 
-echo "DOC-SCHEMA-MUTATION-001 passed: SQL and Java add-constraint structure drift is rejected"
+if run_validator "$fixtures/sql-inline-mutated" "$fixtures/java-valid" >"$inline_failure" 2>&1; then
+  echo "schema validator accepted mutated inline check and table foreign key structures" >&2
+  exit 1
+fi
+grep -Fq 'children.check(amount>=0)' "$inline_failure"
+grep -Fq 'children.fk(table_parent_id->parents.code)' "$inline_failure"
+
+if run_validator "$fixtures/sql-type-mutated" "$fixtures/java-valid" >"$type_failure" 2>&1; then
+  echo "schema validator accepted drift from exact decimal to floating-point storage" >&2
+  exit 1
+fi
+grep -Fq 'ER type mismatch: children.money migration double_precision, ER decimal_19_4' "$type_failure"
+
+if run_validator "$fixtures/sql-nullability-mutated" "$fixtures/java-valid" >"$nullability_failure" 2>&1; then
+  echo "schema validator accepted nullable financial storage drift" >&2
+  exit 1
+fi
+grep -Fq 'children.numeric(money:numeric(19,4):nullable)' "$nullability_failure"
+
+echo "DOC-SCHEMA-MUTATION-001 passed: constraint, type, and financial-nullability drift is rejected"

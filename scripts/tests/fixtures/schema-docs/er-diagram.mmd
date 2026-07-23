@@ -1,12 +1,14 @@
 erDiagram
     parents {
         uuid id PK
-        varchar code UK
+        string code UK
     }
     children {
         uuid id PK
         uuid parent_id FK
         uuid java_parent_id FK
-        integer amount
-        varchar code UK
+        uuid table_parent_id FK
+        int amount
+        decimal_19_4 money
+        string code UK
     }
