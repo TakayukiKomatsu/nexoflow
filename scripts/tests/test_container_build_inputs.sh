@@ -30,6 +30,20 @@ for dockerfile in "$repo_root/backend/Dockerfile" "$repo_root/frontend/Dockerfil
     echo "CONTAINER-PIN-003 failed: Dockerfile must select a final non-root USER: $dockerfile" >&2
     exit 1
   fi
+  if ! awk '
+    /^RUN apk add / { in_apk = 1; next }
+    in_apk {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]*\\$/, "", line)
+      if (line !~ /^[a-z0-9+_.-]+=[a-z0-9+_.-]+$/) failed = 1
+      if ($0 !~ /\\$/) in_apk = 0
+    }
+    END { exit failed }
+  ' "$dockerfile"; then
+    echo "CONTAINER-PIN-002 failed: apk package upgrades must pin exact versions: $dockerfile" >&2
+    exit 1
+  fi
 done
 
 echo "CONTAINER-PIN-001 passed: every Dockerfile and Compose base image is digest-pinned"
