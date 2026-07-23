@@ -343,7 +343,10 @@
             "$ref": "#/components/schemas/PricingBreakdownResponse"
           },
           "expiresAt": { "type": "string", "format": "date-time" },
-          "status": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "EXPIRED", "CONSUMED"]
+          },
           "createdBy": { "type": "string" }
         }
       },
@@ -404,7 +407,7 @@
         ],
         "properties": {
           "settlementId": { "type": "string", "format": "uuid" },
-          "status": { "type": "string" },
+          "status": { "type": "string", "enum": ["COMPLETED"] },
           "items": {
             "type": "array",
             "items": { "$ref": "#/components/schemas/ItemResponse" }
@@ -551,7 +554,10 @@
           "faceCurrency": { "type": "string", "enum": ["BRL", "USD"] },
           "issueDate": { "type": "string", "format": "date" },
           "dueDate": { "type": "string", "format": "date" },
-          "status": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["REGISTERED", "SETTLED", "REVERSED"]
+          },
           "version": { "type": "integer", "format": "int64" }
         }
       }
