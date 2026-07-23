@@ -101,16 +101,12 @@ function loadTypeScriptModel(clientPath) {
   return { checker, namedType };
 }
 
-function schemaProperties(document, schemaName) {
-  const properties = document?.components?.schemas?.[schemaName]?.properties;
-  if (
-    !properties ||
-    typeof properties !== "object" ||
-    Array.isArray(properties)
-  ) {
-    fail(`OpenAPI schema ${schemaName} has no object properties`);
+function schemaObject(document, schemaName) {
+  const schema = document?.components?.schemas?.[schemaName];
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+    fail(`OpenAPI schema ${schemaName} is unavailable`);
   }
-  return properties;
+  return schema;
 }
 
 function comparePropertyNames(label, openApiProperties, type, checker) {
@@ -132,13 +128,162 @@ function comparePropertyNames(label, openApiProperties, type, checker) {
   }
 }
 
-function comparePropertyTypes(
+function compareRequiredProperties(label, schema, type, checker) {
+  const openApiRequired = [...(schema.required ?? [])].sort();
+  const frontendRequired = checker
+    .getPropertiesOfType(type)
+    .filter((symbol) => (symbol.flags & ts.SymbolFlags.Optional) === 0)
+    .map(({ name }) => name)
+    .sort();
+  const requiredOnlyByOpenApi = openApiRequired.filter(
+    (name) => !frontendRequired.includes(name),
+  );
+  const requiredOnlyByFrontend = frontendRequired.filter(
+    (name) => !openApiRequired.includes(name),
+  );
+  if (requiredOnlyByOpenApi.length || requiredOnlyByFrontend.length) {
+    fail(
+      `${label} required-property mismatch; required only by OpenAPI: ${requiredOnlyByOpenApi.join(", ") || "none"}; required only by frontend: ${requiredOnlyByFrontend.join(", ") || "none"}`,
+    );
+  }
+}
+
+const formatAliases = new Map([
+  ["uuid", "Uuid"],
+  ["date", "IsoDate"],
+  ["date-time", "IsoInstant"],
+  ["int32", "Int32"],
+  ["int64", "Int64"],
+]);
+
+function declaredFormat(declaration) {
+  if (!declaration?.type) return undefined;
+  const declarationText = declaration.type.getText();
+  return [...formatAliases.entries()].find(([, alias]) =>
+    new RegExp(`\\b${alias}\\b`).test(declarationText),
+  )?.[0];
+}
+
+function compareFormat(label, schema, declaration) {
+  const openApiFormat = formatAliases.has(schema.format)
+    ? schema.format
+    : undefined;
+  const frontendFormat = declaredFormat(declaration);
+  if (openApiFormat !== frontendFormat) {
+    fail(
+      `${label} format mismatch; frontend: ${frontendFormat ?? "none"}; OpenAPI: ${openApiFormat ?? "none"}`,
+    );
+  }
+}
+
+function includesTypeFlag(type, flag) {
+  return (
+    (type.flags & flag) !== 0 ||
+    (type.isUnion() && type.types.every((member) => includesTypeFlag(member, flag)))
+  );
+}
+
+function isNullable(type) {
+  return (
+    (type.flags & ts.TypeFlags.Null) !== 0 ||
+    (type.isUnion() &&
+      type.types.some((member) => (member.flags & ts.TypeFlags.Null) !== 0))
+  );
+}
+
+function stringLiteralValues(type) {
+  if ((type.flags & ts.TypeFlags.StringLiteral) !== 0) return [type.value];
+  if (!type.isUnion()) return undefined;
+  const values = type.types.flatMap((member) =>
+    (member.flags & ts.TypeFlags.StringLiteral) !== 0 ? [member.value] : [],
+  );
+  return values.length === type.types.length ? values.sort() : undefined;
+}
+
+function compareEnum(label, schema, type) {
+  const openApiValues = Array.isArray(schema.enum)
+    ? [...schema.enum].sort()
+    : undefined;
+  const frontendValues = stringLiteralValues(type);
+  if (
+    openApiValues?.length !== frontendValues?.length ||
+    openApiValues?.some((value, index) => value !== frontendValues?.[index])
+  ) {
+    if (openApiValues || frontendValues) {
+      fail(
+        `${label} enum mismatch; frontend: ${frontendValues?.join(", ") ?? "unconstrained"}; OpenAPI: ${openApiValues?.join(", ") ?? "unconstrained"}`,
+      );
+    }
+  }
+}
+
+function compareSchemaType(
   label,
-  openApiProperties,
+  schema,
   type,
   checker,
   document,
+  declaration,
 ) {
+  const frontendNullable = isNullable(type);
+  if (Boolean(schema.nullable) !== frontendNullable) {
+    fail(
+      `${label} nullable mismatch; frontend: ${frontendNullable}; OpenAPI: ${Boolean(schema.nullable)}`,
+    );
+  }
+  const nonNullableType = checker.getNonNullableType(type);
+
+  if (schema?.$ref) {
+    const referencedName = schema.$ref.split("/").at(-1);
+    compareObjectSchema(
+      label,
+      schemaObject(document, referencedName),
+      nonNullableType,
+      checker,
+      document,
+    );
+    return;
+  }
+
+  if (schema?.type === "array") {
+    if (!checker.isArrayType(nonNullableType)) {
+      fail(
+        `${label} is ${checker.typeToString(nonNullableType)} in the frontend but array in OpenAPI`,
+      );
+    }
+    const elementType = checker.getTypeArguments(nonNullableType)[0];
+    if (!schema.items || !elementType) {
+      fail(`${label} array items cannot be resolved`);
+    }
+    compareSchemaType(
+      `${label}[]`,
+      schema.items,
+      elementType,
+      checker,
+      document,
+    );
+    return;
+  }
+
+  const expectedFlag = {
+    string: ts.TypeFlags.StringLike,
+    integer: ts.TypeFlags.NumberLike,
+    number: ts.TypeFlags.NumberLike,
+    boolean: ts.TypeFlags.BooleanLike,
+  }[schema?.type];
+  if (!expectedFlag) {
+    fail(`${label} uses unsupported OpenAPI type ${schema?.type ?? "unknown"}`);
+  }
+  if (!includesTypeFlag(nonNullableType, expectedFlag)) {
+    fail(
+      `${label} is ${checker.typeToString(nonNullableType)} in the frontend but ${schema.type} in OpenAPI`,
+    );
+  }
+  compareFormat(label, schema, declaration);
+  if (schema.type === "string") compareEnum(label, schema, nonNullableType);
+}
+
+function comparePropertyTypes(label, openApiProperties, type, checker, document) {
   const symbols = new Map(
     checker.getPropertiesOfType(type).map((symbol) => [symbol.name, symbol]),
   );
@@ -146,29 +291,29 @@ function comparePropertyTypes(
     const symbol = symbols.get(name);
     const declaration = symbol?.valueDeclaration ?? symbol?.declarations?.[0];
     if (!symbol || !declaration) fail(`${label}.${name} cannot be resolved`);
-    const frontendType = checker.getNonNullableType(
-      checker.getTypeOfSymbolAtLocation(symbol, declaration),
+    const frontendType = checker.getTypeOfSymbolAtLocation(
+      symbol,
+      declaration,
     );
-    if (schema?.$ref) {
-      const referencedName = schema.$ref.split("/").at(-1);
-      const referencedProperties = schemaProperties(document, referencedName);
-      comparePropertyNames(
-        `${label}.${name}`,
-        referencedProperties,
-        frontendType,
-        checker,
-      );
-      continue;
-    }
-    if (
-      schema?.type === "string" &&
-      (frontendType.flags & ts.TypeFlags.StringLike) === 0
-    ) {
-      fail(
-        `${label}.${name} is ${checker.typeToString(frontendType)} in the frontend but string in OpenAPI`,
-      );
-    }
+    compareSchemaType(
+      `${label}.${name}`,
+      schema,
+      frontendType,
+      checker,
+      document,
+      declaration,
+    );
   }
+}
+
+function compareObjectSchema(label, schema, type, checker, document) {
+  const properties = schema.properties;
+  if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
+    fail(`${label} OpenAPI object has no properties`);
+  }
+  comparePropertyNames(label, properties, type, checker);
+  compareRequiredProperties(label, schema, type, checker);
+  comparePropertyTypes(label, properties, type, checker, document);
 }
 
 export async function validateContract(options) {
@@ -177,12 +322,25 @@ export async function validateContract(options) {
   const mappings = [
     ["QuoteResponse", "PricingQuote"],
     ["PricingBreakdownResponse", "PricingBreakdown"],
+    ["PricingBreakdownResponse", "PricingSimulation"],
+    ["ItemResponse", "SettlementItem"],
+    ["PreviewResponse", "SettlementPreview"],
+    ["SettlementResponse", "Settlement"],
+    ["EntryResponse", "StatementEntry"],
+    ["PageResponse", "StatementPage"],
+    ["AccessToken", "AccessToken"],
+    ["CurrentUser", "CurrentUser"],
+    ["Response", "Receivable"],
   ];
   for (const [schemaName, typeName] of mappings) {
-    const properties = schemaProperties(document, schemaName);
     const type = namedType(typeName);
-    comparePropertyNames(typeName, properties, type, checker);
-    comparePropertyTypes(typeName, properties, type, checker, document);
+    compareObjectSchema(
+      typeName,
+      schemaObject(document, schemaName),
+      type,
+      checker,
+      document,
+    );
   }
 }
 

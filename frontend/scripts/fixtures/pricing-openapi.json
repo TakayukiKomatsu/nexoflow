@@ -4,6 +4,16 @@
     "schemas": {
       "QuoteResponse": {
         "type": "object",
+        "required": [
+          "id",
+          "receivableId",
+          "productType",
+          "dueDate",
+          "pricing",
+          "expiresAt",
+          "status",
+          "createdBy"
+        ],
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "receivableId": { "type": "string", "format": "uuid" },
@@ -19,6 +29,24 @@
       },
       "PricingBreakdownResponse": {
         "type": "object",
+        "required": [
+          "faceAmount",
+          "faceCurrency",
+          "settlementCurrency",
+          "baseRate",
+          "spread",
+          "strategyCode",
+          "dayCountConvention",
+          "termInMonths",
+          "discountedAmount",
+          "fxBaseCurrency",
+          "fxQuoteCurrency",
+          "fxRate",
+          "fxSource",
+          "fxObservedAt",
+          "settlementAmount",
+          "pricedAt"
+        ],
         "properties": {
           "faceAmount": { "type": "string" },
           "faceCurrency": { "type": "string" },
@@ -36,6 +64,155 @@
           "fxObservedAt": { "type": "string", "format": "date-time" },
           "settlementAmount": { "type": "string" },
           "pricedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SettlementResponse": {
+        "type": "object",
+        "required": [
+          "settlementId",
+          "status",
+          "items",
+          "settlementCurrency",
+          "totalAmount",
+          "completedAt"
+        ],
+        "properties": {
+          "settlementId": { "type": "string", "format": "uuid" },
+          "status": { "type": "string" },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ItemResponse" }
+          },
+          "settlementCurrency": { "type": "string" },
+          "totalAmount": { "type": "string" },
+          "completedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PreviewResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "settlementCurrency",
+          "totalAmount",
+          "asOf",
+          "earliestExpiry"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ItemResponse" }
+          },
+          "settlementCurrency": { "type": "string" },
+          "totalAmount": { "type": "string" },
+          "asOf": { "type": "string", "format": "date-time" },
+          "earliestExpiry": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ItemResponse": {
+        "type": "object",
+        "required": ["quoteId", "receivableId", "settlementAmount"],
+        "properties": {
+          "quoteId": { "type": "string", "format": "uuid" },
+          "receivableId": { "type": "string", "format": "uuid" },
+          "settlementAmount": { "type": "string" }
+        }
+      },
+      "EntryResponse": {
+        "type": "object",
+        "required": [
+          "entryId",
+          "entryType",
+          "signedAmount",
+          "effectiveAt",
+          "settlementId",
+          "reversalId",
+          "assignorId",
+          "assetCurrency",
+          "settlementCurrency",
+          "productType",
+          "receivableId"
+        ],
+        "properties": {
+          "entryId": { "type": "string", "format": "uuid" },
+          "entryType": {
+            "type": "string",
+            "enum": ["SETTLEMENT", "REVERSAL"]
+          },
+          "signedAmount": { "type": "string" },
+          "effectiveAt": { "type": "string", "format": "date-time" },
+          "settlementId": { "type": "string", "format": "uuid" },
+          "reversalId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "assignorId": { "type": "string", "format": "uuid" },
+          "assetCurrency": { "type": "string" },
+          "settlementCurrency": { "type": "string" },
+          "productType": { "type": "string" },
+          "receivableId": { "type": "string", "format": "uuid" }
+        }
+      },
+      "PageResponse": {
+        "type": "object",
+        "required": ["entries", "page", "size", "hasNext"],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/EntryResponse" }
+          },
+          "page": { "type": "integer", "format": "int32" },
+          "size": { "type": "integer", "format": "int32" },
+          "hasNext": { "type": "boolean" }
+        }
+      },
+      "AccessToken": {
+        "type": "object",
+        "required": ["accessToken", "expiresIn", "tokenType"],
+        "properties": {
+          "accessToken": { "type": "string" },
+          "expiresIn": { "type": "integer", "format": "int64" },
+          "tokenType": { "type": "string" }
+        }
+      },
+      "CurrentUser": {
+        "type": "object",
+        "required": ["id", "email", "roles"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string" },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["OPERATOR", "ANALYST", "ADMIN", "AUDITOR"]
+            }
+          }
+        }
+      },
+      "Response": {
+        "type": "object",
+        "required": [
+          "id",
+          "assignorId",
+          "productType",
+          "faceAmount",
+          "faceCurrency",
+          "issueDate",
+          "dueDate",
+          "status",
+          "version"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "assignorId": { "type": "string", "format": "uuid" },
+          "productType": { "type": "string" },
+          "faceAmount": { "type": "string" },
+          "faceCurrency": { "type": "string" },
+          "issueDate": { "type": "string", "format": "date" },
+          "dueDate": { "type": "string", "format": "date" },
+          "status": { "type": "string" },
+          "version": { "type": "integer", "format": "int64" }
         }
       }
     }

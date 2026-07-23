@@ -2,14 +2,45 @@ import { expireSession, type Session } from "../session";
 
 export type { Session } from "../session";
 
+export type Uuid = string;
+export type IsoDate = string;
+export type IsoInstant = string;
+export type Int32 = number;
+export type Int64 = number;
+
+export type AccessToken = {
+  accessToken: string;
+  expiresIn: Int64;
+  tokenType: string;
+};
+export type CurrentUser = {
+  id: Uuid;
+  email: string;
+  roles: Session["roles"];
+};
+export type Receivable = {
+  id: Uuid;
+  assignorId: Uuid;
+  productType: string;
+  faceAmount: string;
+  faceCurrency: string;
+  issueDate: IsoDate;
+  dueDate: IsoDate;
+  status: string;
+  version: Int64;
+};
+
 export type PricingSimulationRequest = {
   faceAmount: string;
   faceCurrency: string;
   productType: string;
-  dueDate: string;
+  dueDate: IsoDate;
   settlementCurrency: string;
 };
-export type PricingSimulation = PricingSimulationRequest & {
+export type PricingBreakdown = {
+  faceAmount: string;
+  faceCurrency: string;
+  settlementCurrency: string;
   baseRate: string;
   spread: string;
   strategyCode: string;
@@ -20,58 +51,59 @@ export type PricingSimulation = PricingSimulationRequest & {
   fxQuoteCurrency: string;
   fxRate: string;
   fxSource: string;
-  fxObservedAt: string;
+  fxObservedAt: IsoInstant;
   settlementAmount: string;
-  pricedAt: string;
+  pricedAt: IsoInstant;
 };
-export type PricingBreakdown = Omit<
-  PricingSimulation,
-  "productType" | "dueDate"
->;
+export type PricingSimulation = PricingBreakdown;
 
 export type PricingQuote = {
-  id: string;
-  receivableId: string;
+  id: Uuid;
+  receivableId: Uuid;
   productType: string;
-  dueDate: string;
+  dueDate: IsoDate;
   pricing: PricingBreakdown;
-  expiresAt: string;
+  expiresAt: IsoInstant;
   status: string;
   createdBy: string;
 };
+export type SettlementItem = {
+  quoteId: Uuid;
+  receivableId: Uuid;
+  settlementAmount: string;
+};
 export type SettlementPreview = {
-  items: Array<{
-    quoteId: string;
-    receivableId: string;
-    settlementAmount: string;
-  }>;
+  items: SettlementItem[];
   settlementCurrency: string;
   totalAmount: string;
-  asOf: string;
-  earliestExpiry: string;
+  asOf: IsoInstant;
+  earliestExpiry: IsoInstant;
 };
-export type Settlement = SettlementPreview & {
-  settlementId: string;
+export type Settlement = {
+  settlementId: Uuid;
   status: string;
-  completedAt: string;
+  items: SettlementItem[];
+  settlementCurrency: string;
+  totalAmount: string;
+  completedAt: IsoInstant;
 };
 export type StatementEntry = {
-  entryId: string;
+  entryId: Uuid;
   entryType: "SETTLEMENT" | "REVERSAL";
   signedAmount: string;
-  effectiveAt: string;
-  settlementId: string;
-  reversalId?: string;
-  assignorId: string;
+  effectiveAt: IsoInstant;
+  settlementId: Uuid;
+  reversalId: Uuid | null;
+  assignorId: Uuid;
   assetCurrency: string;
   settlementCurrency: string;
   productType: string;
-  receivableId: string;
+  receivableId: Uuid;
 };
 export type StatementPage = {
   entries: StatementEntry[];
-  page: number;
-  size: number;
+  page: Int32;
+  size: Int32;
   hasNext: boolean;
 };
 
@@ -132,11 +164,11 @@ async function request<T>(
 
 export const api = {
   async login(input: { email: string; password: string }): Promise<Session> {
-    const token = await request<{ accessToken: string; expiresIn: number }>(
+    const token = await request<AccessToken>(
       "/auth/login",
       { method: "POST", body: JSON.stringify(input) },
     );
-    const me = await request<{ email: string; roles: Session["roles"] }>(
+    const me = await request<CurrentUser>(
       "/users/me",
       {},
       token.accessToken,
@@ -163,7 +195,7 @@ export const api = {
     input: PricingSimulationRequest & { assignorId: string; issueDate: string },
     token: string,
   ) {
-    return request<{ id: string }>(
+    return request<Receivable>(
       "/receivables",
       {
         method: "POST",
