@@ -88,6 +88,7 @@ for target in \
   'e2e-fixed:' \
   'security-scan:' \
   'test-log-redaction:' \
+  'test-reporting-evidence-contract:' \
   'validate-docs:' \
   'validate-frontend-authority:' \
   'validate-frontend-api-contract:' \
@@ -105,6 +106,12 @@ for target in \
     exit 1
   fi
 done
+
+verify_fast_deps="$(grep '^verify-fast:' "$makefile" | head -1)"
+if ! printf '%s' "$verify_fast_deps" | grep -qF 'test-reporting-evidence-contract'; then
+  echo "verify-fast target must include the mutation-sensitive reporting evidence contract" >&2
+  exit 1
+fi
 
 # ── release-check must aggregate all required sub-targets ─────────────────────
 release_line="$(grep -n 'release-check:' "$makefile" | head -1)"

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.srm.creditengine.assignor.application.AssignorService;
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import com.srm.creditengine.pricing.application.PricingService;
 import com.srm.creditengine.receivable.application.ReceivableService;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
@@ -157,17 +158,16 @@ class SettlementStatementPostgresIntegrationTest {
                                 100))
                         .entries())
                 .isEmpty();
-        assertThat(statements.query(filter(
-                                null,
-                                null,
-                                null,
-                                "BRL' OR 1=1 --",
-                                null,
-                                null,
-                                0,
-                                100))
-                        .entries())
-                .isEmpty();
+        assertThatThrownBy(() -> statements.query(filter(
+                        null,
+                        null,
+                        null,
+                        "BRL' OR 1=1 --",
+                        null,
+                        null,
+                        0,
+                        100)))
+                .isInstanceOf(UnsupportedCurrencyException.class);
 
         assertThat(first.entries().stream()
                         .filter(entry -> "SETTLEMENT".equals(entry.entryType()))
