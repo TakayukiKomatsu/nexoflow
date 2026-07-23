@@ -2,6 +2,7 @@ package com.srm.creditengine.settlement.api;
 
 import com.srm.creditengine.identity.application.ActorContext;
 import com.srm.creditengine.settlement.application.SettlementService;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -53,14 +54,19 @@ class SettlementController {
         return new ResponseEntity<>(ReversalResponse.from(reversal), headers, HttpStatus.CREATED);
     }
 
-    record QuoteIdsRequest(@NotEmpty List<@NotNull UUID> quoteIds) {}
+    record QuoteIdsRequest(
+            @NotEmpty @Size(max = SettlementService.MAX_QUOTE_IDS)
+                    List<@NotNull UUID> quoteIds) {}
     record ReversalRequest(@NotBlank @Size(max = 500) String reason) {}
+    @Schema(requiredProperties = {"quoteId", "receivableId", "settlementAmount"})
     record ItemResponse(UUID quoteId, UUID receivableId, String settlementAmount) {
         static ItemResponse from(SettlementService.Item item) { return new ItemResponse(item.quoteId(), item.receivableId(), decimal(item.settlementAmount())); }
     }
+    @Schema(requiredProperties = {"items", "settlementCurrency", "totalAmount", "asOf", "earliestExpiry"})
     record PreviewResponse(List<ItemResponse> items, String settlementCurrency, String totalAmount, Instant asOf, Instant earliestExpiry) {
         static PreviewResponse from(SettlementService.Preview preview) { return new PreviewResponse(preview.items().stream().map(ItemResponse::from).toList(), preview.settlementCurrency(), decimal(preview.totalAmount()), preview.asOf(), preview.earliestExpiry()); }
     }
+    @Schema(requiredProperties = {"settlementId", "status", "items", "settlementCurrency", "totalAmount", "completedAt"})
     record SettlementResponse(UUID settlementId, String status, List<ItemResponse> items, String settlementCurrency, String totalAmount, Instant completedAt) {
         static SettlementResponse from(SettlementService.Result result) { return new SettlementResponse(result.settlementId(), result.status(), result.items().stream().map(ItemResponse::from).toList(), result.settlementCurrency(), decimal(result.totalAmount()), result.completedAt()); }
     }

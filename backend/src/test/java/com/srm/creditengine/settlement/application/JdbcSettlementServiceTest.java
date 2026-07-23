@@ -49,6 +49,18 @@ class JdbcSettlementServiceTest {
         assertThatThrownBy(() -> service.preview(java.util.Arrays.asList((UUID) null), "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Pricing quote IDs must be ordered and unique");
+        assertThatThrownBy(() -> service.preview(quoteIds(101), "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("At most 100 pricing quotes may be settled together");
+    }
+
+    @Test
+    void previewAcceptsTheExactBatchLimitBeforeLookingUpQuotes() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        stubQuotes(jdbc, List.of());
+
+        assertThatThrownBy(() -> service(jdbc).preview(quoteIds(100), "operator"))
+                .isInstanceOf(DomainResourceNotFoundException.class);
     }
 
     @Test
@@ -159,6 +171,12 @@ class JdbcSettlementServiceTest {
                 new JdbcAuditEventRecorder(jdbc),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 mock(FinancialTelemetry.class));
+    }
+
+    private static List<UUID> quoteIds(int count) {
+        return java.util.stream.IntStream.rangeClosed(1, count)
+                .mapToObj(index -> new UUID(0, index))
+                .toList();
     }
 
     private static void stubIdempotency(JdbcTemplate jdbc, String hash) {

@@ -36,6 +36,10 @@ class ReceivableController {
             return value.signum() > 0 && value.scale() <= 4 && value.precision() - value.scale() <= 15;
         }
     }
+    @Schema(requiredProperties = {
+        "id", "assignorId", "productType", "faceAmount", "faceCurrency",
+        "issueDate", "dueDate", "status", "version"
+    })
     record Response(UUID id, UUID assignorId, String productType, String faceAmount,
                     String faceCurrency, LocalDate issueDate, LocalDate dueDate,
                     String status, long version) {

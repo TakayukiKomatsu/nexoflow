@@ -37,7 +37,12 @@ class PricingController {
         }
     }
     record QuoteRequest(@NotNull UUID receivableId, @NotBlank String settlementCurrency) {}
-    @Schema(name = "PricingBreakdownResponse")
+    @Schema(name = "PricingBreakdownResponse", requiredProperties = {
+        "faceAmount", "faceCurrency", "settlementCurrency", "baseRate", "spread",
+        "strategyCode", "dayCountConvention", "termInMonths", "discountedAmount",
+        "fxBaseCurrency", "fxQuoteCurrency", "fxRate", "fxSource", "fxObservedAt",
+        "settlementAmount", "pricedAt"
+    })
     record PricingBreakdownResponse(String faceAmount, String faceCurrency, String settlementCurrency, String baseRate, String spread, String strategyCode, String dayCountConvention, String termInMonths, String discountedAmount, String fxBaseCurrency, String fxQuoteCurrency, String fxRate, String fxSource, Instant fxObservedAt, String settlementAmount, Instant pricedAt) {
         static PricingBreakdownResponse from(PricingService.Breakdown breakdown) {
             return new PricingBreakdownResponse(
@@ -59,6 +64,9 @@ class PricingController {
                     breakdown.pricedAt());
         }
     }
+    @Schema(requiredProperties = {
+        "id", "receivableId", "productType", "dueDate", "pricing", "expiresAt", "status", "createdBy"
+    })
     record QuoteResponse(UUID id, UUID receivableId, String productType, LocalDate dueDate, PricingBreakdownResponse pricing, Instant expiresAt, String status, String createdBy) {
         static QuoteResponse from(PricingService.Quote quote) {
             return new QuoteResponse(

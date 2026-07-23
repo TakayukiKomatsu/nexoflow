@@ -16,6 +16,9 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -119,6 +122,56 @@ class RuntimeMetadataContractTest {
     }
 
     @Test
+    void marksEveryAlwaysSerializedResponsePropertyAsRequiredInOpenApi() throws Exception {
+        JsonNode schemas = new ObjectMapper()
+                .readTree(mockMvc.perform(get("/v3/api-docs"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("components")
+                .path("schemas");
+
+        for (String schemaName : List.of(
+                "AccessToken",
+                "CurrentUser",
+                "EntryResponse",
+                "ItemResponse",
+                "PageResponse",
+                "PreviewResponse",
+                "PricingBreakdownResponse",
+                "QuoteResponse",
+                "Response",
+                "SettlementResponse")) {
+            JsonNode schema = schemas.path(schemaName);
+            Set<String> properties = StreamSupport.stream(
+                            ((Iterable<String>) () -> schema.path("properties").fieldNames()).spliterator(), false)
+                    .collect(Collectors.toSet());
+            Set<String> required = StreamSupport.stream(schema.path("required").spliterator(), false)
+                    .map(JsonNode::asText)
+                    .collect(Collectors.toSet());
+
+            assertThat(required)
+                    .as("required properties for %s", schemaName)
+                    .isEqualTo(properties);
+        }
+
+        assertThat(schemas.path("EntryResponse")
+                        .path("properties")
+                        .path("entryType")
+                        .path("enum"))
+                .extracting(JsonNode::asText)
+                .containsExactly("SETTLEMENT", "REVERSAL");
+        assertThat(schemas.path("CurrentUser")
+                        .path("properties")
+                        .path("roles")
+                        .path("items")
+                        .path("enum"))
+                .extracting(JsonNode::asText)
+                .containsExactly("OPERATOR", "ANALYST", "ADMIN", "AUDITOR");
+    }
+
+    @Test
     void documentsTheMonthlyReferenceRateDomainMaximumInOpenApi() throws Exception {
         JsonNode schemas = new ObjectMapper()
                 .readTree(mockMvc.perform(get("/v3/api-docs"))
@@ -152,6 +205,25 @@ class RuntimeMetadataContractTest {
                         .path("description")
                         .asText())
                 .contains("ten years");
+    }
+
+    @Test
+    void documentsTheSettlementBatchLimitInOpenApi() throws Exception {
+        JsonNode schemas = new ObjectMapper()
+                .readTree(mockMvc.perform(get("/v3/api-docs"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("components")
+                .path("schemas");
+
+        assertThat(schemas.path("QuoteIdsRequest")
+                        .path("properties")
+                        .path("quoteIds")
+                        .path("maxItems")
+                        .asInt())
+                .isEqualTo(100);
     }
 
     @Test

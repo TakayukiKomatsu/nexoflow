@@ -1,9 +1,11 @@
 package com.srm.creditengine.settlement.api;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -54,6 +56,37 @@ class SettlementControllerTest {
         mvc.perform(post("/api/v1/settlement-previews").contentType(MediaType.APPLICATION_JSON).content("{\"quoteIds\":[\"" + quote + "\"]}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].quoteId").value(quote.toString())).andExpect(jsonPath("$.totalAmount").value("1900.0000"));
         verify(settlements).preview(List.of(quote), "operator@srm.local");
+    }
+
+    @Test
+    void previewRejectsMoreThanOneHundredQuoteIdsBeforeCallingTheApplication() throws Exception {
+        mvc.perform(post("/api/v1/settlement-previews")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(quoteIdsRequest(101)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        verifyNoInteractions(settlements);
+    }
+
+    @Test
+    void previewAcceptsExactlyOneHundredQuoteIds() throws Exception {
+        when(actors.currentActor()).thenReturn(actor());
+        when(settlements.preview(any(), eq("operator@srm.local"))).thenReturn(
+                new SettlementService.Preview(
+                        List.of(),
+                        "BRL",
+                        BigDecimal.ZERO,
+                        Instant.parse("2030-01-15T12:00:00Z"),
+                        Instant.parse("2030-01-15T12:15:00Z")));
+
+        mvc.perform(post("/api/v1/settlement-previews")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(quoteIdsRequest(100)))
+                .andExpect(status().isOk());
+
+        verify(settlements).preview(
+                argThat(quoteIds -> quoteIds.size() == 100), eq("operator@srm.local"));
     }
 
     @Test
@@ -199,6 +232,13 @@ class SettlementControllerTest {
 
     private static String quoteRequest() {
         return "{\"quoteIds\":[\"00000000-0000-0000-0000-000000000501\"]}";
+    }
+
+    private static String quoteIdsRequest(int count) {
+        String quoteIds = java.util.stream.IntStream.rangeClosed(1, count)
+                .mapToObj(index -> "\"" + new UUID(0, index) + "\"")
+                .collect(java.util.stream.Collectors.joining(","));
+        return "{\"quoteIds\":[" + quoteIds + "]}";
     }
 
     private static String quoteRequestWith(String property) {

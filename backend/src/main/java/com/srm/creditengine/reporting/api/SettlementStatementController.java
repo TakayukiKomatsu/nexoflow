@@ -1,6 +1,7 @@
 package com.srm.creditengine.reporting.api;
 
 import com.srm.creditengine.reporting.application.SettlementStatementService;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -22,8 +23,24 @@ class SettlementStatementController {
         var result = statements.query(new SettlementStatementService.Filter(from, to, assignorId, assetCurrency, settlementCurrency, productType, page, size));
         return new PageResponse(result.entries().stream().map(EntryResponse::from).toList(), result.page(), result.size(), result.hasNext());
     }
+    @Schema(requiredProperties = {"entries", "page", "size", "hasNext"})
     record PageResponse(java.util.List<EntryResponse> entries, int page, int size, boolean hasNext) {}
-    record EntryResponse(UUID entryId, String entryType, String signedAmount, Instant effectiveAt, UUID settlementId, UUID reversalId, UUID assignorId, String assetCurrency, String settlementCurrency, String productType, UUID receivableId) {
+    @Schema(requiredProperties = {
+        "entryId", "entryType", "signedAmount", "effectiveAt", "settlementId", "reversalId",
+        "assignorId", "assetCurrency", "settlementCurrency", "productType", "receivableId"
+    })
+    record EntryResponse(
+            UUID entryId,
+            @Schema(allowableValues = {"SETTLEMENT", "REVERSAL"}) String entryType,
+            String signedAmount,
+            Instant effectiveAt,
+            UUID settlementId,
+            UUID reversalId,
+            UUID assignorId,
+            String assetCurrency,
+            String settlementCurrency,
+            String productType,
+            UUID receivableId) {
         static EntryResponse from(SettlementStatementService.Entry e) { return new EntryResponse(e.entryId(), e.entryType(), e.signedAmount().toPlainString(), e.effectiveAt(), e.settlementId(), e.reversalId(), e.assignorId(), e.assetCurrency(), e.settlementCurrency(), e.productType(), e.receivableId()); }
     }
 }

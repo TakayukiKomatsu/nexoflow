@@ -12,12 +12,17 @@ import java.util.UUID;
 
 /** Pure settlement validation, aggregate calculation, and deterministic command hashing. */
 public final class SettlementPolicy {
+    public static final int MAX_QUOTE_IDS = 100;
+
     private SettlementPolicy() {
     }
 
     public static void requireOrderedUnique(List<UUID> quoteIds) {
         if (quoteIds == null || quoteIds.isEmpty()) {
             throw new IllegalArgumentException("At least one pricing quote is required");
+        }
+        if (quoteIds.size() > MAX_QUOTE_IDS) {
+            throw new IllegalArgumentException("At most 100 pricing quotes may be settled together");
         }
         if (quoteIds.stream().anyMatch(Objects::isNull) || quoteIds.stream().distinct().count() != quoteIds.size()) {
             throw new IllegalArgumentException("Pricing quote IDs must be ordered and unique");

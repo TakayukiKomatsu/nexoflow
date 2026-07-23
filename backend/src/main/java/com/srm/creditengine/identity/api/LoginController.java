@@ -1,6 +1,7 @@
 package com.srm.creditengine.identity.api;
 
 import com.srm.creditengine.identity.application.AuthenticationService;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -21,13 +22,20 @@ class LoginController {
     }
 
     @PostMapping("/login")
-    AuthenticationService.AccessToken login(
+    AccessTokenResponse login(
             @Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
-        return authentication.authenticate(
-                request.email(), request.password(), httpRequest.getRemoteAddr());
+        return AccessTokenResponse.from(authentication.authenticate(
+                request.email(), request.password(), httpRequest.getRemoteAddr()));
     }
 
     record LoginRequest(
             @Email @NotBlank @Size(max = 254) String email,
             @NotBlank @Size(max = 1024) String password) {}
+
+    @Schema(name = "AccessToken", requiredProperties = {"accessToken", "tokenType", "expiresIn"})
+    record AccessTokenResponse(String accessToken, String tokenType, long expiresIn) {
+        static AccessTokenResponse from(AuthenticationService.AccessToken token) {
+            return new AccessTokenResponse(token.accessToken(), token.tokenType(), token.expiresIn());
+        }
+    }
 }
