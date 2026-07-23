@@ -69,10 +69,6 @@ dependencies {
 
 tasks.named('test') {
     useJUnitPlatform()
-    // NOTE: FinancialModuleLayeringTest is deliberately red on this branch until Task 2
-    // completes the domain/infrastructure refactor. Gradle will report build failures for
-    // those 4 tests; this is expected and intentional. Do NOT add ignoreFailures here —
-    // normal failure behavior must remain so regressions in other tests are caught.
 }
 
 tasks.named('jacocoTestReport') {

@@ -61,7 +61,7 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | DOC-CLAIM-005 | **Implemented** | `docs/sdd/11_sdd_staff-artifacts-and-reviewer-documentation.md`; `scripts/validate-docs.sh` | `make validate-docs`; forbidden-claim scan |
 | AUTHORITY-001 | **Implemented** | `frontend/scripts/validate-authoritative-pricing.mjs` | `make validate-frontend-authority`; browser-side financial-arithmetic guard |
 | API-CONTRACT-001 | **Implemented** | `frontend/scripts/validate-pricing-quote-contract.mjs` | `make validate-frontend-api-contract`; frontend quote/OpenAPI boundary guard |
-| DOC-OPENAPI-006 | **Implemented** | `scripts/validate-api-docs.mjs`; `docs/architecture/api-endpoints.md` | `make validate-docs`; exact controller-to-inventory endpoint comparison plus executable OpenAPI contract |
+| DOC-OPENAPI-006 | **Implemented** | `scripts/validate-api-docs.mjs`; `docs/architecture/api-endpoints.md` | `make validate-docs`; freshly exported canonical OpenAPI-operation-to-inventory comparison plus executable contract |
 | FIN-GIT-003 | **Implemented** | `scripts/tests/test_pre_commit_secret_hook.sh` | `make test-hooks`; generic credential assignment rejection and explicit-placeholder acceptance |
 
 ## Supplementary SDD 04–10 proof matrix
