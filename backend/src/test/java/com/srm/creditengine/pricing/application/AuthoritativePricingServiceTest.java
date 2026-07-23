@@ -18,13 +18,27 @@ import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
 import java.util.Optional;
-import com.srm.creditengine.receivable.application.ReceivableService;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 class AuthoritativePricingServiceTest {
+    @Test
+    void exposesOnlyTheCompleteTypedProductionConstructor() {
+        assertThat(AuthoritativePricingService.class.getDeclaredConstructors())
+                .singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes())
+                        .containsExactly(
+                                ReferenceRateService.class,
+                                CurrencyService.class,
+                                PricingStrategyRegistry.class,
+                                PricingQuoteRepository.class,
+                                ReceivableQuoteReader.class,
+                                Clock.class,
+                                FinancialTelemetry.class));
+    }
+
     @Test
     void PRICE_001_serverSimulatesInvoiceWithoutPersistingAQuote() {
         Instant now = Instant.parse("2030-01-15T12:00:00Z");
@@ -39,7 +53,7 @@ class AuthoritativePricingServiceTest {
             public Conversion resolveConversion(String a,String b,BigDecimal amount,Instant at) { return new Conversion(new Observation(a,b,BigDecimal.ONE,"IDENTITY",at),amount,amount.setScale(2,java.math.RoundingMode.HALF_EVEN)); }
         };
         var registry = new PricingStrategyRegistry(List.of(new InvoicePricingStrategy(), new ChequePricingStrategy()));
-        var service = new AuthoritativePricingService(rates,currency,registry,null,null,Clock.fixed(now,ZoneOffset.UTC));
+        var service = simulationService(rates, currency, registry, Clock.fixed(now, ZoneOffset.UTC));
 
         var result = service.simulate(new PricingService.Input(new BigDecimal("1000.00"),"BRL","MERCANTILE_INVOICE",LocalDate.parse("2030-02-14"),"BRL"));
 
@@ -90,12 +104,10 @@ class AuthoritativePricingServiceTest {
                         amount.setScale(2, java.math.RoundingMode.HALF_EVEN));
             }
         };
-        var service = new AuthoritativePricingService(
+        var service = simulationService(
                 references,
                 currency,
                 new PricingStrategyRegistry(List.of(strategy)),
-                null,
-                null,
                 Clock.fixed(now, ZoneOffset.UTC));
 
         var result = service.simulate(new PricingService.Input(
@@ -125,12 +137,10 @@ class AuthoritativePricingServiceTest {
         CurrencyService currency = mock(CurrencyService.class);
         var registry =
                 new PricingStrategyRegistry(List.of(new InvoicePricingStrategy(), new ChequePricingStrategy()));
-        var service = new AuthoritativePricingService(
+        var service = simulationService(
                 references,
                 currency,
                 registry,
-                null,
-                null,
                 Clock.fixed(now, ZoneOffset.UTC));
 
         assertThatThrownBy(() -> service.simulate(new PricingService.Input(
@@ -162,13 +172,13 @@ class AuthoritativePricingServiceTest {
 
     private static AuthoritativePricingService serviceAt(JdbcTemplate jdbc, Instant instant) {
         return new AuthoritativePricingService(
-                null,
-                null,
-                null,
+                mock(ReferenceRateService.class),
+                mock(CurrencyService.class),
+                mock(PricingStrategyRegistry.class),
                 new JdbcPricingQuoteRepository(jdbc),
-                null,
+                mock(ReceivableQuoteReader.class),
                 Clock.fixed(instant, ZoneOffset.UTC),
-                new FinancialTelemetry(io.micrometer.core.instrument.Metrics.globalRegistry));
+                mock(FinancialTelemetry.class));
     }
 
     private static JdbcTemplate quoteSnapshot(Instant pricedAt, Instant expiresAt) {
@@ -241,8 +251,11 @@ class AuthoritativePricingServiceTest {
     @Test
     void rejectsEveryInvalidSimulationInputBeforeReferenceLookups() {
         Instant now = Instant.parse("2030-01-15T12:00:00Z");
-        var service = new AuthoritativePricingService(
-                null, null, null, null, null, Clock.fixed(now, ZoneOffset.UTC));
+        var service = simulationService(
+                mock(ReferenceRateService.class),
+                mock(CurrencyService.class),
+                mock(PricingStrategyRegistry.class),
+                Clock.fixed(now, ZoneOffset.UTC));
 
         assertThatThrownBy(() -> service.simulate(input(null, "BRL", "MERCANTILE_INVOICE", "2030-02-14", "BRL")))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -295,13 +308,13 @@ class AuthoritativePricingServiceTest {
                         LocalDate.parse("2030-02-14"),
                         "SETTLED")));
         var service = new AuthoritativePricingService(
-                null,
-                null,
-                null,
-                null,
+                mock(ReferenceRateService.class),
+                mock(CurrencyService.class),
+                mock(PricingStrategyRegistry.class),
+                mock(PricingQuoteRepository.class),
                 reader,
                 Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC),
-                new FinancialTelemetry(io.micrometer.core.instrument.Metrics.globalRegistry));
+                mock(FinancialTelemetry.class));
 
         assertThatThrownBy(() -> service.createQuote(RECEIVABLE_ID, "BRL", "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -311,8 +324,10 @@ class AuthoritativePricingServiceTest {
 
     @Test
     void rejectsOverPreciseAmountsBeforeResolvingAnyPricingDependency() {
-        var service = new AuthoritativePricingService(
-                null, null, null, null, null,
+        var service = simulationService(
+                mock(ReferenceRateService.class),
+                mock(CurrencyService.class),
+                mock(PricingStrategyRegistry.class),
                 Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC));
 
         assertThatThrownBy(() -> service.simulate(input(
@@ -321,17 +336,21 @@ class AuthoritativePricingServiceTest {
                 .hasMessage("Face amount must be positive with no more than four decimal places");
     }
 
-    @Test
-    void reportsUnavailableTypedPortsFromTheSimulationCompatibilityConstructor() {
-        var service = new AuthoritativePricingService(
-                null, null, null, null, null,
-                Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC));
-
-        assertThatThrownBy(() -> service.getQuote(UUID.randomUUID()))
-                .hasMessage("Pricing quote repository is unavailable");
-        assertThatThrownBy(() -> service.createQuote(UUID.randomUUID(), "BRL", "operator"))
-                .hasMessage("Receivable quote reader is unavailable");
+    private static AuthoritativePricingService simulationService(
+            ReferenceRateService references,
+            CurrencyService currency,
+            PricingStrategyRegistry strategies,
+            Clock clock) {
+        return new AuthoritativePricingService(
+                references,
+                currency,
+                strategies,
+                mock(PricingQuoteRepository.class),
+                mock(ReceivableQuoteReader.class),
+                clock,
+                mock(FinancialTelemetry.class));
     }
+
     private static PricingService.Input input(
             BigDecimal faceAmount,
             String faceCurrency,

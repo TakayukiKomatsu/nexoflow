@@ -4,7 +4,6 @@ import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
 import com.srm.creditengine.pricing.domain.PricingQuoteSnapshot;
 import com.srm.creditengine.pricing.domain.PricingStrategy;
-import com.srm.creditengine.receivable.application.ReceivableService;
 import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
@@ -15,9 +14,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,7 +30,6 @@ class AuthoritativePricingService implements PricingService {
     private final Clock clock;
     private final FinancialTelemetry telemetry;
 
-    @Autowired
     AuthoritativePricingService(
             ReferenceRateService references,
             CurrencyService currency,
@@ -40,25 +38,13 @@ class AuthoritativePricingService implements PricingService {
             ReceivableQuoteReader receivables,
             Clock clock,
             FinancialTelemetry telemetry) {
-        this.references = references;
-        this.currency = currency;
-        this.strategies = strategies;
-        this.quotes = quotes;
-        this.receivables = receivables;
-        this.clock = clock;
-        this.telemetry = telemetry;
-    }
-
-    // Retained for existing simulation-focused package tests; quote methods require typed ports.
-    AuthoritativePricingService(
-            ReferenceRateService references,
-            CurrencyService currency,
-            PricingStrategyRegistry strategies,
-            ReceivableService ignored,
-            Object ignoredRepository,
-            Clock clock) {
-        this(references, currency, strategies, null, null, clock,
-                new FinancialTelemetry(io.micrometer.core.instrument.Metrics.globalRegistry));
+        this.references = Objects.requireNonNull(references, "references");
+        this.currency = Objects.requireNonNull(currency, "currency");
+        this.strategies = Objects.requireNonNull(strategies, "strategies");
+        this.quotes = Objects.requireNonNull(quotes, "quotes");
+        this.receivables = Objects.requireNonNull(receivables, "receivables");
+        this.clock = Objects.requireNonNull(clock, "clock");
+        this.telemetry = Objects.requireNonNull(telemetry, "telemetry");
     }
 
     @Override
@@ -85,7 +71,7 @@ class AuthoritativePricingService implements PricingService {
     }
 
     private Quote createQuoteUnchecked(UUID receivableId, String settlementCurrency, String actor) {
-        var receivable = requireQuoteReader()
+        var receivable = receivables
                 .lockRegistered(receivableId)
                 .orElseThrow(DomainResourceNotFoundException::new);
         if (!"REGISTERED".equals(receivable.status())) {
@@ -124,14 +110,14 @@ class AuthoritativePricingService implements PricingService {
                 breakdown.settlementAmount(),
                 actor,
                 "ACTIVE");
-        requireQuoteRepository().save(snapshot, actor);
+        quotes.save(snapshot, actor);
         telemetry.quote(receivable.productType(), settlementCurrency, "success");
         return toQuote(snapshot, clock.instant());
     }
 
     @Override
     public Quote getQuote(UUID quoteId) {
-        return requireQuoteRepository()
+        return quotes
                 .findById(quoteId)
                 .map(snapshot -> toQuote(snapshot, clock.instant()))
                 .orElseThrow(DomainResourceNotFoundException::new);
@@ -219,13 +205,4 @@ class AuthoritativePricingService implements PricingService {
                 .monthlyRate();
     }
 
-    private PricingQuoteRepository requireQuoteRepository() {
-        if (quotes == null) throw new IllegalStateException("Pricing quote repository is unavailable");
-        return quotes;
-    }
-
-    private ReceivableQuoteReader requireQuoteReader() {
-        if (receivables == null) throw new IllegalStateException("Receivable quote reader is unavailable");
-        return receivables;
-    }
 }

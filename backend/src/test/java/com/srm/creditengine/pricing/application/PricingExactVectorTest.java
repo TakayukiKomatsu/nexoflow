@@ -2,12 +2,14 @@ package com.srm.creditengine.pricing.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 import com.srm.creditengine.currency.domain.FxConversionService;
 import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
 import com.srm.creditengine.pricing.domain.ChequePricingStrategy;
 import com.srm.creditengine.pricing.domain.InvoicePricingStrategy;
+import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -138,9 +140,10 @@ class PricingExactVectorTest {
                 references,
                 currency,
                 new PricingStrategyRegistry(List.of(new InvoicePricingStrategy(), new ChequePricingStrategy())),
-                null,
-                null,
-                Clock.fixed(PRICED_AT, ZoneOffset.UTC));
+                mock(PricingQuoteRepository.class),
+                mock(ReceivableQuoteReader.class),
+                Clock.fixed(PRICED_AT, ZoneOffset.UTC),
+                mock(FinancialTelemetry.class));
     }
 
     private static CurrencyService identity() {
