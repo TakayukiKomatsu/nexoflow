@@ -302,6 +302,30 @@ class AuthoritativePricingServiceTest {
                 .hasMessage("Only REGISTERED receivables can be quoted");
     }
 
+
+    @Test
+    void rejectsOverPreciseAmountsBeforeResolvingAnyPricingDependency() {
+        var service = new AuthoritativePricingService(
+                null, null, null, null, null,
+                Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.simulate(input(
+                new BigDecimal("1.00001"), "BRL", "MERCANTILE_INVOICE", "2030-02-14", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Face amount must be positive with no more than four decimal places");
+    }
+
+    @Test
+    void reportsUnavailableTypedPortsFromTheSimulationCompatibilityConstructor() {
+        var service = new AuthoritativePricingService(
+                null, null, null, null, null,
+                Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.getQuote(UUID.randomUUID()))
+                .hasMessage("Pricing quote repository is unavailable");
+        assertThatThrownBy(() -> service.createQuote(UUID.randomUUID(), "BRL", "operator"))
+                .hasMessage("Receivable quote reader is unavailable");
+    }
     private static PricingService.Input input(
             BigDecimal faceAmount,
             String faceCurrency,

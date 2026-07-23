@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.core.importer.ImportOption;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -34,7 +35,9 @@ class FinancialModuleLayeringTest {
 
     @BeforeAll
     void loadClasses() {
-        classes = new ClassFileImporter().importPackages("com.srm.creditengine");
+        classes = new ClassFileImporter()
+                .withImportOption(new ImportOption.DoNotIncludeTests())
+                .importPackages("com.srm.creditengine");
     }
 
     // ── Rule 1a ─────────────────────────────────────────────────────────────────────────────────

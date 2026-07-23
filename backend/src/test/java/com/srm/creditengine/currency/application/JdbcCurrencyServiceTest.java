@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import com.srm.creditengine.currency.infrastructure.JdbcCurrencyService;
+import com.srm.creditengine.currency.domain.FxObservation;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -96,14 +98,14 @@ class JdbcCurrencyServiceTest {
                 .hasMessage("No exchange rate is available for the requested currency pair.");
 
         verify(jdbc, org.mockito.Mockito.times(2)).query(
-                any(String.class), org.mockito.ArgumentMatchers.<RowMapper<CurrencyService.Observation>>any(),
+                any(String.class), org.mockito.ArgumentMatchers.<RowMapper<FxObservation>>any(),
                 any(), any(), any());
     }
 
     @Test
     void acceptsDirectRateAtTheExactTwentyFourHourBoundary() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
-        CurrencyService.Observation boundary = observation(
+        FxObservation boundary = observation(
                 "BRL", "USD", "0.20", NOW.minus(Duration.ofHours(24)));
         when(latestQuery(jdbc)).thenReturn(List.of(boundary), List.of());
         var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
@@ -111,14 +113,16 @@ class JdbcCurrencyServiceTest {
         CurrencyService.Conversion result =
                 service.resolveConversion("brl", "usd", new BigDecimal("100.00"), NOW);
 
-        assertThat(result.observation()).isEqualTo(boundary);
+        assertThat(result.observation()).extracting(
+                CurrencyService.Observation::base, CurrencyService.Observation::quote, CurrencyService.Observation::rate)
+                .containsExactly(boundary.base(), boundary.quote(), boundary.rate());
         assertThat(result.settlementAmount()).isEqualByComparingTo("20.00");
     }
 
     @Test
     void acceptsInverseRateAtTheExactTwentyFourHourBoundary() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
-        CurrencyService.Observation boundary = observation(
+        FxObservation boundary = observation(
                 "USD", "BRL", "5.00", NOW.minus(Duration.ofHours(24)));
         when(latestQuery(jdbc)).thenReturn(List.of(), List.of(boundary));
         var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
@@ -126,16 +130,18 @@ class JdbcCurrencyServiceTest {
         CurrencyService.Conversion result =
                 service.resolveConversion("BRL", "USD", new BigDecimal("100.00"), NOW);
 
-        assertThat(result.observation()).isEqualTo(boundary);
+        assertThat(result.observation()).extracting(
+                CurrencyService.Observation::base, CurrencyService.Observation::quote, CurrencyService.Observation::rate)
+                .containsExactly(boundary.base(), boundary.quote(), boundary.rate());
         assertThat(result.settlementAmount()).isEqualByComparingTo("20.00");
     }
 
     @Test
     void usesFreshInverseWhenDirectRateIsStale() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
-        CurrencyService.Observation staleDirect = observation(
+        FxObservation staleDirect = observation(
                 "BRL", "USD", "0.20", NOW.minus(Duration.ofHours(24)).minusNanos(1));
-        CurrencyService.Observation freshInverse = observation(
+        FxObservation freshInverse = observation(
                 "USD", "BRL", "5.00", NOW.minusSeconds(1));
         when(latestQuery(jdbc)).thenReturn(List.of(staleDirect), List.of(freshInverse));
         var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
@@ -143,14 +149,16 @@ class JdbcCurrencyServiceTest {
         CurrencyService.Conversion result =
                 service.resolveConversion("BRL", "USD", new BigDecimal("100.00"), NOW);
 
-        assertThat(result.observation()).isEqualTo(freshInverse);
+        assertThat(result.observation()).extracting(
+                CurrencyService.Observation::base, CurrencyService.Observation::quote, CurrencyService.Observation::rate)
+                .containsExactly(freshInverse.base(), freshInverse.quote(), freshInverse.rate());
         assertThat(result.settlementAmount()).isEqualByComparingTo("20.00");
     }
 
     @Test
     void reportsStaleWhenNeitherOrientationIsFresh() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
-        CurrencyService.Observation stale = observation(
+        FxObservation stale = observation(
                 "BRL", "USD", "0.20", NOW.minus(Duration.ofHours(24)).minusNanos(1));
         when(latestQuery(jdbc)).thenReturn(List.of(stale), List.of());
         var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
@@ -164,7 +172,7 @@ class JdbcCurrencyServiceTest {
     @Test
     void reportsStaleWhenOnlyTheInverseObservationIsStale() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
-        CurrencyService.Observation staleInverse = observation(
+        FxObservation staleInverse = observation(
                 "USD", "BRL", "5.00", NOW.minus(Duration.ofHours(24)).minusNanos(1));
         when(latestQuery(jdbc)).thenReturn(List.of(), List.of(staleInverse));
         var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
@@ -209,15 +217,15 @@ class JdbcCurrencyServiceTest {
                 .hasMessage("Actor is required");
         verifyNoInteractions(jdbc);
     }
-    private static List<CurrencyService.Observation> latestQuery(JdbcTemplate jdbc) {
+    private static List<FxObservation> latestQuery(JdbcTemplate jdbc) {
         return jdbc.query(
-                any(String.class), org.mockito.ArgumentMatchers.<RowMapper<CurrencyService.Observation>>any(),
+                any(String.class), org.mockito.ArgumentMatchers.<RowMapper<FxObservation>>any(),
                 any(), any(), any());
     }
 
-    private static CurrencyService.Observation observation(
+    private static FxObservation observation(
             String base, String quote, String rate, Instant observedAt) {
-        return new CurrencyService.Observation(
+        return new FxObservation(
                 base, quote, new BigDecimal(rate), "provider", observedAt);
     }
 }

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
+import com.srm.creditengine.settlement.infrastructure.JdbcSettlementService;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.Clock;
@@ -153,14 +154,14 @@ class JdbcSettlementServiceTest {
     }
 
     private static void stubIdempotency(JdbcTemplate jdbc, String hash) {
-        when(jdbc.query(startsWith("select id,request_hash,settlement_id,status"), any(RowMapper.class), any(Object[].class)))
+        when(jdbc.query(startsWith("select id,request_hash,settlement_id,reversal_id,status"), any(RowMapper.class), any(Object[].class)))
                 .thenAnswer(invocation -> map(
                         invocation.getArgument(1),
                         idempotencyResultSet(hash)));
     }
 
     private static void stubReversalIdempotency(JdbcTemplate jdbc, String hash) {
-        when(jdbc.query(startsWith("select id,request_hash,reversal_id,status"), any(RowMapper.class), any(Object[].class)))
+        when(jdbc.query(startsWith("select id,request_hash,settlement_id,reversal_id,status"), any(RowMapper.class), any(Object[].class)))
                 .thenAnswer(invocation -> map(
                         invocation.getArgument(1),
                         idempotencyResultSet(hash)));
@@ -175,7 +176,8 @@ class JdbcSettlementServiceTest {
         when(rs.getObject(1, UUID.class)).thenReturn(UUID.randomUUID());
         when(rs.getString(2)).thenReturn(hash);
         when(rs.getObject(3, UUID.class)).thenReturn(null);
-        when(rs.getString(4)).thenReturn("PROCESSING");
+        when(rs.getObject(4, UUID.class)).thenReturn(null);
+        when(rs.getString(5)).thenReturn("PROCESSING");
         return rs;
     }
 

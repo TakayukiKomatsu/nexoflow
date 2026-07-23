@@ -3,6 +3,7 @@ package com.srm.creditengine.currency.application;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
+import com.srm.creditengine.currency.infrastructure.JdbcReferenceRateService;
 
 import java.math.BigDecimal;
 import java.time.Instant;

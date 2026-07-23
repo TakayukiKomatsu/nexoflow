@@ -56,6 +56,20 @@ class ReceivableRegistrationTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+
+    @Test
+    void rejectsMissingAmountIssueDateAndDueDate() {
+        var assignor = UUID.randomUUID();
+        assertThatThrownBy(() -> ReceivableRegistration.validate(new RegisterCommand(
+                null, assignor, "MERCANTILE_INVOICE", null, "BRL", LocalDate.of(2030, 1, 1),
+                LocalDate.of(2030, 2, 1), "operator@srm.local"))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ReceivableRegistration.validate(new RegisterCommand(
+                null, assignor, "MERCANTILE_INVOICE", BigDecimal.ONE, "BRL", null,
+                LocalDate.of(2030, 2, 1), "operator@srm.local"))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ReceivableRegistration.validate(new RegisterCommand(
+                null, assignor, "MERCANTILE_INVOICE", BigDecimal.ONE, "BRL", LocalDate.of(2030, 1, 1),
+                null, "operator@srm.local"))).isInstanceOf(IllegalArgumentException.class);
+    }
     @Test
     void acceptsValidCommand() {
         var command = new RegisterCommand(null, UUID.randomUUID(), "MERCANTILE_INVOICE",
