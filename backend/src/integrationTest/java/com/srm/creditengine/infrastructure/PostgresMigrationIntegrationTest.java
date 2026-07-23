@@ -7,6 +7,7 @@ import static org.assertj.core.api.SoftAssertions.assertSoftly;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Date;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -17,6 +18,8 @@ import java.util.TimeZone;
 import java.util.UUID;
 import javax.sql.DataSource;
 
+import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationVersion;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -275,7 +278,151 @@ class PostgresMigrationIntegrationTest {
     }
 
     @Test
-    void idempotencyRecordPermitsOneCompletionThenRejectsMutationAndDeletion() {
+    void v23PreservesLegacyJdbcInstantsWrittenUnderTheOriginalApplicationTimeZone()
+            throws Exception {
+        String legacyTimeZoneProperty = "srm.migration.v23.legacy-time-zone";
+        String schema = "legacy_time_" + UUID.randomUUID().toString().replace("-", "");
+        UUID exchangeRateId = UUID.randomUUID();
+        UUID applicationBaseRateId = UUID.randomUUID();
+        Instant observedAt = Instant.parse("2030-01-01T00:00:00Z");
+        Instant createdAt = observedAt.plusSeconds(1);
+        Instant applicationBaseRateAt = Instant.parse("2029-06-01T12:00:00Z");
+        TimeZone originalTimeZone = TimeZone.getDefault();
+        String originalLegacyTimeZone = System.getProperty(legacyTimeZoneProperty);
+        TimeZone.setDefault(TimeZone.getTimeZone("America/Sao_Paulo"));
+        try {
+            Flyway.configure()
+                    .dataSource(
+                            postgres.getJdbcUrl(),
+                            postgres.getUsername(),
+                            postgres.getPassword())
+                    .schemas(schema)
+                    .defaultSchema(schema)
+                    .target(MigrationVersion.fromVersion("22"))
+                    .load()
+                    .migrate();
+
+            try (Connection connection = DriverManager.getConnection(
+                            postgres.getJdbcUrl(),
+                            postgres.getUsername(),
+                            postgres.getPassword());
+                    PreparedStatement insert = connection.prepareStatement(
+                            """
+                            insert into exchange_rates
+                                (id,base_currency_code,quote_currency_code,rate,source,
+                                 observed_at,created_at,created_by)
+                            values (?,?,?,?,?,?,?,?)
+                            """);
+                    PreparedStatement insertBaseRate = connection.prepareStatement(
+                            """
+                            insert into base_rate_versions
+                                (id,currency_code,monthly_rate,effective_at,created_by)
+                            values (?,?,?,?,?)
+                            """)) {
+                connection.setSchema(schema);
+                assertThat(queryString(connection, "show timezone"))
+                        .isEqualTo("America/Sao_Paulo");
+                insert.setObject(1, exchangeRateId);
+                insert.setString(2, "BRL");
+                insert.setString(3, "USD");
+                insert.setBigDecimal(4, new BigDecimal("0.2000000000"));
+                insert.setString(5, "legacy-jdbc");
+                insert.setTimestamp(6, Timestamp.from(observedAt));
+                insert.setTimestamp(7, Timestamp.from(createdAt));
+                insert.setString(8, "migration-test");
+                assertThat(insert.executeUpdate()).isEqualTo(1);
+                insertBaseRate.setObject(1, applicationBaseRateId);
+                insertBaseRate.setString(2, "BRL");
+                insertBaseRate.setBigDecimal(3, new BigDecimal("0.0200000000"));
+                insertBaseRate.setTimestamp(4, Timestamp.from(applicationBaseRateAt));
+                insertBaseRate.setString(5, "operator@srm.local");
+                assertThat(insertBaseRate.executeUpdate()).isEqualTo(1);
+
+                assertThat(queryString(
+                                connection,
+                                "select observed_at::text from exchange_rates where id='"
+                                        + exchangeRateId + "'"))
+                        .isEqualTo("2029-12-31 21:00:00");
+                assertThat(queryInstant(
+                                connection,
+                                "select observed_at from exchange_rates where id=?",
+                                exchangeRateId))
+                        .isEqualTo(observedAt);
+                assertThat(queryString(
+                                connection,
+                                "select effective_at::text from base_rate_versions where id='"
+                                        + applicationBaseRateId + "'"))
+                        .isEqualTo("2029-06-01 09:00:00");
+                assertThat(queryInstant(
+                                connection,
+                                "select effective_at from base_rate_versions where id=?",
+                                applicationBaseRateId))
+                        .isEqualTo(applicationBaseRateAt);
+            }
+
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            try (Connection connection = DriverManager.getConnection(
+                    postgres.getJdbcUrl(),
+                    postgres.getUsername(),
+                    postgres.getPassword())) {
+                assertThat(queryString(connection, "show timezone")).isEqualTo("UTC");
+            }
+            System.setProperty(legacyTimeZoneProperty, "America/Sao_Paulo");
+            Flyway.configure()
+                    .dataSource(
+                            postgres.getJdbcUrl(),
+                            postgres.getUsername(),
+                            postgres.getPassword())
+                    .schemas(schema)
+                    .defaultSchema(schema)
+                    .load()
+                    .migrate();
+
+            try (Connection connection = DriverManager.getConnection(
+                    postgres.getJdbcUrl(),
+                    postgres.getUsername(),
+                    postgres.getPassword())) {
+                connection.setSchema(schema);
+                assertThat(queryInstant(
+                                connection,
+                                "select observed_at from exchange_rates where id=?",
+                                exchangeRateId))
+                        .isEqualTo(observedAt);
+                assertThat(queryInstant(
+                                connection,
+                                "select created_at from exchange_rates where id=?",
+                                exchangeRateId))
+                        .isEqualTo(createdAt);
+                assertThat(queryInstant(
+                                connection,
+                                "select effective_at from base_rate_versions where id=?",
+                                applicationBaseRateId))
+                        .isEqualTo(applicationBaseRateAt);
+                assertThat(queryInstant(
+                                connection,
+                                "select effective_at from base_rate_versions "
+                                        + "where id='00000000-0000-0000-0000-000000000103'"))
+                        .isEqualTo(Instant.parse("2030-01-01T00:00:00Z"));
+            }
+        } finally {
+            TimeZone.setDefault(originalTimeZone);
+            if (originalLegacyTimeZone == null) {
+                System.clearProperty(legacyTimeZoneProperty);
+            } else {
+                System.setProperty(legacyTimeZoneProperty, originalLegacyTimeZone);
+            }
+            try (Connection connection = DriverManager.getConnection(
+                            postgres.getJdbcUrl(),
+                            postgres.getUsername(),
+                            postgres.getPassword());
+                    var statement = connection.createStatement()) {
+                statement.execute("drop schema if exists " + schema + " cascade");
+            }
+        }
+    }
+
+    @Test
+    void completedIdempotencyRecordIsImmutableUntilRetentionDeletesIt() {
         UUID settlementId = newSettlement();
         UUID recordId = insertProcessingIdempotencyRecord("completion");
         Instant completedAt = Instant.parse("2045-01-02T03:04:05Z");
@@ -304,14 +451,14 @@ class PostgresMigrationIntegrationTest {
                         Timestamp.from(completedAt.plusSeconds(1)),
                         recordId))
                 .hasMessageContaining("completed idempotency records are immutable");
-        assertThatThrownBy(() -> jdbc.update(
+        assertThat(jdbc.update(
                         "delete from idempotency_records where id=?", recordId))
-                .hasMessageContaining("idempotency records cannot be deleted");
+                .isEqualTo(1);
         assertThat(jdbc.queryForObject(
                         "select count(*) from idempotency_records where id=?",
                         Integer.class,
                         recordId))
-                .isEqualTo(1);
+                .isZero();
     }
 
     @Test
@@ -336,7 +483,7 @@ class PostgresMigrationIntegrationTest {
                     .hasMessageContaining("idempotency request identity is immutable");
             softly.assertThatThrownBy(() -> jdbc.update(
                             "delete from idempotency_records where id=?", deletionRecordId))
-                    .hasMessageContaining("idempotency records cannot be deleted");
+                    .hasMessageContaining("processing idempotency records cannot be deleted");
         });
         assertThat(jdbc.queryForObject(
                         "select count(*) from idempotency_records where id in (?,?,?)",

@@ -38,6 +38,29 @@ npm --prefix frontend run dev
 
 Required environment variables (see `.env.example`): `SRM_DB_URL`, `SRM_DB_USERNAME`, `SRM_DB_PASSWORD`, `SRM_JWT_SECRET` (≥32 random bytes). With `SPRING_PROFILES_ACTIVE=dev`, the `SRM_DEV_OPERATOR_*` and `SRM_DEV_ADMIN_*` pairs independently seed local `OPERATOR` and `ADMIN` users through `DevelopmentOperatorSeeder` (`backend/src/main/java/com/srm/creditengine/identity/infrastructure/DevelopmentOperatorSeeder.java`). A blank pair is skipped independently. The seeder never runs outside `dev`; `test` and production profiles seed no credentials. `VITE_BACKEND_ORIGIN` defaults to `http://127.0.0.1:8080` and is used only by the native Vite proxy; Compose routes `/api` through nginx.
 
+### Upgrading a V1–V22 database through V23
+
+V1–V22 stored application `Instant` values as PostgreSQL `timestamp without
+time zone`, using the legacy JVM/default zone as the wall-time encoding. Before
+the first V23 startup:
+
+1. Stop all writers, take a recoverable backup, and reserve a maintenance
+   window. V23 changes sixteen timestamp column types with heavyweight table
+   locks and may rewrite populated tables; it is not an online rolling upgrade.
+2. Identify the single IANA zone used by the legacy application writers. V23
+   selects `-Dsrm.migration.v23.legacy-time-zone=<zone>` first,
+   `SRM_MIGRATION_V23_LEGACY_TIME_ZONE=<zone>` second, and the upgrade JVM
+   default last. Set an override whenever the upgrade host's zone differs from
+   the legacy writers, for example
+   `SRM_MIGRATION_V23_LEGACY_TIME_ZONE=America/Sao_Paulo`.
+3. Do not run V23 over rows written in multiple legacy zones. Their provenance
+   is ambiguous and needs an explicit reconciliation migration. An invalid or
+   PostgreSQL-unsupported override fails migration rather than falling back.
+
+The six deterministic reference-rate rows with Flyway-owned stable IDs retain
+their authored UTC literals. After V23, all persisted instants use
+`timestamp with time zone` and no longer depend on the session zone.
+
 ## 2. Verification suite
 
 Run in this order; each target maps directly to a `Makefile` recipe.

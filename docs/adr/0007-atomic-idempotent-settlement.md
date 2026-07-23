@@ -21,6 +21,11 @@ the idempotency record. Same key/hash returns the original response; a different
 hash returns `409`. Database uniqueness and versions are final race safeguards.
 Do not automatically retry Settlement transactions.
 
+The database rejects deletion of `PROCESSING` records and every identity/status
+mutation outside the one `PROCESSING` → `COMPLETED` transition. A `COMPLETED`
+record remains update-immutable but may be deleted by an explicit retention
+process; deleting it deliberately ends replay for that expired key.
+
 ## Alternatives considered
 
 - Client-only retry suppression: rejected because clients crash and requests
