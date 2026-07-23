@@ -622,6 +622,59 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     expect(ledger).toHaveAttribute("aria-busy", "false");
   });
 
+  it("shows an actionable empty state and clears ledger filters", async () => {
+    const fetchMock = vi.fn(() =>
+      json({ entries: [], page: 0, size: 50, hasNext: false }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    window.history.replaceState(
+      null,
+      "",
+      "/?settlementCurrency=BRL&productType=MERCANTILE_INVOICE&page=2",
+    );
+
+    render(<SettlementWorkspace session={session} quotes={[]} />);
+
+    expect(
+      await screen.findByText("No settlement entries match these filters."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear ledger filters" }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(window.location.search).toBe("");
+    expect(screen.getByLabelText("Ledger settlement currency")).toHaveValue("");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a failed statement request without changing its filters", async () => {
+    let requests = 0;
+    const fetchMock = vi.fn((_url: string) => {
+      requests += 1;
+      return requests === 1
+        ? problem("REPORT_FAILED", 500)
+        : json({ entries: [], page: 0, size: 25, hasNext: false });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    window.history.replaceState(null, "", "/?assetCurrency=USD&size=25");
+
+    render(<SettlementWorkspace session={session} quotes={[]} />);
+
+    await screen.findByText("REPORT_FAILED");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry statement request" }),
+    );
+    expect(
+      await screen.findByText("No settlement entries match these filters."),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toContain("assetCurrency=USD");
+    expect(window.location.search).toContain("assetCurrency=USD");
+  });
+
   it("keeps filters in the URL and renders settlement and reversal as separate signed rows", async () => {
     const fetchMock = vi.fn((_url: string) =>
       json({

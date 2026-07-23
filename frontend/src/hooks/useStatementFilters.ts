@@ -147,5 +147,34 @@ export function useStatementFilters(session: Session, refreshRevision: number) {
     setSearch(new URLSearchParams(next));
   }
 
-  return { change, filters, loading, message, move, page };
+  function clear() {
+    const next = new URLSearchParams();
+    if (filterTimeout.current !== undefined) {
+      window.clearTimeout(filterTimeout.current);
+      filterTimeout.current = undefined;
+    }
+    statementRequestId.current += 1;
+    statementAbort.current?.abort();
+    updateLocation(next, "replaceState");
+    setFilters(next);
+    setPage(undefined);
+    setMessage(undefined);
+    setLoading(true);
+    setSearch(new URLSearchParams(next));
+  }
+
+  function retry() {
+    if (filterTimeout.current !== undefined) {
+      window.clearTimeout(filterTimeout.current);
+      filterTimeout.current = undefined;
+    }
+    statementRequestId.current += 1;
+    statementAbort.current?.abort();
+    setPage(undefined);
+    setMessage(undefined);
+    setLoading(true);
+    setSearch(new URLSearchParams(search));
+  }
+
+  return { change, clear, filters, loading, message, move, page, retry };
 }

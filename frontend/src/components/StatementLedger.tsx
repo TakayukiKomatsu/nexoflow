@@ -12,10 +12,8 @@ export function StatementLedger({
   session: Session;
   refreshRevision: number;
 }) {
-  const { change, filters, loading, message, move, page } = useStatementFilters(
-    session,
-    refreshRevision,
-  );
+  const { change, clear, filters, loading, message, move, page, retry } =
+    useStatementFilters(session, refreshRevision);
 
   return (
     <section
@@ -98,36 +96,57 @@ export function StatementLedger({
       </div>
       {loading && <p role="status">Loading settlement statement…</p>}
       {message && (
-        <p className="error" role="alert">
-          {message}
-        </p>
+        <div>
+          <p className="error" role="alert">
+            {message}
+          </p>
+          <div className="actions">
+            <button className="secondary" onClick={retry}>
+              Retry statement request
+            </button>
+          </div>
+        </div>
       )}
-      <table>
-        <thead>
-          <tr>
-            <th>Type</th>
-            <th>Signed amount</th>
-            <th>Currency</th>
-            <th>Settlement</th>
-            <th>Effective at</th>
-          </tr>
-        </thead>
-        <tbody>
-          {page?.entries.map((entry) => (
-            <tr key={entry.entryId} className={entry.entryType.toLowerCase()}>
-              <td>{entry.entryType}</td>
-              <td>{entry.signedAmount}</td>
-              <td>{entry.settlementCurrency}</td>
-              <td>
-                <a href={`#settlement-${entry.settlementId}`}>
-                  {entry.settlementId}
-                </a>
-              </td>
-              <td>{entry.effectiveAt}</td>
+      {page?.entries.length === 0 && !message && (
+        <div>
+          <p className="empty" role="status">
+            No settlement entries match these filters.
+          </p>
+          <div className="actions">
+            <button className="secondary" onClick={clear}>
+              Clear ledger filters
+            </button>
+          </div>
+        </div>
+      )}
+      {page && page.entries.length > 0 && (
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Signed amount</th>
+              <th>Currency</th>
+              <th>Settlement</th>
+              <th>Effective at</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {page.entries.map((entry) => (
+              <tr key={entry.entryId} className={entry.entryType.toLowerCase()}>
+                <td>{entry.entryType}</td>
+                <td>{entry.signedAmount}</td>
+                <td>{entry.settlementCurrency}</td>
+                <td>
+                  <a href={`#settlement-${entry.settlementId}`}>
+                    {entry.settlementId}
+                  </a>
+                </td>
+                <td>{entry.effectiveAt}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {page && (
         <div className="pager">
           <button
