@@ -163,15 +163,7 @@ function Login({ onSession }: { onSession: (session: Session) => void }) {
   );
 }
 
-function Workflow({
-  session,
-  onExpired,
-  onSignOut,
-}: {
-  session: Session;
-  onExpired: () => void;
-  onSignOut: () => void;
-}) {
+function usePricingWorkflow(session: Session) {
   const [values, setValues] = useState(initialValues);
   const [simulation, setSimulation] = useState<PricingSimulation>();
   const [quotes, setQuotes] = useState<PricingQuote[]>([]);
@@ -208,6 +200,11 @@ function Workflow({
   const canViewLedger = session.roles.some((role) =>
     ["OPERATOR", "ANALYST", "ADMIN", "AUDITOR"].includes(role),
   );
+
+  /*
+   * The hook owns request ordering, stale-result semantics, and mutation
+   * deduplication. The render Module below only consumes this interface.
+   */
 
   useEffect(() => {
     if (focusAlert && feedback?.kind === "error") {
@@ -256,7 +253,6 @@ function Workflow({
         if (controller.signal.aborted || currentRequest !== requestId.current)
           return;
         if (cause instanceof ApiError && cause.status === 401) {
-          onExpired();
           return;
         }
         setFocusAlert(true);
@@ -283,7 +279,6 @@ function Workflow({
     simulationError,
     canCreate,
     session.accessToken,
-    onExpired,
   ]);
 
   function set<K extends keyof FormValues>(key: K, value: FormValues[K]) {
@@ -388,6 +383,58 @@ function Workflow({
       setQuotePending(false);
     }
   }
+
+  const consumeQuotes = useCallback((consumedQuoteIds: string[]) => {
+    setQuotes((current) =>
+      current.filter(({ id }) => !consumedQuoteIds.includes(id)),
+    );
+  }, []);
+
+  return {
+    alertRef,
+    canCreate,
+    canViewLedger,
+    consumeQuotes,
+    createQuote,
+    createReceivable,
+    feedback,
+    fieldErrors,
+    quotePending,
+    quotes,
+    receivableId,
+    receivablePending,
+    set,
+    simulation,
+    state,
+    values,
+  };
+}
+
+function PricingModule({
+  session,
+  onSignOut,
+}: {
+  session: Session;
+  onSignOut: () => void;
+}) {
+  const {
+    alertRef,
+    canCreate,
+    canViewLedger,
+    consumeQuotes,
+    createQuote,
+    createReceivable,
+    feedback,
+    fieldErrors,
+    quotePending,
+    quotes,
+    receivableId,
+    receivablePending,
+    set,
+    simulation,
+    state,
+    values,
+  } = usePricingWorkflow(session);
 
   return (
     <main className="workflow">
@@ -729,6 +776,10 @@ function Workflow({
                     <dt>Status</dt>
                     <dd>{quote.status}</dd>
                   </div>
+                  <div>
+                    <dt>Created by</dt>
+                    <dd>{quote.createdBy}</dd>
+                  </div>
                 </dl>
               </article>
             ))}
@@ -738,19 +789,14 @@ function Workflow({
       <SettlementWorkspace
         session={session}
         quotes={quotes}
-        onExpired={onExpired}
-        onSettled={(consumedQuoteIds) =>
-          setQuotes((current) =>
-            current.filter(({ id }) => !consumedQuoteIds.includes(id)),
-          )
-        }
+        onSettled={consumeQuotes}
         showLedger={canViewLedger}
       />
     </main>
   );
 }
 
-export default function App() {
+function useSessionLifecycle() {
   const [session, setSession] = useState<Session | undefined>(loadSession);
   useEffect(() => subscribeToSessionExpiry(() => setSession(undefined)), []);
   useEffect(() => {
@@ -771,8 +817,13 @@ export default function App() {
     clearSession();
     setSession(undefined);
   }, []);
+  return { end, establish, session };
+}
+
+export default function App() {
+  const { end, establish, session } = useSessionLifecycle();
   return session ? (
-    <Workflow session={session} onExpired={end} onSignOut={end} />
+    <PricingModule session={session} onSignOut={end} />
   ) : (
     <Login onSession={establish} />
   );

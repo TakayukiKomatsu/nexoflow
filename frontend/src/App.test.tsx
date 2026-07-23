@@ -111,6 +111,7 @@ const quote = {
   pricing: pricing("966.18"),
   expiresAt: "2030-01-15T12:05:00Z",
   status: "ACTIVE",
+  createdBy: "operator@srm.local",
 };
 
 const ASSIGNOR_A = "11111111-1111-1111-1111-111111111111";
@@ -684,9 +685,11 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
       "Priced at",
       "Expires at",
       "Status",
+      "Created by",
     ]) {
       expect(within(breakdown!).getByText(term)).toBeVisible();
     }
+    expect(within(breakdown!).getByText("operator@srm.local")).toBeVisible();
     expect(within(breakdown!).getByText("2030-01-15T12:05:00Z")).toBeVisible();
     expect(within(breakdown!).getByText("ACTIVE")).toBeVisible();
   });

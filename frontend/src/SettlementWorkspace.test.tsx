@@ -69,6 +69,7 @@ function deferred<T>() {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.useRealTimers();
   localStorage.clear();
   window.history.replaceState(null, "", "/");
@@ -945,7 +946,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
   ])(
     "explains preview authorization failure %i without retaining a preview",
     async (status, expectedMessage) => {
-      const onExpired = vi.fn();
+      const dispatchEvent = vi.spyOn(window, "dispatchEvent");
       vi.stubGlobal(
         "fetch",
         vi.fn((url: string) => {
@@ -957,11 +958,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         }),
       );
       render(
-        <SettlementWorkspace
-          session={session}
-          quotes={[quote]}
-          onExpired={onExpired}
-        />,
+        <SettlementWorkspace session={session} quotes={[quote]} />,
       );
 
       fireEvent.click(screen.getByRole("checkbox"));
@@ -971,7 +968,11 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
 
       expect(await screen.findByText(expectedMessage)).toBeInTheDocument();
       expect(screen.queryByLabelText("Server settlement preview")).toBeNull();
-      expect(onExpired).toHaveBeenCalledTimes(status === 401 ? 1 : 0);
+      expect(
+        dispatchEvent.mock.calls.filter(
+          ([event]) => event.type === "srm:session-expired",
+        ),
+      ).toHaveLength(status === 401 ? 1 : 0);
     },
   );
 
@@ -1087,8 +1088,8 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     expect(window.location.search).toContain("page=2");
   });
 
-  it("expires the actor after a settlement-detail authorization failure", async () => {
-    const onExpired = vi.fn();
+  it("routes settlement-detail authorization failure through the session module", async () => {
+    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -1103,7 +1104,6 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       <SettlementWorkspace
         session={session}
         quotes={[]}
-        onExpired={onExpired}
         showLedger={false}
       />,
     );
@@ -1111,10 +1111,14 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     expect(
       await screen.findByText("Your session has expired. Sign in again."),
     ).toBeInTheDocument();
-    expect(onExpired).toHaveBeenCalledTimes(1);
+    expect(
+      dispatchEvent.mock.calls.filter(
+        ([event]) => event.type === "srm:session-expired",
+      ),
+    ).toHaveLength(1);
   });
-  it("expires the actor after a settlement authorization failure", async () => {
-    const onExpired = vi.fn();
+  it("routes settlement authorization failure through the session module", async () => {
+    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -1125,13 +1129,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={onExpired}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
 
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
@@ -1141,7 +1139,11 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm settlement" }));
 
     await screen.findByText(/Retry uses the same settlement intent/);
-    expect(onExpired).toHaveBeenCalledTimes(1);
+    expect(
+      dispatchEvent.mock.calls.filter(
+        ([event]) => event.type === "srm:session-expired",
+      ),
+    ).toHaveLength(1);
   });
   it("silently discards an aborted preview request", async () => {
     vi.stubGlobal(
@@ -1269,8 +1271,8 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     expect(onExpired).not.toHaveBeenCalled();
   });
 
-  it("expires the actor when the ledger request returns unauthorized", async () => {
-    const onExpired = vi.fn();
+  it("routes ledger authorization failure through the session module", async () => {
+    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -1279,17 +1281,15 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[]}
-        onExpired={onExpired}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[]} />);
 
     expect(
       await screen.findByText("Your session has expired. Sign in again."),
     ).toBeInTheDocument();
-    expect(onExpired).toHaveBeenCalledTimes(1);
+    expect(
+      dispatchEvent.mock.calls.filter(
+        ([event]) => event.type === "srm:session-expired",
+      ),
+    ).toHaveLength(1);
   });
 });

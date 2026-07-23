@@ -60,19 +60,18 @@ function errorMessage(cause: unknown, fallback: string) {
   return cause.message;
 }
 
-export function SettlementWorkspace({
-  session,
-  quotes,
-  onExpired,
-  onSettled = () => undefined,
-  showLedger = true,
-}: {
+type SettlementWorkflowProps = {
   session: Session;
   quotes: PricingQuote[];
-  onExpired: () => void;
+  /** @deprecated Session expiry is owned by the shared API/session module. */
+  onExpired?: () => void;
   onSettled?: (consumedQuoteIds: string[]) => void;
-  showLedger?: boolean;
-}) {
+};
+
+function useSettlementWorkflow({
+  session,
+  onSettled = () => undefined,
+}: SettlementWorkflowProps) {
   const [selected, setSelected] = useState<string[]>([]);
   const [previewState, setPreviewState] = useState<PreviewState>();
   const [previewExpired, setPreviewExpired] = useState(false);
@@ -187,7 +186,6 @@ export function SettlementWorkspace({
         cause,
         "Could not obtain a settlement preview.",
       );
-      if (cause instanceof ApiError && cause.status === 401) onExpired();
       setMessage(text);
     } finally {
       if (requestId === previewRequestId.current) {
@@ -251,7 +249,6 @@ export function SettlementWorkspace({
       onSettled(nextIntent.quoteIds);
       setLedgerRevision((current) => current + 1);
     } catch (cause) {
-      if (cause instanceof ApiError && cause.status === 401) onExpired();
       if (cause instanceof ApiError) {
         switch (cause.code) {
           case "IDEMPOTENCY_KEY_REUSED":
@@ -290,6 +287,53 @@ export function SettlementWorkspace({
     clearIntent();
     setMessage("Settlement intent cancelled.");
   }
+
+  return {
+    canSettle,
+    cancel,
+    confirm,
+    intent,
+    intentMatchesSelection,
+    ledgerRevision,
+    message,
+    preview,
+    previewExpired,
+    previewMatchesSelection,
+    previewPending,
+    quoteIds,
+    requestPreview,
+    result,
+    selected,
+    settlementPending,
+    toggle,
+  };
+}
+
+export function SettlementWorkspace({
+  session,
+  quotes,
+  onSettled,
+  showLedger = true,
+}: SettlementWorkflowProps & { showLedger?: boolean }) {
+  const {
+    canSettle,
+    cancel,
+    confirm,
+    intent,
+    intentMatchesSelection,
+    ledgerRevision,
+    message,
+    preview,
+    previewExpired,
+    previewMatchesSelection,
+    previewPending,
+    quoteIds,
+    requestPreview,
+    result,
+    selected,
+    settlementPending,
+    toggle,
+  } = useSettlementWorkflow({ session, quotes, onSettled });
 
   return (
     <>
@@ -405,11 +449,10 @@ export function SettlementWorkspace({
           </p>
         )}
       </section>
-      <SettlementDetail session={session} onExpired={onExpired} />
+      <SettlementDetailModule session={session} />
       {showLedger && (
-        <StatementLedger
+        <StatementLedgerModule
           session={session}
-          onExpired={onExpired}
           refreshRevision={ledgerRevision}
         />
       )}
@@ -422,13 +465,7 @@ function settlementFromHash() {
   return match?.[1];
 }
 
-function SettlementDetail({
-  session,
-  onExpired,
-}: {
-  session: Session;
-  onExpired: () => void;
-}) {
+function useSettlementDetail(session: Session) {
   const [settlementId, setSettlementId] = useState(settlementFromHash);
   const [settlement, setSettlement] = useState<Settlement>();
   const [message, setMessage] = useState<string>();
@@ -468,13 +505,17 @@ function SettlementDetail({
         )
           return;
         setSettlement(undefined);
-        if (cause instanceof ApiError && cause.status === 401) onExpired();
         setMessage(
           errorMessage(cause, "Could not load the settlement detail."),
         );
       });
     return () => controller.abort();
-  }, [settlementId, session.accessToken, onExpired]);
+  }, [settlementId, session.accessToken]);
+  return { message, settlement, settlementId };
+}
+
+function SettlementDetailModule({ session }: { session: Session }) {
+  const { message, settlement, settlementId } = useSettlementDetail(session);
   if (!settlementId) return null;
   return (
     <section
@@ -512,15 +553,10 @@ function SettlementDetail({
   );
 }
 
-function StatementLedger({
-  session,
-  onExpired,
-  refreshRevision,
-}: {
-  session: Session;
-  onExpired: () => void;
-  refreshRevision: number;
-}) {
+function useStatementLedger(
+  session: Session,
+  refreshRevision: number,
+) {
   const [filters, setFilters] = useState(
     () => new URLSearchParams(window.location.search),
   );
@@ -559,7 +595,6 @@ function StatementLedger({
           new URLSearchParams(window.location.search).toString() !== requestKey
         )
           return;
-        if (cause instanceof ApiError && cause.status === 401) onExpired();
         setMessage(
           errorMessage(cause, "Could not load the settlement statement."),
         );
@@ -573,7 +608,7 @@ function StatementLedger({
         }
       });
     return () => controller.abort();
-  }, [search, session.accessToken, onExpired, refreshRevision]);
+  }, [search, session.accessToken, refreshRevision]);
   useEffect(() => {
     const restore = () => {
       if (filterTimeout.current !== undefined) {
@@ -633,6 +668,20 @@ function StatementLedger({
     setFilters(next);
     setSearch(new URLSearchParams(next));
   }
+  return { change, filters, loading, message, move, page };
+}
+
+function StatementLedgerModule({
+  session,
+  refreshRevision,
+}: {
+  session: Session;
+  refreshRevision: number;
+}) {
+  const { change, filters, loading, message, move, page } = useStatementLedger(
+    session,
+    refreshRevision,
+  );
   return (
     <section
       className="card ledger"
