@@ -30,3 +30,22 @@ fixture regression, proves the fixture fails, and reverts it. The script then
 runs `make verify-fast` and proves the complete reverted tree equals the release
 candidate tree. The real repository's `main` is never changed; the branch name
 is intentionally realistic only inside the throwaway clone.
+
+## Deliberate deviation: settlement lock ordering
+
+The case-brief conformance refactor (`fix/case-brief-conformance`) moved
+settlement persistence into `settlement/infrastructure/JdbcSettlementRepository`
+and, while doing so, changed the lock acquisition order from the original
+single `for update of q, r` (no explicit ordering) to locking receivables first
+in `order by r.id` on both the `settle` and `reverse` paths (commits
+`139a0fd`, `3c97ccf`). This was intentional: it closes a latent settle-vs-reverse
+deadlock window by making both paths acquire receivable row locks in the same
+global order. It is a correctness improvement, not accidental drift, and is
+covered by the real-PostgreSQL concurrency race test in `make test-runtime`.
+
+The same refactor's `SettlementPolicy.validateQuotes` also added a
+unique-receivables-per-batch check. A batch that references the same
+receivable twice now fails fast with `400 INVALID_REQUEST` (malformed request,
+caught before any database state is read) rather than the prior `409` from
+`AlreadySettledException` (a state conflict discovered against persisted rows).
+This is a more precise status code for that case, not a behavior regression.
