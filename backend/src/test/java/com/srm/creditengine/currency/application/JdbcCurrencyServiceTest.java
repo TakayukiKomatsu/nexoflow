@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import com.srm.creditengine.currency.domain.FxObservation;
+import com.srm.creditengine.audit.infrastructure.JdbcAuditEventStore;
 import com.srm.creditengine.currency.infrastructure.JdbcExchangeRateRepository;
 import com.srm.creditengine.currency.infrastructure.JdbcExchangeRateAuditRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -264,7 +265,8 @@ class JdbcCurrencyServiceTest {
             JdbcTemplate jdbc, SimpleMeterRegistry registry) {
         return new CurrencyApplicationService(
                 new JdbcExchangeRateRepository(jdbc),
-                new JdbcExchangeRateAuditRecorder(jdbc, new ObjectMapper()),
+                new JdbcExchangeRateAuditRecorder(
+                        new JdbcAuditEventStore(jdbc), new ObjectMapper()),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 new FinancialTelemetry(registry));
     }

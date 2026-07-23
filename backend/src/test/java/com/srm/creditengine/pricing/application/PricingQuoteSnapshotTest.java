@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.srm.creditengine.assignor.application.AssignorService;
+import com.srm.creditengine.audit.infrastructure.JdbcAuditEventStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.srm.creditengine.currency.application.CurrencyService;
@@ -123,7 +124,7 @@ class PricingQuoteSnapshotTest {
                 new JdbcReceivableQuoteReader(jdbc),
                 Clock.fixed(instant, ZoneOffset.UTC),
                 new FinancialTelemetry(io.micrometer.core.instrument.Metrics.globalRegistry),
-                new JdbcPricingAuditRecorder(jdbc, objectMapper));
+                new JdbcPricingAuditRecorder(new JdbcAuditEventStore(jdbc), objectMapper));
     }
 
     private static List<String> financialStrings(PricingService.Breakdown breakdown) {

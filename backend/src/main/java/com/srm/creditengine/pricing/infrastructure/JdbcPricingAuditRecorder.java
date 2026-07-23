@@ -1,22 +1,20 @@
 package com.srm.creditengine.pricing.infrastructure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.srm.creditengine.audit.application.AuditEventAppender;
 import com.srm.creditengine.pricing.application.PricingAuditRecorder;
 import com.srm.creditengine.pricing.domain.PricingQuoteSnapshot;
-import java.sql.Timestamp;
 import java.util.Map;
-import java.util.UUID;
-import org.slf4j.MDC;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public class JdbcPricingAuditRecorder implements PricingAuditRecorder {
-    private final JdbcTemplate jdbc;
+    private final AuditEventAppender auditEvents;
     private final ObjectMapper objectMapper;
 
-    public JdbcPricingAuditRecorder(JdbcTemplate jdbc, ObjectMapper objectMapper) {
-        this.jdbc = jdbc;
+    public JdbcPricingAuditRecorder(
+            AuditEventAppender auditEvents, ObjectMapper objectMapper) {
+        this.auditEvents = auditEvents;
         this.objectMapper = objectMapper;
     }
 
@@ -27,17 +25,12 @@ public class JdbcPricingAuditRecorder implements PricingAuditRecorder {
                         "productType", snapshot.productType(),
                         "settlementCurrency", snapshot.settlementCurrency()))
                 .toString();
-        jdbc.update(
-                "insert into audit_events "
-                        + "(id,actor,action,target_type,target_id,occurred_at,correlation_id,safe_metadata) "
-                        + "values (?,?,?,?,?,?,?,?::jsonb)",
-                UUID.randomUUID(),
+        auditEvents.append(
                 actor,
                 "QUOTE_CREATED",
                 "PRICING_QUOTE",
                 snapshot.id(),
-                Timestamp.from(snapshot.pricedAt()),
-                MDC.get("correlationId"),
+                snapshot.pricedAt(),
                 metadata);
     }
 }

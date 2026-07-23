@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
+import com.srm.creditengine.audit.infrastructure.JdbcAuditEventStore;
 import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import com.srm.creditengine.settlement.infrastructure.JdbcAuditEventRecorder;
 import com.srm.creditengine.settlement.infrastructure.JdbcIdempotencyRepository;
@@ -183,7 +184,7 @@ class JdbcSettlementServiceTest {
         return new SettlementApplicationService(
                 new JdbcSettlementRepository(jdbc),
                 new JdbcIdempotencyRepository(jdbc),
-                new JdbcAuditEventRecorder(jdbc),
+                new JdbcAuditEventRecorder(new JdbcAuditEventStore(jdbc)),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 mock(FinancialTelemetry.class));
     }
