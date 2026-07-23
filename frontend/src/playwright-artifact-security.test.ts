@@ -53,6 +53,26 @@ describe("Playwright evidence security", () => {
     );
   });
 
+  it("redacts UUID values echoed by failed Playwright string assertions", async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), "srm-e2e-artifacts-"));
+    temporaryDirectories.push(directory);
+    const artifact = resolve(directory, "failure.txt");
+    await writeFile(
+      artifact,
+      'Expected pattern: /uuid/\nReceived string: "550e8400-e29b-41d4-a716-446655440000"',
+      "utf8",
+    );
+
+    await expect(
+      execute(process.execPath, [scanner, "--root", directory]),
+    ).rejects.toEqual(
+      expect.objectContaining({
+        stderr: expect.stringContaining("echoed UUID credential"),
+      }),
+    );
+    expect(await readFile(artifact, "utf8")).not.toContain("550e8400");
+  });
+
   it("accepts evidence without authentication material", async () => {
     const directory = await mkdtemp(resolve(tmpdir(), "srm-e2e-artifacts-"));
     temporaryDirectories.push(directory);

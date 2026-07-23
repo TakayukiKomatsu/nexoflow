@@ -29,6 +29,11 @@ const sensitivePatterns = [
     expression:
       /\bidempotency-key\b["']?\s*[:=]\s*["']?[A-Za-z0-9._~+/=-]{8,}/i,
   },
+  {
+    label: "echoed UUID credential",
+    expression:
+      /\b(?:capturedKey\s*[:=]|Received string:)\s*["']?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
+  },
 ];
 
 function parseRoots(arguments_) {

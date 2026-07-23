@@ -183,9 +183,11 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
   await automaticLedgerRefresh;
 
   const capturedKey = capturedRequest.headers()["idempotency-key"];
-  expect(capturedKey).toMatch(
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-  );
+  const capturedKeyHasUuidShape =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      capturedKey ?? "",
+    );
+  expect(capturedKeyHasUuidShape).toBe(true);
 
   // response.json() returns any in Playwright – read properties directly
   const capturedBody = capturedRequest.postDataJSON();
