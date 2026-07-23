@@ -25,9 +25,11 @@ nullability_failure="$(mktemp)"
 alter_type_failure="$(mktemp)"
 alter_nullability_failure="$(mktemp)"
 drop_constraint_failure="$(mktemp)"
+varchar_width_failure="$(mktemp)"
+timestamp_type_failure="$(mktemp)"
 stale_artifact_inventory="$(mktemp)"
 stale_artifact_failure="$(mktemp)"
-trap 'rm -f "$sql_failure" "$java_failure" "$inline_failure" "$type_failure" "$nullability_failure" "$alter_type_failure" "$alter_nullability_failure" "$drop_constraint_failure" "$stale_artifact_inventory" "$stale_artifact_failure"' EXIT
+trap 'rm -f "$sql_failure" "$java_failure" "$inline_failure" "$type_failure" "$nullability_failure" "$alter_type_failure" "$alter_nullability_failure" "$drop_constraint_failure" "$varchar_width_failure" "$timestamp_type_failure" "$stale_artifact_inventory" "$stale_artifact_failure"' EXIT
 
 if run_validator "$fixtures/sql-mutated" "$fixtures/java-valid" >"$sql_failure" 2>&1; then
   echo "schema validator accepted mutated SQL constraint structures" >&2
@@ -81,6 +83,18 @@ if run_validator "$fixtures/sql-drop-constraint-mutated" "$fixtures/java-valid" 
 fi
 grep -Fq 'schema inventory documents absent structural constraint: children.fk(parent_id->parents.id)' "$drop_constraint_failure"
 
+if run_validator "$fixtures/sql-varchar-width-mutated" "$fixtures/java-valid" >"$varchar_width_failure" 2>&1; then
+  echo "schema validator accepted a later migration changing a varchar length bound" >&2
+  exit 1
+fi
+grep -Fq 'ER type mismatch: children.code migration varchar_21, ER varchar_20' "$varchar_width_failure"
+
+if run_validator "$fixtures/sql-timestamp-type-mutated" "$fixtures/java-valid" >"$timestamp_type_failure" 2>&1; then
+  echo "schema validator accepted timestamp-with-time-zone drift" >&2
+  exit 1
+fi
+grep -Fq 'ER type mismatch: children.occurred_at migration timestamp, ER timestamptz' "$timestamp_type_failure"
+
 sed 's/`children_code_unique`/`children_code_unique`, `fabricated_index`/' \
   "$fixtures/schema-inventory.md" >"$stale_artifact_inventory"
 if SRM_SCHEMA_SQL_DIR="$fixtures/sql-valid" \
@@ -93,4 +107,4 @@ if SRM_SCHEMA_SQL_DIR="$fixtures/sql-valid" \
 fi
 grep -Fq 'schema inventory documents absent named constraint/index/trigger: fabricated_index' "$stale_artifact_failure"
 
-echo "DOC-SCHEMA-MUTATION-001 passed: final-state constraint, type, and financial-nullability drift is rejected"
+echo "DOC-SCHEMA-MUTATION-001 passed: final-state constraint, exact textual/temporal type, and financial-nullability drift is rejected"

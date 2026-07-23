@@ -158,13 +158,44 @@ function javaStringExpression(argument, variables) {
   return pieces.join('');
 }
 
+function javaLoopGeneratedAlterColumnStatements(source) {
+  const columnsBlock = source.match(
+    /List<String\[\]>\s+columns\s*=\s*List\.of\(([\s\S]*?)\);/,
+  )?.[1];
+  const alteration = source.match(
+    /String\s+alteration\s*=\s*[\s\S]*?\?\s*" alter column "\s*\+\s*column\[1\]\s*\+\s*" type ([^"]+)"\s*:\s*" alter column "\s*\+\s*column\[1\]\s*\+\s*" ([^"]+)"/,
+  );
+  const executesGeneratedAlteration = /statement\.execute\(\s*"alter table "\s*\+\s*column\[0\]\s*\+\s*alteration\s*\)/.test(
+    source,
+  );
+  if (!columnsBlock || !alteration || !executesGeneratedAlteration) return [];
+
+  const postgresType = alteration[1].trim().toLowerCase();
+  const fallbackType = alteration[2].trim().toLowerCase();
+  if (postgresType !== fallbackType) {
+    throw new Error(
+      `generated alter-column branches disagree: ${postgresType} versus ${fallbackType}`,
+    );
+  }
+
+  return [...columnsBlock.matchAll(
+    /new\s+String\[\]\s*\{\s*"([a-z_][a-z0-9_]*)"\s*,\s*"([a-z_][a-z0-9_]*)"\s*\}/gi,
+  )].map(
+    ([, table, column]) => `alter table ${table} alter column ${column} type ${postgresType};`,
+  );
+}
+
 const migrationText = migrationFiles.map((file) => {
   if (file.endsWith('.sql')) return fs.readFileSync(file, 'utf8');
   const source = fs.readFileSync(file, 'utf8');
   const variables = javaStringVariables(source);
-  return javaExecuteArguments(source)
+  const literalStatements = javaExecuteArguments(source)
     .map((argument) => `${javaStringExpression(argument, variables)};`)
     .join('\n');
+  return [
+    literalStatements,
+    ...javaLoopGeneratedAlterColumnStatements(source),
+  ].join('\n');
 }).join('\n').toLowerCase();
 const erText = fs.readFileSync(erPath, 'utf8');
 const inventoryText = fs.readFileSync(inventoryPath, 'utf8');
@@ -213,9 +244,32 @@ function sqlColumnType(definition) {
   if (/^(?:integer|int)\b/.test(type)) return { inventory: 'integer', er: 'int' };
   if (/^uuid\b/.test(type)) return { inventory: 'uuid', er: 'uuid' };
   if (/^boolean\b/.test(type)) return { inventory: 'boolean', er: 'boolean' };
-  if (/^timestamp\b/.test(type)) return { inventory: 'timestamp', er: 'datetime' };
+  const timestamp = type.match(
+    /^(timestamp|timestamptz)(?:\s*\(\s*(\d+)\s*\))?(?:\s+(with|without)\s+time\s+zone)?(?=\s|$)/,
+  );
+  if (timestamp) {
+    const timezone = timestamp[1] === 'timestamptz' || timestamp[3] === 'with';
+    return timezone
+      ? { inventory: 'timestamp with time zone', er: 'timestamptz' }
+      : { inventory: 'timestamp without time zone', er: 'timestamp' };
+  }
   if (/^date\b/.test(type)) return { inventory: 'date', er: 'date' };
-  if (/^(?:varchar|character\s+varying|char|text)\b/.test(type)) return { inventory: 'string', er: 'string' };
+  const varchar = type.match(
+    /^(?:varchar|character\s+varying)(?:\s*\(\s*(\d+)\s*\))?(?=\s|$)/,
+  );
+  if (varchar) {
+    return varchar[1]
+      ? { inventory: `varchar(${varchar[1]})`, er: `varchar_${varchar[1]}` }
+      : { inventory: 'varchar', er: 'varchar' };
+  }
+  const character = type.match(
+    /^(?:char|character)(?:\s*\(\s*(\d+)\s*\))?(?=\s|$)/,
+  );
+  if (character) {
+    const length = character[1] ?? '1';
+    return { inventory: `char(${length})`, er: `char_${length}` };
+  }
+  if (/^text\b/.test(type)) return { inventory: 'text', er: 'text' };
   if (/^(?:json|jsonb)\b/.test(type)) return { inventory: 'json', er: 'json' };
   return null;
 }
@@ -452,4 +506,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`DOC-SCHEMA-002 passed: ${schema.size} tables, ER type families, exact financial numeric storage/nullability, structural constraints, indexes, and Java-migration triggers match the inventory`);
+console.log(`DOC-SCHEMA-002 passed: ${schema.size} tables, exact ER textual/temporal types, exact financial numeric storage/nullability, structural constraints, indexes, and Java-migration triggers match the inventory`);

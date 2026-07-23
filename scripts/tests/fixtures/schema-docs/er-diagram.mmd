@@ -1,7 +1,7 @@
 erDiagram
     parents {
         uuid id PK
-        string code UK
+        varchar_20 code UK
     }
     children {
         uuid id PK
@@ -10,5 +10,8 @@ erDiagram
         uuid table_parent_id FK
         int amount
         decimal_19_4 money
-        string code UK
+        varchar_20 code UK
+        char_2 fixed_code
+        text notes
+        timestamptz occurred_at
     }

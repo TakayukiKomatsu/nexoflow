@@ -1,9 +1,12 @@
 # Schema and DDL inventory
 
 Flyway is the sole schema authority. The Mermaid [ER diagram](er-diagram.mmd)
-shows every table and column. This inventory makes constraints, indexes, and
-PostgreSQL-only Java migration guards reviewable; `scripts/validate-schema-docs.mjs`
-checks it against both SQL and Java migration source.
+shows every table and column with its final storage type: `varchar_N` and
+`char_N` retain declared length bounds, `text` remains unbounded, and
+`timestamptz` is distinct from timestamp without time zone. This inventory makes
+constraints, indexes, and PostgreSQL-only Java migration guards reviewable;
+`scripts/validate-schema-docs.mjs` interprets SQL plus supported Java-generated
+DDL in migration order and checks the resulting schema against the diagram.
 
 ## SQL DDL and seed migrations
 
@@ -43,6 +46,11 @@ V23 reinterprets every legacy timestamp value as UTC while converting all
 persisted Instant columns to PostgreSQL `timestamp with time zone`. It also
 permits exactly one immutable-identity `PROCESSING` → `COMPLETED` update for an
 idempotency record and rejects every other update or deletion.
+
+The validator recognizes V22's generated alter-column loop and V23's explicit
+PostgreSQL type changes. Consequently, the ER widths and timezone semantics
+describe the final migrated schema, not only the original `CREATE TABLE`
+declarations.
 
 ## Named constraints, indexes, and triggers
 

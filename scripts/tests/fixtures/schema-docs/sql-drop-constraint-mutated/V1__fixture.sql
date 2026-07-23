@@ -11,6 +11,9 @@ create table children (
     amount integer not null check (amount > 0),
     money numeric(19,4) not null,
     code varchar(20) not null,
+    fixed_code char(2) not null,
+    notes text,
+    occurred_at timestamp with time zone not null,
     constraint children_table_parent_fk
         foreign key (table_parent_id) references parents(id)
 );

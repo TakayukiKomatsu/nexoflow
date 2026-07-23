@@ -10,6 +10,8 @@ Migrations:
 - `scripts/tests/fixtures/schema-docs/sql-alter-type-mutated/V1__fixture.sql`
 - `scripts/tests/fixtures/schema-docs/sql-alter-nullability-mutated/V1__fixture.sql`
 - `scripts/tests/fixtures/schema-docs/sql-drop-constraint-mutated/V1__fixture.sql`
+- `scripts/tests/fixtures/schema-docs/sql-varchar-width-mutated/V1__fixture.sql`
+- `scripts/tests/fixtures/schema-docs/sql-timestamp-type-mutated/V1__fixture.sql`
 - `scripts/tests/fixtures/schema-docs/java-valid/V2__fixture.java`
 - `scripts/tests/fixtures/schema-docs/java-mutated/V2__fixture.java`
 

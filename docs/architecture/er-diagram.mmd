@@ -19,113 +19,113 @@ erDiagram
 
     schema_metadata {
         int id PK
-        string schema_name UK
-        datetime created_at
+        varchar_100 schema_name UK
+        timestamptz created_at
     }
 
     users {
         uuid id PK
-        string email UK
-        string password_hash
+        varchar_320 email UK
+        varchar_100 password_hash
         boolean enabled
     }
     user_roles {
         uuid user_id PK,FK
-        string role PK
+        varchar_30 role PK
     }
     assignors {
         uuid id PK
-        string legal_name
-        string normalized_tax_id UK
+        varchar_200 legal_name
+        varchar_32 normalized_tax_id UK
         boolean active
-        datetime created_at
-        string created_by
+        timestamptz created_at
+        varchar_320 created_by
     }
     currencies {
-        string code PK
+        varchar_3 code PK
         int decimal_scale
         boolean active
     }
     product_types {
-        string code PK
+        varchar_50 code PK
         boolean active
     }
     product_spread_versions {
         uuid id PK
-        string product_type_code FK
+        varchar_50 product_type_code FK
         decimal_19_10 monthly_spread
-        datetime effective_at
-        string created_by
+        timestamptz effective_at
+        varchar_320 created_by
     }
     base_rate_versions {
         uuid id PK
-        string currency_code FK
+        varchar_3 currency_code FK
         decimal_19_10 monthly_rate
-        datetime effective_at
-        string created_by
+        timestamptz effective_at
+        varchar_320 created_by
     }
     exchange_rates {
         uuid id PK
-        string base_currency_code FK
-        string quote_currency_code FK
+        varchar_3 base_currency_code FK
+        varchar_3 quote_currency_code FK
         decimal_19_10 rate
-        string source
-        datetime observed_at
-        datetime created_at
-        string created_by
+        varchar_50 source
+        timestamptz observed_at
+        timestamptz created_at
+        varchar_320 created_by
     }
     runtime_fixture_records {
-        string fixture_id PK
-        string fixture_set
-        string fixture_value
-        datetime loaded_at
+        varchar_100 fixture_id PK
+        varchar_100 fixture_set
+        varchar_500 fixture_value
+        timestamptz loaded_at
     }
     receivables {
         uuid id PK
         uuid assignor_id FK
-        string product_type_code FK
-        string face_currency_code FK
+        varchar_50 product_type_code FK
+        varchar_3 face_currency_code FK
         decimal_19_4 face_amount
         date issue_date
         date due_date
-        string status
+        varchar_20 status
         bigint version
-        datetime created_at
-        string created_by
+        timestamptz created_at
+        varchar_320 created_by
     }
     pricing_quotes {
         uuid id PK
         uuid receivable_id FK
-        string settlement_currency_code FK
+        varchar_3 settlement_currency_code FK
         decimal_19_4 face_amount
-        string face_currency_code FK
-        string product_type_code FK
+        varchar_3 face_currency_code FK
+        varchar_50 product_type_code FK
         date due_date
-        datetime pricing_at
-        datetime expires_at
+        timestamptz pricing_at
+        timestamptz expires_at
         decimal_19_10 base_rate
         decimal_19_10 spread
-        string strategy_code
-        string day_count_convention
+        varchar_50 strategy_code
+        varchar_50 day_count_convention
         decimal_19_10 term_in_months
         decimal_19_4 discounted_amount
-        string fx_base_currency_code FK
-        string fx_quote_currency_code FK
+        varchar_3 fx_base_currency_code FK
+        varchar_3 fx_quote_currency_code FK
         decimal_19_10 fx_rate
-        string fx_source
-        datetime fx_observed_at
+        varchar_100 fx_source
+        timestamptz fx_observed_at
         decimal_19_4 settlement_amount
-        string created_by
-        string status
+        varchar_320 created_by
+        varchar_20 status
     }
     settlements {
         uuid id PK
         uuid assignor_id FK
-        string settlement_currency_code FK
+        varchar_3 settlement_currency_code FK
         decimal_19_4 total_amount
-        string status
-        datetime created_at
-        string created_by
+        varchar_20 status
+        timestamptz created_at
+        varchar_320 created_by
     }
     settlement_items {
         uuid id PK
@@ -134,40 +134,41 @@ erDiagram
         uuid receivable_id UK,FK
         int item_position
         decimal_19_4 settlement_amount
-        string asset_currency_code FK
-        string product_type_code FK
+        varchar_3 asset_currency_code FK
+        varchar_50 product_type_code FK
     }
     idempotency_records {
         uuid id PK
-        string actor
-        string operation
-        string idempotency_key
-        string request_hash
+        varchar_320 actor
+        varchar_100 operation
+        varchar_200 idempotency_key
+        char_64 request_hash
         uuid settlement_id FK
         uuid reversal_id FK
-        string status
-        datetime created_at
-        datetime completed_at
+        varchar_20 status
+        timestamptz created_at
+        timestamptz completed_at
     }
     settlement_reversals {
         uuid id PK
         uuid settlement_id UK,FK
-        string reason
-        datetime reversed_at
-        string reversed_by
+        varchar_500 reason
+        timestamptz reversed_at
+        varchar_320 reversed_by
     }
     audit_events {
         uuid id PK
-        string actor
-        string action
-        string target_type
+        varchar_320 actor
+        varchar_80 action
+        varchar_80 target_type
         uuid target_id
-        datetime occurred_at
-        string correlation_id
+        timestamptz occurred_at
+        varchar_100 correlation_id
         json safe_metadata
     }
 
-    %% Every datetime attribute is stored as PostgreSQL timestamp with time zone;
+    %% varchar_N and char_N encode exact SQL length bounds; timestamptz means
+    %% PostgreSQL timestamp with time zone rather than timestamp without time zone.
     %% V23 preserves legacy timestamp values by interpreting them explicitly as UTC.
     %% PostgreSQL V12-V16 and V23 guards protect financial state:
     %% exchange_rates and settlement_reversals reject UPDATE and DELETE.

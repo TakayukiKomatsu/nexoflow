@@ -9,7 +9,7 @@ create table children (
     java_parent_id uuid not null,
     table_parent_id uuid not null,
     amount integer not null check (amount > 0),
-    money numeric(19,4),
+    money numeric(19,4) not null,
     code varchar(20) not null,
     fixed_code char(2) not null,
     notes text,
@@ -22,3 +22,5 @@ alter table children add constraint children_parent_fk
     foreign key (parent_id) references parents(id);
 alter table children add constraint children_amount_check check (amount > 0);
 alter table children add constraint children_code_unique unique (code);
+
+alter table children alter column occurred_at type timestamp without time zone;
