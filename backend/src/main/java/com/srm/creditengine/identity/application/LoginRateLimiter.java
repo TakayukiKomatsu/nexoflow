@@ -58,8 +58,8 @@ public class LoginRateLimiter {
     }
 
     private void evictEldestBeyondCapacity() {
-        Iterator<Map.Entry<Key, Window>> entries = attempts.entrySet().iterator();
-        while (attempts.size() > maxBuckets && entries.hasNext()) {
+        if (attempts.size() > maxBuckets) {
+            Iterator<Map.Entry<Key, Window>> entries = attempts.entrySet().iterator();
             entries.next();
             entries.remove();
         }

@@ -80,6 +80,36 @@ class RiskBoundaryTest {
         limiter.check("operator@srm.local", "192.0.2.10");
     }
 
+    @Test
+    void loginLimiterRejectsNonPositiveCapacity() {
+        assertThatThrownBy(() -> new LoginRateLimiter(Clock.systemUTC(), 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("maxBuckets must be positive");
+    }
+
+    @Test
+    void loginLimiterCanonicalizesAbsentIdentityAndSourceValues() {
+        LoginRateLimiter limiter = new LoginRateLimiter(Clock.systemUTC());
+        for (int attempt = 0; attempt < 5; attempt++) {
+            limiter.check(null, attempt % 2 == 0 ? null : "  ");
+        }
+
+        assertThatThrownBy(() -> limiter.check(null, ""))
+                .isInstanceOf(LoginRateLimitedException.class);
+    }
+
+    @Test
+    void loginLimiterBoundsLongSourceIdentifiersBeforeBucketing() {
+        LoginRateLimiter limiter = new LoginRateLimiter(Clock.systemUTC());
+        String prefix = "x".repeat(64);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            limiter.check("operator@srm.local", prefix + "first-suffix");
+        }
+
+        assertThatThrownBy(() -> limiter.check("operator@srm.local", prefix + "second-suffix"))
+                .isInstanceOf(LoginRateLimitedException.class);
+    }
+
     private static final class MutableClock extends Clock {
         private Instant instant;
 
