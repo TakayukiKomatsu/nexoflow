@@ -90,7 +90,7 @@ class HttpFxSynchronizationServiceTest {
                 .isInstanceOf(FxProviderUnavailableException.class);
 
         assertThat(waits).containsExactly(Duration.ofMillis(100), Duration.ofMillis(200));
-        assertThat(registry.find("srm_fx_provider_attempt_duration_seconds")
+        assertThat(registry.find("srm_fx_provider_attempt_duration")
                 .tag("result", "TRANSIENT_FAILURE").timer().count()).isEqualTo(3);
         server.verify();
     }
@@ -132,7 +132,7 @@ class HttpFxSynchronizationServiceTest {
                 .isInstanceOf(FxProviderUnavailableException.class);
 
         assertThat(waits).isEmpty();
-        assertThat(registry.find("srm_fx_provider_attempt_duration_seconds")
+        assertThat(registry.find("srm_fx_provider_attempt_duration")
                 .tag("result", "PERMANENT_FAILURE").timer().count()).isEqualTo(1);
         server.verify();
     }
@@ -154,7 +154,7 @@ class HttpFxSynchronizationServiceTest {
                 .isInstanceOf(FxProviderUnavailableException.class);
 
         assertThat(waits).isEmpty();
-        assertThat(registry.find("srm_fx_provider_attempt_duration_seconds")
+        assertThat(registry.find("srm_fx_provider_attempt_duration")
                 .tag("result", "PERMANENT_FAILURE").timer().count()).isEqualTo(1);
         assertThat(registry.get("srm.fx.provider.failures").counter().count()).isEqualTo(1);
         assertThat(syncOutcomes(registry, "UNAVAILABLE")).isEqualTo(1);
@@ -182,7 +182,7 @@ class HttpFxSynchronizationServiceTest {
         assertThat(waits).isEmpty();
         assertThat(registry.get("srm.fx.provider.requests").counter().count()).isEqualTo(1);
         assertThat(registry.get("srm.fx.provider.failures").counter().count()).isEqualTo(1);
-        assertThat(registry.find("srm_fx_provider_attempt_duration_seconds")
+        assertThat(registry.find("srm_fx_provider_attempt_duration")
                 .tag("result", "PERMANENT_FAILURE").timer().count()).isEqualTo(1);
         assertThat(syncOutcomes(registry, "UNAVAILABLE")).isEqualTo(1);
         assertThat(totalSyncOutcomes(registry)).isEqualTo(1);
@@ -355,7 +355,7 @@ class HttpFxSynchronizationServiceTest {
                 .isInstanceOf(FxProviderUnavailableException.class);
 
         verifyNoInteractions(currency);
-        assertThat(registry.find("srm_fx_provider_attempt_duration_seconds")
+        assertThat(registry.find("srm_fx_provider_attempt_duration")
                 .tag("result", "PERMANENT_FAILURE").timer().count()).isEqualTo(1);
         server.verify();
     }

@@ -57,6 +57,16 @@ public class SettlementApplicationService implements SettlementService {
     @Override
     @Transactional
     public Result settle(List<UUID> orderedQuoteIds, String idempotencyKey, String actor) {
+        var timing = telemetry.startSettlement();
+        try {
+            return settleUnchecked(orderedQuoteIds, idempotencyKey, actor);
+        } finally {
+            telemetry.completeSettlement(timing);
+        }
+    }
+
+    private Result settleUnchecked(
+            List<UUID> orderedQuoteIds, String idempotencyKey, String actor) {
         String requestHash = SettlementPolicy.requestHash(orderedQuoteIds);
         var claim = idempotency.claim(actor, OPERATION, idempotencyKey, requestHash, clock.instant());
         if (!claim.requestHash().equals(requestHash)) {

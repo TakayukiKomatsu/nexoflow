@@ -65,11 +65,14 @@ class AuthoritativePricingService implements PricingService {
     @Override
     @Transactional
     public Quote createQuote(UUID receivableId, String settlementCurrency, String actor) {
+        var timing = telemetry.startQuote();
         try {
             return createQuoteUnchecked(receivableId, settlementCurrency, actor);
         } catch (RuntimeException exception) {
             telemetry.quote("UNKNOWN", settlementCurrency, "rejected");
             throw exception;
+        } finally {
+            telemetry.completeQuote(timing);
         }
     }
 

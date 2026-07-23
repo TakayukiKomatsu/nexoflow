@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import com.srm.creditengine.settlement.domain.LockedQuote;
 import com.srm.creditengine.settlement.domain.PricingQuoteExpiredException;
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -57,6 +58,29 @@ class SettlementApplicationServiceClockTest {
 
         assertThat(service.preview(List.of(QUOTE_ID), "operator").asOf())
                 .isEqualTo(BEFORE_EXPIRY.plusSeconds(2));
+    }
+
+    @Test
+    void settlementTimerCompletesWhenValidationRejectsTheLockedBatch() {
+        SettlementRepository settlements = mock(SettlementRepository.class);
+        IdempotencyRepository idempotency = mock(IdempotencyRepository.class);
+        FinancialTelemetry telemetry = mock(FinancialTelemetry.class);
+        when(idempotency.claim(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenAnswer(invocation -> new IdempotencyRepository.IdempotencyRecord(
+                        UUID.randomUUID(), invocation.getArgument(3), null, null, "PROCESSING"));
+        when(settlements.lockQuotes(List.of(QUOTE_ID))).thenReturn(List.of());
+        SettlementApplicationService service = new SettlementApplicationService(
+                settlements,
+                idempotency,
+                mock(AuditEventRecorder.class),
+                Clock.fixed(BEFORE_EXPIRY, ZoneOffset.UTC),
+                telemetry);
+
+        assertThatThrownBy(() -> service.settle(List.of(QUOTE_ID), "key", "operator"))
+                .isInstanceOf(DomainResourceNotFoundException.class);
+
+        verify(telemetry).startSettlement();
+        verify(telemetry).completeSettlement(org.mockito.ArgumentMatchers.isNull());
     }
 
     private static SettlementApplicationService service(

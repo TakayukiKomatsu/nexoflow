@@ -3,6 +3,8 @@ package com.srm.creditengine.currency.application;
 import com.srm.creditengine.currency.domain.SupportedCurrency;
 import com.srm.creditengine.currency.domain.FxConversionPolicy;
 import com.srm.creditengine.currency.domain.FxObservation;
+import com.srm.creditengine.currency.domain.FxRateStaleException;
+import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -18,12 +20,17 @@ public class CurrencyApplicationService implements CurrencyService {
     private final ExchangeRateRepository rates;
     private final ExchangeRateAuditRecorder audit;
     private final Clock clock;
+    private final FinancialTelemetry telemetry;
 
     public CurrencyApplicationService(
-            ExchangeRateRepository rates, ExchangeRateAuditRecorder audit, Clock clock) {
+            ExchangeRateRepository rates,
+            ExchangeRateAuditRecorder audit,
+            Clock clock,
+            FinancialTelemetry telemetry) {
         this.rates = Objects.requireNonNull(rates, "rates");
         this.audit = Objects.requireNonNull(audit, "audit");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.telemetry = Objects.requireNonNull(telemetry, "telemetry");
     }
 
     @Override
@@ -53,15 +60,23 @@ public class CurrencyApplicationService implements CurrencyService {
         String canonicalBase = SupportedCurrency.require(base);
         String canonicalQuote = SupportedCurrency.require(quote);
         FxConversionPolicy.Resolution resolved;
-        if (canonicalBase.equals(canonicalQuote)) {
-            resolved = FxConversionPolicy.resolve(
-                    new FxObservation(canonicalBase, canonicalQuote, BigDecimal.ONE, "IDENTITY", at), null, amount, at);
-        } else {
-            resolved = FxConversionPolicy.resolve(
-                    rates.latest(canonicalBase, canonicalQuote, at).orElse(null),
-                    rates.latest(canonicalQuote, canonicalBase, at).orElse(null),
-                    amount,
-                    at);
+        try {
+            if (canonicalBase.equals(canonicalQuote)) {
+                resolved = FxConversionPolicy.resolve(
+                        new FxObservation(canonicalBase, canonicalQuote, BigDecimal.ONE, "IDENTITY", at),
+                        null,
+                        amount,
+                        at);
+            } else {
+                resolved = FxConversionPolicy.resolve(
+                        rates.latest(canonicalBase, canonicalQuote, at).orElse(null),
+                        rates.latest(canonicalQuote, canonicalBase, at).orElse(null),
+                        amount,
+                        at);
+            }
+        } catch (FxRateStaleException exception) {
+            telemetry.staleRate(canonicalBase, canonicalQuote);
+            throw exception;
         }
         FxObservation observation = resolved.observation();
         return new Conversion(

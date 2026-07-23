@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -80,6 +81,21 @@ class JdbcSettlementStatementServiceTest {
         assertThatThrownBy(() -> service.query(filter(null, null, 10_001, 1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("page offset is out of bounds");
+    }
+
+    @Test
+    void reportTimerCompletesAfterAQuery() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        FinancialTelemetry telemetry = mock(FinancialTelemetry.class);
+        when(jdbc.query(any(String.class), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(List.of());
+        JdbcSettlementStatementService service =
+                new JdbcSettlementStatementService(jdbc, telemetry);
+
+        service.query(filter(null, null, 0, 50));
+
+        verify(telemetry).startReport();
+        verify(telemetry).completeReport(org.mockito.ArgumentMatchers.isNull());
     }
 
     @Test

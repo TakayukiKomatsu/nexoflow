@@ -25,7 +25,11 @@ import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.test.web.servlet.MockMvc;
 
-@SpringBootTest(properties = "srm.clock.fixed-instant=2030-01-15T12:00:00Z")
+@SpringBootTest(properties = {
+    "srm.clock.fixed-instant=2030-01-15T12:00:00Z",
+    "management.endpoints.web.exposure.include=health,prometheus",
+    "management.prometheus.metrics.export.enabled=true"
+})
 @AutoConfigureMockMvc
 class ResourceErrorApiContractTest {
     @Autowired MockMvc mvc;
@@ -95,6 +99,9 @@ class ResourceErrorApiContractTest {
                 .extracting(io.micrometer.core.instrument.Counter::count)
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.DOUBLE)
                 .isGreaterThan(0);
+        org.assertj.core.api.Assertions.assertThat(
+                        meterRegistry.get("srm_quote_duration").timer().count())
+                .isGreaterThan(0);
     }
 
     @Test
@@ -110,7 +117,6 @@ class ResourceErrorApiContractTest {
                         .header("Authorization", "Bearer " + token())
                         .param("page", "-1"))
                 .andExpect(status().isBadRequest());
-
         org.assertj.core.api.Assertions.assertThat(meterRegistry
                         .find("srm_preview_outcomes_total")
                         .tags("currency", "UNKNOWN", "result", "REJECTED")
@@ -121,6 +127,26 @@ class ResourceErrorApiContractTest {
                         .tag("result", "REJECTED")
                         .counter())
                 .isNotNull();
+    }
+
+    @Test
+    void prometheusPublishesTheMandatoryFinancialTimerAndFailureFamilies() throws Exception {
+        String scrape = mvc.perform(get("/actuator/prometheus")
+                        .header("Authorization", "Bearer " + token()))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        org.assertj.core.api.Assertions.assertThat(scrape).contains(
+                "srm_quote_duration_seconds_count",
+                "srm_settlement_duration_seconds_count",
+                "srm_report_duration_seconds_count",
+                "srm_fx_provider_attempt_duration_seconds_count",
+                "srm_quote_outcomes_total",
+                "srm_settlement_outcomes_total",
+                "srm_fx_stale_rates_total",
+                "srm_fx_provider_failures_total");
     }
 
     @Test

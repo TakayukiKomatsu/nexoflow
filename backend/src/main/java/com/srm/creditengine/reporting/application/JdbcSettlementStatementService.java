@@ -18,11 +18,14 @@ class JdbcSettlementStatementService implements SettlementStatementService {
     JdbcSettlementStatementService(JdbcTemplate jdbc, FinancialTelemetry telemetry) { this.jdbc = jdbc; this.telemetry = telemetry; }
 
     @Override public Page query(Filter filter) {
+        var timing = telemetry.startReport();
         try {
             return queryUnchecked(filter);
         } catch (RuntimeException exception) {
             telemetry.report("rejected");
             throw exception;
+        } finally {
+            telemetry.completeReport(timing);
         }
     }
 

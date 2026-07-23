@@ -15,6 +15,8 @@ import com.srm.creditengine.currency.domain.FxObservation;
 import com.srm.creditengine.currency.infrastructure.JdbcExchangeRateRepository;
 import com.srm.creditengine.currency.infrastructure.JdbcExchangeRateAuditRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.srm.creditengine.shared.runtime.FinancialTelemetry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -181,12 +183,19 @@ class JdbcCurrencyServiceTest {
         FxObservation stale = observation(
                 "BRL", "USD", "0.20", NOW.minus(Duration.ofHours(24)).minusNanos(1));
         when(latestQuery(jdbc)).thenReturn(List.of(stale), List.of());
-        var service = service(jdbc);
+        var registry = new SimpleMeterRegistry();
+        var service = service(jdbc, registry);
 
         assertThatThrownBy(() -> service.resolveConversion(
                 "BRL", "USD", new BigDecimal("100.00"), NOW))
                 .isInstanceOf(FxRateStaleException.class)
                 .hasMessage("No fresh exchange rate is available for the requested currency pair.");
+        assertThat(registry.find("srm_fx_stale_rates_total")
+                        .tags("base", "BRL", "quote", "USD")
+                        .counter())
+                .isNotNull()
+                .extracting(io.micrometer.core.instrument.Counter::count)
+                .isEqualTo(1.0d);
     }
 
     @Test
@@ -244,10 +253,16 @@ class JdbcCurrencyServiceTest {
     }
 
     private static CurrencyApplicationService service(JdbcTemplate jdbc) {
+        return service(jdbc, new SimpleMeterRegistry());
+    }
+
+    private static CurrencyApplicationService service(
+            JdbcTemplate jdbc, SimpleMeterRegistry registry) {
         return new CurrencyApplicationService(
                 new JdbcExchangeRateRepository(jdbc),
                 new JdbcExchangeRateAuditRecorder(jdbc, new ObjectMapper()),
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                new FinancialTelemetry(registry));
     }
 
     private static FxObservation observation(

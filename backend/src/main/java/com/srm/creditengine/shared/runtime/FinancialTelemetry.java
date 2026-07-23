@@ -28,6 +28,7 @@ public class FinancialTelemetry {
 
     public FinancialTelemetry(MeterRegistry registry) {
         this.registry = registry;
+        registerMandatoryMeters();
     }
 
     public void simulation(String productType, String settlementCurrency, String result) {
@@ -68,17 +69,92 @@ public class FinancialTelemetry {
         increment("srm_fx_resilience_outcomes_total", "result", bounded(result, FX_RESULTS));
     }
 
+    public void staleRate(String base, String quote) {
+        increment(
+                "srm_fx_stale_rates_total",
+                "base",
+                bounded(base, CURRENCIES),
+                "quote",
+                bounded(quote, CURRENCIES));
+    }
+
+    public void fxProviderRequest() {
+        increment("srm.fx.provider.requests");
+    }
+
+    public void fxExternalFailure() {
+        increment("srm.fx.provider.failures");
+    }
+
+    public Timer.Sample startQuote() {
+        return Timer.start(registry);
+    }
+
+    public void completeQuote(Timer.Sample sample) {
+        sample.stop(registry.timer("srm_quote_duration"));
+    }
+
+    public Timer.Sample startSettlement() {
+        return Timer.start(registry);
+    }
+
+    public void completeSettlement(Timer.Sample sample) {
+        sample.stop(registry.timer("srm_settlement_duration"));
+    }
+
+    public Timer.Sample startReport() {
+        return Timer.start(registry);
+    }
+
+    public void completeReport(Timer.Sample sample) {
+        sample.stop(registry.timer("srm_report_duration"));
+    }
+
     public Timer.Sample startFxAttempt() {
         return Timer.start(registry);
     }
 
     public void completeFxAttempt(Timer.Sample attempt, String result) {
-        attempt.stop(registry.timer("srm_fx_provider_attempt_duration_seconds",
+        attempt.stop(registry.timer("srm_fx_provider_attempt_duration",
                 "result", bounded(result, FX_ATTEMPT_RESULTS)));
     }
 
     private void increment(String name, String... tags) {
         registry.counter(name, tags).increment();
+    }
+
+    private void registerMandatoryMeters() {
+        registry.timer("srm_quote_duration");
+        registry.timer("srm_settlement_duration");
+        registry.timer("srm_report_duration");
+        registry.timer("srm_fx_provider_attempt_duration", "result", "UNKNOWN");
+        registry.counter(
+                "srm_quote_outcomes_total",
+                "product",
+                "UNKNOWN",
+                "currency",
+                "UNKNOWN",
+                "result",
+                "REJECTED");
+        registry.counter(
+                "srm_simulation_outcomes_total",
+                "product",
+                "UNKNOWN",
+                "currency",
+                "UNKNOWN",
+                "result",
+                "REJECTED");
+        registry.counter(
+                "srm_settlement_outcomes_total",
+                "currency",
+                "UNKNOWN",
+                "result",
+                "CONFLICT");
+        registry.counter(
+                "srm_fx_stale_rates_total", "base", "UNKNOWN", "quote", "UNKNOWN");
+        registry.counter("srm.fx.provider.failures");
+        registry.counter("srm_fx_resilience_outcomes_total", "result", "UNAVAILABLE");
+        registry.counter("srm_statement_queries_total", "result", "REJECTED");
     }
 
     private static String bounded(String value, Set<String> allowed) {

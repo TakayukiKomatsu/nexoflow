@@ -5,7 +5,6 @@ import com.srm.creditengine.currency.application.FxProviderUnavailableException;
 import com.srm.creditengine.currency.application.FxSynchronizationService;
 import com.srm.creditengine.currency.domain.SupportedCurrency;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
-import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -30,8 +29,6 @@ class HttpFxSynchronizationService implements FxSynchronizationService {
     private final CurrencyService currency;
     private final RestClient client;
     private final Clock clock;
-    private final Counter requests;
-    private final Counter failures;
     private final FxRetryDelay retryDelay;
     private final FxRetrySleeper sleeper;
     private final FinancialTelemetry telemetry;
@@ -60,8 +57,6 @@ class HttpFxSynchronizationService implements FxSynchronizationService {
         this.currency = currency;
         this.client = client;
         this.clock = clock;
-        this.requests = registry.counter("srm.fx.provider.requests");
-        this.failures = registry.counter("srm.fx.provider.failures");
         this.retryDelay = retryDelay;
         this.sleeper = sleeper;
         this.telemetry = telemetry;
@@ -90,7 +85,7 @@ class HttpFxSynchronizationService implements FxSynchronizationService {
             for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
                 var timer = telemetry.startFxAttempt();
                 try {
-                    requests.increment();
+                    telemetry.fxProviderRequest();
                     ProviderRate rate = client.get()
                             .uri("/api/v1/rates/{pair}", canonicalBase + "-" + canonicalQuote)
                             .accept(MediaType.APPLICATION_JSON)
@@ -114,7 +109,7 @@ class HttpFxSynchronizationService implements FxSynchronizationService {
                     return new CurrencyService.Observation(
                             canonicalBase, canonicalQuote, rate.rate(), source, rate.observedAt());
                 } catch (RestClientException ex) {
-                    failures.increment();
+                    telemetry.fxExternalFailure();
                     boolean retryable = retryable(ex);
                     telemetry.completeFxAttempt(
                             timer, retryable ? "transient_failure" : "permanent_failure");
