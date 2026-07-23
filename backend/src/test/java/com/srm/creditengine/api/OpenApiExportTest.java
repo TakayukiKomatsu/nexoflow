@@ -82,6 +82,8 @@ class OpenApiExportTest {
                 .isEqualTo("#/components/responses/Forbidden");
         assertThat(document.at("/paths/~1api~1v1~1auth~1login/post/responses/429/$ref").asText())
                 .isEqualTo("#/components/responses/TooManyRequests");
+        assertDistinctMutationRequestSchemas(document);
+        assertCreatedSettlementResponses(document);
 
         String output = System.getProperty("srm.openapi.output", "");
         if (!output.isBlank()) {
@@ -93,6 +95,37 @@ class OpenApiExportTest {
             Path target = Path.of(output);
             Files.createDirectories(target.getParent());
             Files.writeString(target, json, StandardCharsets.UTF_8);
+        }
+    }
+
+    private void assertDistinctMutationRequestSchemas(JsonNode document) {
+        assertThat(document.at(
+                                "/paths/~1api~1v1~1assignors/post/requestBody/content/application~1json/schema/$ref")
+                        .asText())
+                .isEqualTo("#/components/schemas/AssignorRequest");
+        assertThat(document.at(
+                                "/paths/~1api~1v1~1receivables/post/requestBody/content/application~1json/schema/$ref")
+                        .asText())
+                .isEqualTo("#/components/schemas/ReceivableRequest");
+        assertThat(document.at("/components/schemas/AssignorRequest/properties").fieldNames())
+                .toIterable()
+                .contains("legalName", "taxId", "active")
+                .doesNotContain("assignorId", "faceAmount");
+        assertThat(document.at("/components/schemas/ReceivableRequest/properties").fieldNames())
+                .toIterable()
+                .contains("assignorId", "productType", "faceAmount", "faceCurrency", "issueDate", "dueDate")
+                .doesNotContain("legalName", "taxId");
+    }
+
+    private void assertCreatedSettlementResponses(JsonNode document) {
+        for (String pointer : java.util.List.of(
+                "/paths/~1api~1v1~1settlements/post/responses",
+                "/paths/~1api~1v1~1settlements~1{settlementId}~1reversals/post/responses")) {
+            JsonNode responses = document.at(pointer);
+            assertThat(responses.has("201")).as("201 response at %s", pointer).isTrue();
+            assertThat(responses.has("200")).as("no false 200 response at %s", pointer).isFalse();
+            assertThat(responses.at("/201/headers/Idempotent-Replay/schema/type").asText())
+                    .isEqualTo("string");
         }
     }
 

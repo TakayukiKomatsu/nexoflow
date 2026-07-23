@@ -2,7 +2,9 @@ package com.srm.creditengine.settlement.api;
 
 import com.srm.creditengine.identity.application.ActorContext;
 import com.srm.creditengine.settlement.application.SettlementService;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -36,6 +38,13 @@ class SettlementController {
     }
 
     @PostMapping("/api/v1/settlements")
+    @ApiResponse(
+            responseCode = "201",
+            description = "Settlement created, or the original result replayed.",
+            headers = @Header(
+                    name = "Idempotent-Replay",
+                    description = "Present with value true only when returning an idempotent replay.",
+                    schema = @Schema(type = "string", allowableValues = "true")))
     ResponseEntity<SettlementResponse> settle(@Valid @RequestBody QuoteIdsRequest request,
             @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 200) String key) {
         var result = settlements.settle(request.quoteIds(), key, actors.currentActor().email());
@@ -48,6 +57,13 @@ class SettlementController {
         return SettlementResponse.from(settlements.get(settlementId));
     }
     @PostMapping("/api/v1/settlements/{settlementId}/reversals")
+    @ApiResponse(
+            responseCode = "201",
+            description = "Reversal created, or the original result replayed.",
+            headers = @Header(
+                    name = "Idempotent-Replay",
+                    description = "Present with value true only when returning an idempotent replay.",
+                    schema = @Schema(type = "string", allowableValues = "true")))
     ResponseEntity<ReversalResponse> reverse(@PathVariable UUID settlementId, @Valid @RequestBody ReversalRequest request,
             @RequestHeader("Idempotency-Key") @NotBlank @Size(max = 200) String key) {
         var reversal = settlements.reverse(settlementId, request.reason(), key, actors.currentActor().email());

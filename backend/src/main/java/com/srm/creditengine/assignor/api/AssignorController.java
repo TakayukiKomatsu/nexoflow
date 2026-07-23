@@ -2,6 +2,7 @@ package com.srm.creditengine.assignor.api;
 
 import com.srm.creditengine.assignor.application.AssignorService;
 import com.srm.creditengine.identity.application.ActorContext;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -17,6 +18,7 @@ class AssignorController {
     @PostMapping @ResponseStatus(HttpStatus.CREATED) AssignorService.Assignor create(@Valid @RequestBody Request request) { return service.create(new AssignorService.CreateCommand(request.id(), request.legalName(), request.taxId(), request.active(), actors.currentActor().email())); }
     @GetMapping List<AssignorService.Assignor> list() { return service.list(); }
     @GetMapping("/{id}") AssignorService.Assignor get(@PathVariable UUID id) { return service.get(id); }
+    @Schema(name = "AssignorRequest", requiredProperties = {"legalName", "taxId", "active"})
     record Request(
             UUID id,
             @NotBlank @Size(max = 200) String legalName,

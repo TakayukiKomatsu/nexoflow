@@ -21,6 +21,11 @@ class ReceivableController {
     @PostMapping @ResponseStatus(HttpStatus.CREATED) Response create(@Valid @RequestBody Request r) { return Response.from(service.register(new ReceivableService.RegisterCommand(r.id(),r.assignorId(),r.productType(),r.faceAmount().value(),r.faceCurrency(),r.issueDate(),r.dueDate(),actors.currentActor().email()))); }
     @GetMapping List<Response> list() { return service.list().stream().map(Response::from).toList(); }
     @GetMapping("/{id}") Response get(@PathVariable UUID id) { return Response.from(service.get(id)); }
+    @Schema(
+            name = "ReceivableRequest",
+            requiredProperties = {
+                "assignorId", "productType", "faceAmount", "faceCurrency", "issueDate", "dueDate"
+            })
     record Request(
             UUID id,
             @NotNull UUID assignorId,
@@ -36,7 +41,7 @@ class ReceivableController {
             return value.signum() > 0 && value.scale() <= 4 && value.precision() - value.scale() <= 15;
         }
     }
-    @Schema(requiredProperties = {
+    @Schema(name = "ReceivableResponse", requiredProperties = {
         "id", "assignorId", "productType", "faceAmount", "faceCurrency",
         "issueDate", "dueDate", "status", "version"
     })
