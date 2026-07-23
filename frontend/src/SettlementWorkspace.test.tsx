@@ -9,6 +9,7 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettlementWorkspace } from "./SettlementWorkspace";
 import type { PricingQuote, Session } from "./api/client";
+import { SESSION_EXPIRED_EVENT } from "./session";
 
 const session: Session = {
   accessToken: "token",
@@ -1119,6 +1120,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
 
   it("renders detail authorization denial without expiring a valid session", async () => {
     const onExpired = vi.fn();
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -1132,7 +1134,6 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       <SettlementWorkspace
         session={session}
         quotes={[]}
-        onExpired={onExpired}
         showLedger={false}
       />,
     );
@@ -1142,6 +1143,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         "Your role is not allowed to perform this action.",
       ),
     ).toBeInTheDocument();
+    window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
     expect(onExpired).not.toHaveBeenCalled();
   });
 

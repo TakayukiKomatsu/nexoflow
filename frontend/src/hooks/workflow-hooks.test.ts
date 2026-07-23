@@ -89,7 +89,7 @@ describe("workflow hook interfaces", () => {
     };
     const settlement: Settlement = {
       settlementId: "33333333-3333-4333-8333-333333333333",
-      status: "SETTLED",
+      status: "COMPLETED",
       items: preview.items,
       settlementCurrency: "BRL",
       totalAmount: "970.00",
