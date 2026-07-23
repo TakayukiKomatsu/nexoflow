@@ -8,6 +8,7 @@ logger=backend/src/main/java/com/srm/creditengine/shared/runtime/SafeOperational
 telemetry=backend/src/main/java/com/srm/creditengine/shared/runtime/FinancialTelemetry.java
 frontend_logger=frontend/src/observability/SafeUiLogger.ts
 log_call_pattern='LoggerFactory|getLogger[[:space:]]*\(|\b(LOG|log|logger)\.(trace|debug|info|warn|error)[[:space:]]*\(|\.(atTrace|atDebug|atInfo|atWarn|atError)[[:space:]]*\(|System\.(out|err)\.(print|println|printf)[[:space:]]*\(|console\.(log|info|warn|error|debug)[[:space:]]*\('
+forbidden_log_field_pattern='authorization|bearer|jwt|password|secret|token|credential|api.?key|idempotency|request\.getHeader|request\.getBody|email|subject|payload|receivableId|settlementId'
 
 validate_log_callsites() {
   local allowed_gateway=$1
@@ -38,12 +39,21 @@ validate_log_callsites "$frontend_logger" frontend/src
 
 rg -q 'HTTP_REQUEST_COMPLETED' "$logger"
 rg -q 'FINANCIAL_CONFLICT' "$logger"
-! rg -ni 'authorization|bearer|jwt|password|secret|token|credential|api.?key|idempotency|request\.getHeader|request\.getBody|email|subject|payload|receivableId|settlementId' "$logger" >/dev/null
-! rg -ni 'counter\([^)]*(actor|idempotency|correlation|receivable|settlementid|quoteid|payload|email|password|jwt)' "$telemetry" >/dev/null
+if rg -ni "$forbidden_log_field_pattern" "$logger" >/dev/null; then
+  echo "Operational logger contains a forbidden sensitive-field reference: $logger" >&2
+  exit 1
+fi
+if rg -ni 'counter\([^)]*(actor|idempotency|correlation|receivable|settlementid|quoteid|payload|email|password|jwt)' "$telemetry" >/dev/null; then
+  echo "Financial telemetry attaches a forbidden high-cardinality field: $telemetry" >&2
+  exit 1
+fi
 rg -Fq 'allowed.contains(normalized)' "$telemetry"
 rg -Fqx '  console.error(UI_RENDER_FAILURE);' "$frontend_logger"
 [[ "$(rg -c "$log_call_pattern" "$frontend_logger")" == 1 ]]
-! rg -ni 'authorization|bearer|jwt|password|secret|token|credential|api.?key|idempotency|email|subject|payload|receivable|settlement|quote' "$frontend_logger" >/dev/null
+if rg -ni 'authorization|bearer|jwt|password|secret|token|credential|api.?key|idempotency|email|subject|payload|receivable|settlement|quote' "$frontend_logger" >/dev/null; then
+  echo "UI logger contains a forbidden sensitive-field reference: $frontend_logger" >&2
+  exit 1
+fi
 
 mutation_root=$(mktemp -d)
 trap 'rm -rf -- "$mutation_root"' EXIT
@@ -54,6 +64,11 @@ cp scripts/tests/fixtures/log-redaction/SecretBearingLogMutation.java.fixture \
 mutation_gateway="$mutation_root/com/srm/creditengine/shared/runtime/SafeOperationalLogger.java"
 if validate_log_callsites "$mutation_gateway" "$mutation_root" >/dev/null 2>&1; then
   echo 'Log-redaction validator accepted a secret-bearing production log mutation' >&2
+  exit 1
+fi
+if ! rg -ni "$forbidden_log_field_pattern" \
+  scripts/tests/fixtures/log-redaction/SecretBearingLogMutation.java.fixture >/dev/null; then
+  echo 'Secret-bearing mutation fixture no longer exercises the forbidden-field detector' >&2
   exit 1
 fi
 
