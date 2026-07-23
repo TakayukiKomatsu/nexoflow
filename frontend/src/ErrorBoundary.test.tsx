@@ -1,9 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import {
-  ApplicationErrorBoundary,
-  UI_RENDER_FAILURE,
-} from "./ErrorBoundary";
+import { ApplicationErrorBoundary, UI_RENDER_FAILURE } from "./ErrorBoundary";
 
 function BrokenModule(): never {
   throw new Error("customer-secret-123");

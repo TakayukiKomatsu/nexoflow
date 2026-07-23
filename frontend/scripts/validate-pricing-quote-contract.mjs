@@ -179,7 +179,8 @@ function compareFormat(label, schema, declaration) {
 function includesTypeFlag(type, flag) {
   return (
     (type.flags & flag) !== 0 ||
-    (type.isUnion() && type.types.every((member) => includesTypeFlag(member, flag)))
+    (type.isUnion() &&
+      type.types.every((member) => includesTypeFlag(member, flag)))
   );
 }
 
@@ -283,7 +284,13 @@ function compareSchemaType(
   if (schema.type === "string") compareEnum(label, schema, nonNullableType);
 }
 
-function comparePropertyTypes(label, openApiProperties, type, checker, document) {
+function comparePropertyTypes(
+  label,
+  openApiProperties,
+  type,
+  checker,
+  document,
+) {
   const symbols = new Map(
     checker.getPropertiesOfType(type).map((symbol) => [symbol.name, symbol]),
   );
@@ -291,10 +298,7 @@ function comparePropertyTypes(label, openApiProperties, type, checker, document)
     const symbol = symbols.get(name);
     const declaration = symbol?.valueDeclaration ?? symbol?.declarations?.[0];
     if (!symbol || !declaration) fail(`${label}.${name} cannot be resolved`);
-    const frontendType = checker.getTypeOfSymbolAtLocation(
-      symbol,
-      declaration,
-    );
+    const frontendType = checker.getTypeOfSymbolAtLocation(symbol, declaration);
     compareSchemaType(
       `${label}.${name}`,
       schema,
@@ -308,7 +312,11 @@ function comparePropertyTypes(label, openApiProperties, type, checker, document)
 
 function compareObjectSchema(label, schema, type, checker, document) {
   const properties = schema.properties;
-  if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
+  if (
+    !properties ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  ) {
     fail(`${label} OpenAPI object has no properties`);
   }
   comparePropertyNames(label, properties, type, checker);

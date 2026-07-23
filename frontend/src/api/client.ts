@@ -164,15 +164,11 @@ async function request<T>(
 
 export const api = {
   async login(input: { email: string; password: string }): Promise<Session> {
-    const token = await request<AccessToken>(
-      "/auth/login",
-      { method: "POST", body: JSON.stringify(input) },
-    );
-    const me = await request<CurrentUser>(
-      "/users/me",
-      {},
-      token.accessToken,
-    );
+    const token = await request<AccessToken>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    const me = await request<CurrentUser>("/users/me", {}, token.accessToken);
     return {
       accessToken: token.accessToken,
       expiresAt: Date.now() + token.expiresIn * 1000,
