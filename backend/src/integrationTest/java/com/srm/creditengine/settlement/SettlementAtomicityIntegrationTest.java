@@ -1,8 +1,8 @@
 package com.srm.creditengine.settlement;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.SettlementService;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
@@ -49,24 +49,39 @@ class SettlementAtomicityIntegrationTest {
     @Autowired private SettlementService settlements;
     @Autowired private JdbcTemplate jdbc;
 
+    @Test
+    void previewRejectsDistinctQuotesForTheSameReceivable() {
+        UUID assignorId = UUID.randomUUID();
+        UUID receivableId = UUID.randomUUID();
+        UUID quoteOne = UUID.randomUUID();
+        UUID quoteTwo = UUID.randomUUID();
+        insertAssignor(assignorId);
+        insertReceivable(receivableId, assignorId, "REGISTERED", 0);
+        insertPricingQuote(quoteOne, receivableId);
+        insertPricingQuote(quoteTwo, receivableId);
+
+        assertThatThrownBy(() -> settlements.preview(
+                        List.of(quoteOne, quoteTwo), "preview-operator@srm.local"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Pricing quotes must reference unique receivables");
+    }
 
     // --- SETTLE-ROLLBACK-008: a mid-transaction failure must leave nothing persisted ---
     @Test
     void SETTLE_ROLLBACK_008_multiItemSettlementRollsBackAllScopedStateOnMidTransactionFailure() {
         UUID assignorId = UUID.randomUUID();
-        UUID receivableId = UUID.randomUUID();
+        UUID receivableOne = UUID.randomUUID();
+        UUID receivableTwo = UUID.randomUUID();
         UUID quoteOne = UUID.randomUUID();
         UUID quoteTwo = UUID.randomUUID();
         String idempotencyKey = "rollback-key-" + UUID.randomUUID();
         String actor = "actor-rollback-" + UUID.randomUUID() + "@srm.local";
         insertAssignor(assignorId);
-        insertReceivable(receivableId, assignorId, "REGISTERED", 0);
-        // Two ACTIVE quotes referencing the SAME receivable: the second item's receivable
-        // update fails after the first item has already mutated quote + receivable state
-        // inside the same @Transactional settle() call, forcing a genuine mid-transaction
-        // failure (AlreadySettledException) that must roll back everything already written.
-        insertPricingQuote(quoteOne, receivableId);
-        insertPricingQuote(quoteTwo, receivableId);
+        insertReceivable(receivableOne, assignorId, "REGISTERED", 0);
+        insertReceivable(receivableTwo, assignorId, "REGISTERED", 0);
+        insertPricingQuote(quoteOne, receivableOne);
+        insertPricingQuote(quoteTwo, receivableTwo);
+        String failureTrigger = installReceivableFailureTrigger(receivableTwo);
 
         int settlementsBefore = rowCount(
                 "select count(*) from settlements where assignor_id=? and created_by=?", assignorId, actor);
@@ -79,10 +94,10 @@ class SettlementAtomicityIntegrationTest {
                 "select count(*) from audit_events where actor=? and action='SETTLEMENT_CREATED'", actor);
 
         try {
-            settlements.settle(List.of(quoteOne, quoteTwo), idempotencyKey, actor);
-            org.junit.jupiter.api.Assertions.fail("Expected AlreadySettledException due to the duplicate receivable in one settlement request");
-        } catch (AlreadySettledException expected) {
-            // expected: proves the mid-transaction failure path was actually exercised.
+            assertThatThrownBy(() -> settlements.settle(List.of(quoteOne, quoteTwo), idempotencyKey, actor))
+                    .hasMessageContaining("forced settlement failure");
+        } finally {
+            removeReceivableFailureTrigger(failureTrigger);
         }
 
         assertThat(rowCount("select count(*) from settlements where assignor_id=? and created_by=?", assignorId, actor))
@@ -94,10 +109,11 @@ class SettlementAtomicityIntegrationTest {
                         actor, idempotencyKey))
                 .isEqualTo(idempotencyBefore);
 
-        String receivableStatus = jdbc.queryForObject("select status from receivables where id=?", String.class, receivableId);
-        Integer receivableVersion = jdbc.queryForObject("select version from receivables where id=?", Integer.class, receivableId);
-        assertThat(receivableStatus).isEqualTo("REGISTERED");
-        assertThat(receivableVersion).isEqualTo(0);
+        assertThat(rowCount(
+                        "select count(*) from receivables where id in (?,?) and status='REGISTERED' and version=0",
+                        receivableOne,
+                        receivableTwo))
+                .isEqualTo(2);
 
         String quoteOneStatus = jdbc.queryForObject("select status from pricing_quotes where id=?", String.class, quoteOne);
         String quoteTwoStatus = jdbc.queryForObject("select status from pricing_quotes where id=?", String.class, quoteTwo);
@@ -108,6 +124,32 @@ class SettlementAtomicityIntegrationTest {
                 .isEqualTo(auditEventsBefore);
     }
 
+    private String installReceivableFailureTrigger(UUID receivableId) {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        String functionName = "fail_settlement_" + suffix;
+        String triggerName = "fail_settlement_trigger_" + suffix;
+        jdbc.execute("""
+                create function %s() returns trigger language plpgsql as $$
+                begin
+                    if new.id = '%s'::uuid then
+                        raise exception 'forced settlement failure';
+                    end if;
+                    return new;
+                end
+                $$
+                """.formatted(functionName, receivableId));
+        jdbc.execute("""
+                create trigger %s before update of status on receivables
+                for each row execute function %s()
+                """.formatted(triggerName, functionName));
+        return triggerName + ":" + functionName;
+    }
+
+    private void removeReceivableFailureTrigger(String failureTrigger) {
+        String[] names = failureTrigger.split(":");
+        jdbc.execute("drop trigger if exists " + names[0] + " on receivables");
+        jdbc.execute("drop function if exists " + names[1] + "()");
+    }
 
     private int rowCount(String sql, Object... args) {
         Integer count = jdbc.queryForObject(sql, Integer.class, args);

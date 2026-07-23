@@ -114,9 +114,12 @@ class AuthoritativePricingService implements PricingService {
                 actor,
                 "ACTIVE");
         quotes.save(snapshot, actor);
-        audit.recordQuoteCreated(actor, snapshot);
+        var persisted = quotes
+                .findById(snapshot.id())
+                .orElseThrow(() -> new IllegalStateException("Pricing quote was not persisted"));
+        audit.recordQuoteCreated(actor, persisted);
         telemetry.quote(receivable.productType(), settlementCurrency, "success");
-        return toQuote(snapshot, clock.instant());
+        return toQuote(persisted, clock.instant());
     }
 
     @Override

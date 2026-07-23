@@ -53,6 +53,9 @@ public final class SettlementPolicy {
             }
             ordered.add(quote);
         }
+        if (ordered.stream().map(LockedQuote::receivableId).distinct().count() != ordered.size()) {
+            throw new IllegalArgumentException("Pricing quotes must reference unique receivables");
+        }
         LockedQuote first = ordered.getFirst();
         if (ordered.stream().anyMatch(quote -> !quote.assignorId().equals(first.assignorId())
                 || !quote.settlementCurrency().equals(first.settlementCurrency()))) {

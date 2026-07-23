@@ -113,7 +113,8 @@ public class JdbcSettlementRepository implements SettlementRepository {
                 throw new AlreadyReversedException();
             }
         }
-        return new SettlementService.Reversal(reversalId, settlement.settlementId(), reason, at, false);
+        return findReversal(reversalId)
+                .orElseThrow(() -> new IllegalStateException("Reversal was not persisted"));
     }
 
     @Override

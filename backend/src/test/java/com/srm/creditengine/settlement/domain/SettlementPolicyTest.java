@@ -34,6 +34,19 @@ class SettlementPolicyTest {
     }
 
     @Test
+    void previewRejectsTwoQuotesForTheSameReceivableBeforeAggregation() {
+        var assignor = UUID.randomUUID();
+        var receivableId = UUID.randomUUID();
+        var first = quote(assignor, receivableId, "BRL", "ACTIVE", "REGISTERED", NOW.plusSeconds(60));
+        var second = quote(assignor, receivableId, "BRL", "ACTIVE", "REGISTERED", NOW.plusSeconds(60));
+
+        assertThatThrownBy(() -> SettlementPolicy.validateQuotes(
+                        List.of(first.quoteId(), second.quoteId()), List.of(first, second), NOW))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Pricing quotes must reference unique receivables");
+    }
+
+    @Test
     void validatesOrderedBatchAndBuildsPreview() {
         var assignor = UUID.randomUUID();
         var first = quote(assignor, "BRL", "ACTIVE", "REGISTERED", NOW.plusSeconds(120));
@@ -87,7 +100,17 @@ class SettlementPolicyTest {
     }
 
     private static LockedQuote quote(UUID assignor, String currency, String quoteStatus, String receivableStatus, Instant expiresAt) {
-        return new LockedQuote(UUID.randomUUID(), UUID.randomUUID(), currency, new BigDecimal("10.00"), expiresAt,
+        return quote(assignor, UUID.randomUUID(), currency, quoteStatus, receivableStatus, expiresAt);
+    }
+
+    private static LockedQuote quote(
+            UUID assignor,
+            UUID receivableId,
+            String currency,
+            String quoteStatus,
+            String receivableStatus,
+            Instant expiresAt) {
+        return new LockedQuote(UUID.randomUUID(), receivableId, currency, new BigDecimal("10.00"), expiresAt,
                 quoteStatus, assignor, receivableStatus, 0, "BRL", "MERCANTILE_INVOICE");
     }
 }

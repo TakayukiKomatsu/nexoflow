@@ -25,7 +25,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
-@SpringBootTest(properties = "srm.clock.fixed-instant=2030-01-15T12:00:00Z")
+@SpringBootTest(properties = "srm.clock.fixed-instant=2030-01-15T12:00:00.123456789Z")
 class SettlementReversalIntegrationTest {
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")

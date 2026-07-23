@@ -21,7 +21,7 @@ public class JdbcExchangeRateRepository implements ExchangeRateRepository {
     private static final String LATEST_SQL =
             "select base_currency_code,quote_currency_code,rate,source,observed_at "
                     + "from exchange_rates where base_currency_code=? and quote_currency_code=? "
-                    + "and observed_at<=? order by observed_at desc limit 1";
+                    + "and observed_at<=? order by observed_at desc,created_at desc,id desc limit 1";
     private static final RowMapper<FxObservation> OBSERVATION_MAPPER = (rs, row) -> new FxObservation(
             rs.getString(1), rs.getString(2), rs.getBigDecimal(3), rs.getString(4), rs.getTimestamp(5).toInstant());
 
