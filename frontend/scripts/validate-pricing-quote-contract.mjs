@@ -280,9 +280,27 @@ function compareSchemaType(
   declaration,
 ) {
   const frontendNullable = isNullable(type);
-  if (Boolean(schema.nullable) !== frontendNullable) {
+  const declaredTypes = Array.isArray(schema.type)
+    ? schema.type
+    : [schema.type];
+  const openApiNullable =
+    Boolean(schema.nullable) || declaredTypes.includes("null");
+  const nonNullSchemaTypes = declaredTypes.filter(
+    (declaredType) => declaredType && declaredType !== "null",
+  );
+  if (nonNullSchemaTypes.length > 1) {
+    fail(`${label} uses an unsupported OpenAPI type union`);
+  }
+  const schemaType =
+    nonNullSchemaTypes[0] ??
+    (Array.isArray(schema.enum) &&
+    schema.enum.length > 0 &&
+    schema.enum.every((value) => typeof value === "string")
+      ? "string"
+      : undefined);
+  if (openApiNullable !== frontendNullable) {
     fail(
-      `${label} nullable mismatch; frontend: ${frontendNullable}; OpenAPI: ${Boolean(schema.nullable)}`,
+      `${label} nullable mismatch; frontend: ${frontendNullable}; OpenAPI: ${openApiNullable}`,
     );
   }
   const nonNullableType = checker.getNonNullableType(type);
@@ -299,7 +317,7 @@ function compareSchemaType(
     return;
   }
 
-  if (schema?.type === "array") {
+  if (schemaType === "array") {
     if (!checker.isArrayType(nonNullableType)) {
       fail(
         `${label} is ${checker.typeToString(nonNullableType)} in the frontend but array in OpenAPI`,
@@ -325,17 +343,17 @@ function compareSchemaType(
     integer: ts.TypeFlags.NumberLike,
     number: ts.TypeFlags.NumberLike,
     boolean: ts.TypeFlags.BooleanLike,
-  }[schema?.type];
+  }[schemaType];
   if (!expectedFlag) {
-    fail(`${label} uses unsupported OpenAPI type ${schema?.type ?? "unknown"}`);
+    fail(`${label} uses unsupported OpenAPI type ${schemaType ?? "unknown"}`);
   }
   if (!includesTypeFlag(nonNullableType, expectedFlag)) {
     fail(
-      `${label} is ${checker.typeToString(nonNullableType)} in the frontend but ${schema.type} in OpenAPI`,
+      `${label} is ${checker.typeToString(nonNullableType)} in the frontend but ${schemaType} in OpenAPI`,
     );
   }
   compareFormat(label, schema, declaration);
-  if (schema.type === "string") compareEnum(label, schema, nonNullableType);
+  if (schemaType === "string") compareEnum(label, schema, nonNullableType);
 }
 
 function comparePropertyTypes(
@@ -426,8 +444,9 @@ function referenceName(schema, label) {
 }
 
 function jsonSchema(content, label) {
-  const schema = content?.["application/json"]?.schema;
-  if (!schema) fail(`${label} has no application/json schema`);
+  const schema =
+    content?.["application/json"]?.schema ?? content?.["*/*"]?.schema;
+  if (!schema) fail(`${label} has no JSON-compatible schema`);
   return schema;
 }
 

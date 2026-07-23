@@ -30,7 +30,7 @@ export type AccessToken = {
   tokenType: string;
 };
 export type CurrentUser = {
-  id: Uuid;
+  id: string;
   email: string;
   roles: Session["roles"];
 };
