@@ -1,11 +1,15 @@
 package com.srm.creditengine.settlement.infrastructure;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.srm.creditengine.settlement.application.SettlementRepository;
 import com.srm.creditengine.settlement.domain.AlreadyReversedException;
 import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.domain.LockedQuote;
@@ -15,10 +19,46 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
 class JdbcSettlementRepositoryTest {
+    @Test
+    void exposesASeparateNonLockingPreviewRead() throws Exception {
+        assertThat(SettlementRepository.class.getMethod("findQuotes", List.class)).isNotNull();
+    }
+
+    @Test
+    void locksQuoteBatchesInStableDatabaseOrder() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
+        var repository = new JdbcSettlementRepository(jdbc);
+
+        repository.lockQuotes(List.of(UUID.randomUUID(), UUID.randomUUID()));
+
+        var sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).query(sql.capture(), any(RowMapper.class), any(Object[].class));
+        assertThat(sql.getValue())
+                .contains("order by q.id")
+                .endsWith("for update of q, r");
+    }
+
+    @Test
+    void previewReadsUseStableOrderWithoutTakingDatabaseLocks() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class))).thenReturn(List.of());
+        var repository = new JdbcSettlementRepository(jdbc);
+
+        repository.findQuotes(List.of(UUID.randomUUID(), UUID.randomUUID()));
+
+        var sql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).query(sql.capture(), any(RowMapper.class), any(Object[].class));
+        assertThat(sql.getValue())
+                .contains("order by q.id")
+                .doesNotContainIgnoringCase("for update");
+    }
+
     @Test
     void rejectsConflictingQuoteOrReceivableConsumption() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
@@ -37,8 +77,7 @@ class JdbcSettlementRepositoryTest {
         var repository = new JdbcSettlementRepository(jdbc);
 
         assertThatThrownBy(() -> repository.lockSettlement(UUID.randomUUID()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Settlement not found");
+                .isInstanceOf(com.srm.creditengine.shared.domain.DomainResourceNotFoundException.class);
     }
 
     @Test

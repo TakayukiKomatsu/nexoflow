@@ -283,6 +283,40 @@ class JdbcSettlementServiceConcurrencyIntegrationTest {
     }
 
     @Test
+    void SETTLE_006_reversedOverlappingBatchesUseOneStableLockOrderWithoutDeadlock() throws Exception {
+        UUID assignorId = newAssignor();
+        UUID receivable1 = newReceivable(assignorId);
+        UUID receivable2 = newReceivable(assignorId);
+        UUID quote1 = pricing.createQuote(receivable1, "BRL", ACTOR).id();
+        UUID quote2 = pricing.createQuote(receivable2, "BRL", ACTOR).id();
+        List<UUID> firstOrder = List.of(quote1, quote2);
+        List<UUID> reversedOrder = List.of(quote2, quote1);
+        String barrierToken = barrierToken();
+        String keyA = claimKey(barrierToken, "ordered-a");
+        String keyB = claimKey(barrierToken, "ordered-b");
+
+        List<SettlementAttempt> outcomes = raceAtClaimBoundary(
+                barrierToken,
+                () -> settleAttempt(firstOrder, keyA),
+                () -> settleAttempt(reversedOrder, keyB));
+
+        List<SettlementAttempt> winners =
+                outcomes.stream().filter(outcome -> outcome.error() == null).toList();
+        List<SettlementAttempt> losers =
+                outcomes.stream().filter(outcome -> outcome.error() != null).toList();
+        assertThat(winners).hasSize(1);
+        assertThat(losers).hasSize(1);
+        assertThat(losers.getFirst().error()).isInstanceOf(AlreadySettledException.class);
+        assertThat(jdbc.query(
+                        "select quote_id from settlement_items where settlement_id=? order by item_position",
+                        (resultSet, rowNumber) -> resultSet.getObject(1, UUID.class),
+                        winners.getFirst().result().settlementId()))
+                .containsExactlyElementsOf(winners.getFirst().orderedQuoteIds());
+        assertThat(quoteStatus(quote1)).isEqualTo("CONSUMED");
+        assertThat(quoteStatus(quote2)).isEqualTo("CONSUMED");
+    }
+
+    @Test
     void SETTLE_006_concurrentDifferentKeysRacingTheSameReceivableOnlyOneSucceeds() throws Exception {
         UUID assignorId = newAssignor();
         UUID receivableId = newReceivable(assignorId);

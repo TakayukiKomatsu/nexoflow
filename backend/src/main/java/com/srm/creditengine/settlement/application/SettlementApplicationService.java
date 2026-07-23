@@ -42,7 +42,8 @@ public class SettlementApplicationService implements SettlementService {
         try {
             SettlementPolicy.requireOrderedUnique(orderedQuoteIds);
             Instant now = clock.instant();
-            Preview preview = toPreview(SettlementPolicy.previewOf(validatedQuotes(orderedQuoteIds, now), now));
+            Preview preview = toPreview(SettlementPolicy.previewOf(
+                    validatedQuotes(orderedQuoteIds, settlements.findQuotes(orderedQuoteIds), now), now));
             telemetry.preview(preview.settlementCurrency(), "success");
             return preview;
         } catch (RuntimeException exception) {
@@ -64,7 +65,7 @@ public class SettlementApplicationService implements SettlementService {
         }
 
         Instant now = clock.instant();
-        var quotes = validatedQuotes(orderedQuoteIds, now);
+        var quotes = validatedQuotes(orderedQuoteIds, settlements.lockQuotes(orderedQuoteIds), now);
         Preview preview = toPreview(SettlementPolicy.previewOf(quotes, now));
         var draft = new SettlementDraft(
                 UUID.randomUUID(), quotes.getFirst().assignorId(), preview.settlementCurrency(), preview.totalAmount(), quotes, now, actor);
@@ -118,12 +119,12 @@ public class SettlementApplicationService implements SettlementService {
         return new Reversal(reversal.reversalId(), reversal.settlementId(), reversal.reason(), reversal.reversedAt(), true);
     }
 
-    private List<LockedQuote> validatedQuotes(List<UUID> orderedQuoteIds, Instant now) {
-        List<LockedQuote> locked = settlements.lockQuotes(orderedQuoteIds);
-        if (locked.size() != orderedQuoteIds.size()) {
+    private static List<LockedQuote> validatedQuotes(
+            List<UUID> orderedQuoteIds, List<LockedQuote> quotes, Instant now) {
+        if (quotes.size() != orderedQuoteIds.size()) {
             throw new DomainResourceNotFoundException();
         }
-        return SettlementPolicy.validateQuotes(orderedQuoteIds, locked, now);
+        return SettlementPolicy.validateQuotes(orderedQuoteIds, quotes, now);
     }
 
     private static Preview toPreview(SettlementPreview preview) {

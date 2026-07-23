@@ -10,6 +10,8 @@ import java.util.UUID;
 
 /** Transactional persistence boundary for settlement locks, writes, and result rehydration. */
 public interface SettlementRepository {
+    List<LockedQuote> findQuotes(List<UUID> orderedIds);
+
     List<LockedQuote> lockQuotes(List<UUID> orderedIds);
 
     void saveCompleted(SettlementDraft draft);
