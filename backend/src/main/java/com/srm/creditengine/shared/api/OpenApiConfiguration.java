@@ -118,6 +118,9 @@ class OpenApiConfiguration {
         addError(responses, "500");
         if (login) {
             addError(responses, "429");
+            if (method != io.swagger.v3.oas.models.PathItem.HttpMethod.GET) {
+                addError(responses, "415");
+            }
             return;
         }
 

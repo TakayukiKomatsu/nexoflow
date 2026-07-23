@@ -10,8 +10,6 @@ export { LEDGER_FILTER_DEBOUNCE_MS } from "./hooks/useStatementFilters";
 export type SettlementWorkspaceProps = {
   session: Session;
   quotes: PricingQuote[];
-  /** @deprecated Session expiry is owned by the shared API/session module. */
-  onExpired?: () => void;
   onSettled?: (consumedQuoteIds: string[]) => void;
   showLedger?: boolean;
 };

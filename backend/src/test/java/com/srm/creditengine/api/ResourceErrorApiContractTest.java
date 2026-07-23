@@ -195,6 +195,24 @@ class ResourceErrorApiContractTest {
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
+    @ParameterizedTest
+    @MethodSource("unsupportedStatementFilters")
+    void statementClosedDomainFiltersRejectUnsupportedValues(String name, String value, String code)
+            throws Exception {
+        mvc.perform(get("/api/v1/settlement-statements")
+                        .header("Authorization", "Bearer " + token())
+                        .param(name, value))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(code));
+    }
+
+    static Stream<Arguments> unsupportedStatementFilters() {
+        return Stream.of(
+                Arguments.of("assetCurrency", "EUR", "UNSUPPORTED_CURRENCY"),
+                Arguments.of("settlementCurrency", "EUR", "UNSUPPORTED_CURRENCY"),
+                Arguments.of("productType", "BOGUS", "INVALID_REQUEST"));
+    }
+
     private static String receivableBody(UUID assignorId, String productType, String currency) {
         return """
                 {

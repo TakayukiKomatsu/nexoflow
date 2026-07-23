@@ -19,7 +19,13 @@ const arithmeticOperators = new Set([
   ts.SyntaxKind.SlashToken,
   ts.SyntaxKind.PercentToken,
   ts.SyntaxKind.AsteriskAsteriskToken,
+  ts.SyntaxKind.PlusEqualsToken,
+  ts.SyntaxKind.MinusEqualsToken,
+  ts.SyntaxKind.AsteriskEqualsToken,
+  ts.SyntaxKind.SlashEqualsToken,
+  ts.SyntaxKind.PercentEqualsToken,
 ]);
+const numericConversions = new Set(["Number", "parseFloat", "parseInt", "BigInt"]);
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultSourceRoot = resolve(scriptDirectory, "../src");
 
@@ -105,21 +111,143 @@ for (const fileName of sourceFiles) {
     fileName.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
 
+  const taintedIdentifiers = new Set();
+
+  function expressionIsTainted(node) {
+    if (!node) return false;
+    if (ts.isIdentifier(node)) return taintedIdentifiers.has(node.text);
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      financialFields.has(node.name.text)
+    ) {
+      return true;
+    }
+    if (
+      ts.isElementAccessExpression(node) &&
+      ts.isStringLiteral(node.argumentExpression) &&
+      financialFields.has(node.argumentExpression.text)
+    ) {
+      return true;
+    }
+    if (
+      ts.isParenthesizedExpression(node) ||
+      ts.isAsExpression(node) ||
+      ts.isTypeAssertionExpression(node) ||
+      ts.isNonNullExpression(node)
+    ) {
+      return expressionIsTainted(node.expression);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      numericConversions.has(node.expression.text)
+    ) {
+      return node.arguments.some(expressionIsTainted);
+    }
+    if (ts.isBinaryExpression(node)) {
+      return expressionIsTainted(node.left) || expressionIsTainted(node.right);
+    }
+    if (ts.isConditionalExpression(node)) {
+      return (
+        expressionIsTainted(node.whenTrue) ||
+        expressionIsTainted(node.whenFalse)
+      );
+    }
+    return false;
+  }
+
+  let discoveredAlias = true;
+  while (discoveredAlias) {
+    discoveredAlias = false;
+    function discover(node) {
+      if (ts.isBindingElement(node) && ts.isIdentifier(node.name)) {
+        const sourceName = node.propertyName && ts.isIdentifier(node.propertyName)
+          ? node.propertyName.text
+          : node.name.text;
+        if (
+          financialFields.has(sourceName) &&
+          !taintedIdentifiers.has(node.name.text)
+        ) {
+          taintedIdentifiers.add(node.name.text);
+          discoveredAlias = true;
+        }
+      }
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        expressionIsTainted(node.initializer) &&
+        !taintedIdentifiers.has(node.name.text)
+      ) {
+        taintedIdentifiers.add(node.name.text);
+        discoveredAlias = true;
+      }
+      if (
+        ts.isBinaryExpression(node) &&
+        node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+        ts.isIdentifier(node.left) &&
+        expressionIsTainted(node.right) &&
+        !taintedIdentifiers.has(node.left.text)
+      ) {
+        taintedIdentifiers.add(node.left.text);
+        discoveredAlias = true;
+      }
+      if (
+        ts.isParameter(node) &&
+        ts.isIdentifier(node.name) &&
+        financialFields.has(node.name.text) &&
+        !taintedIdentifiers.has(node.name.text)
+      ) {
+        taintedIdentifiers.add(node.name.text);
+        discoveredAlias = true;
+      }
+      ts.forEachChild(node, discover);
+    }
+    discover(sourceFile);
+  }
+
+  function recordViolation(node) {
+    const { line, character } = sourceFile.getLineAndCharacterOfPosition(
+      node.getStart(sourceFile),
+    );
+    violations.push({
+      fileName,
+      line: line + 1,
+      column: character + 1,
+      expression: node.getText(sourceFile),
+    });
+  }
+
   function visit(node) {
     if (
       ts.isBinaryExpression(node) &&
       arithmeticOperators.has(node.operatorToken.kind) &&
-      (accessesFinancialField(node.left) || accessesFinancialField(node.right))
+      (expressionIsTainted(node.left) ||
+        expressionIsTainted(node.right) ||
+        accessesFinancialField(node.left) ||
+        accessesFinancialField(node.right))
     ) {
-      const { line, character } = sourceFile.getLineAndCharacterOfPosition(
-        node.getStart(sourceFile),
-      );
-      violations.push({
-        fileName,
-        line: line + 1,
-        column: character + 1,
-        expression: node.getText(sourceFile),
-      });
+      recordViolation(node);
+    } else if (
+      ts.isCallExpression(node) &&
+      ((ts.isIdentifier(node.expression) &&
+        numericConversions.has(node.expression.text)) ||
+        (ts.isPropertyAccessExpression(node.expression) &&
+          ts.isIdentifier(node.expression.expression) &&
+          node.expression.expression.text === "Math")) &&
+      node.arguments.some(expressionIsTainted)
+    ) {
+      recordViolation(node);
+    } else if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      [
+        ts.SyntaxKind.PlusToken,
+        ts.SyntaxKind.MinusToken,
+        ts.SyntaxKind.PlusPlusToken,
+        ts.SyntaxKind.MinusMinusToken,
+      ].includes(node.operator) &&
+      expressionIsTainted(node.operand)
+    ) {
+      recordViolation(node);
     }
     ts.forEachChild(node, visit);
   }

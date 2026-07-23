@@ -28,17 +28,19 @@ class ExchangeRateController {
     @PostMapping @ResponseStatus(HttpStatus.CREATED)
     void create(@Valid @RequestBody Request request) { currency.recordObservation(request.base(), request.quote(), request.rate().value(), request.source(), request.observedAt(), actor.currentActor().email()); }
     @GetMapping
-    List<CurrencyApiResponse.Observation> list(@RequestParam String base, @RequestParam String quote) {
+    List<CurrencyApiResponse.Observation> list(
+            @RequestParam @Schema(allowableValues = {"BRL", "USD"}) String base,
+            @RequestParam @Schema(allowableValues = {"BRL", "USD"}) String quote) {
         return currency.observations(base, quote).stream().map(CurrencyApiResponse::observation).toList();
     }
     @Schema(
             name = "ExchangeRateRequest",
             requiredProperties = {"base", "quote", "rate", "source", "observedAt"})
     record Request(
-            @NotBlank String base,
-            @NotBlank String quote,
+            @NotBlank @Schema(allowableValues = {"BRL", "USD"}) String base,
+            @NotBlank @Schema(allowableValues = {"BRL", "USD"}) String quote,
             @NotNull @Schema(type = "string", description = "Positive rate with at most 9 integer and 10 fractional digits") DecimalString rate,
-            @NotBlank @Size(max = 50) String source,
+            @NotBlank @Size(min = 1, max = 50) String source,
             @NotNull Instant observedAt) {
         @AssertTrue(message = "rate must be positive with at most 9 integer and 10 fractional digits")
         boolean isRateValid() {

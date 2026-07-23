@@ -121,6 +121,74 @@ validate_make_invocations() {
   done <<<"$separated"
 }
 
+validate_local_command_references() {
+  local id="$1"
+  local command="$2"
+  local tokens=()
+  read -r -a tokens <<<"$command"
+  local index
+  for ((index = 0; index < ${#tokens[@]}; index++)); do
+    local token="${tokens[$index]}"
+    case "$token" in
+      scripts/*|./scripts/*|backend/gradlew|./backend/gradlew|gradlew|./gradlew)
+        local path="${token#./}"
+        if [[ ! -f "$repo_root/$path" ]]; then
+          failures+=("$id: documented local command does not exist: $path")
+        elif [[ ! -x "$repo_root/$path" ]]; then
+          failures+=("$id: documented local command is not executable: $path")
+        fi
+        ;;
+    esac
+  done
+
+  local npm_index=-1
+  for ((index = 0; index < ${#tokens[@]}; index++)); do
+    if [[ "${tokens[$index]}" == "npm" ]]; then
+      npm_index="$index"
+      break
+    fi
+  done
+  [[ "$npm_index" -ge 0 ]] || return 0
+
+  local prefix="."
+  local script=""
+  for ((index = npm_index + 1; index < ${#tokens[@]}; index++)); do
+    case "${tokens[$index]}" in
+      --prefix|-C)
+        if ((index + 1 < ${#tokens[@]})); then
+          prefix="${tokens[$((index + 1))]}"
+          index=$((index + 1))
+        fi
+        ;;
+      run|run-script)
+        if ((index + 1 < ${#tokens[@]})); then
+          script="${tokens[$((index + 1))]}"
+        fi
+        break
+        ;;
+      test|start|stop|restart)
+        script="${tokens[$index]}"
+        break
+        ;;
+    esac
+  done
+  [[ -n "$script" ]] || return 0
+
+  local package_json="$repo_root/${prefix#./}/package.json"
+  if [[ ! -f "$package_json" ]]; then
+    failures+=("$id: npm package manifest does not exist: ${prefix#./}/package.json")
+    return 0
+  fi
+  if ! node -e '
+    const fs = require("node:fs");
+    const [manifest, script] = process.argv.slice(1);
+    const parsed = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    process.exit(Object.hasOwn(parsed.scripts ?? {}, script) ? 0 : 1);
+  ' "$package_json" "$script"; then
+    failures+=("$id: documented npm script does not exist in ${prefix#./}/package.json: $script")
+  fi
+}
+
 for id in "${check_ids[@]}"; do
   row_count="$(
     awk -F '|' -v id="$id" '
@@ -191,6 +259,7 @@ for id in "${check_ids[@]}"; do
       executable_command_found=true
     fi
     validate_make_invocations "$id" "$command"
+    validate_local_command_references "$id" "$command"
   done < <(
     printf '%s\n' "$verification_cell" | grep -oE '`[^`]+`' || true
   )
@@ -239,6 +308,7 @@ while IFS='|' read -r _ requirement status evidence verification _; do
           verification_command_found=true
         fi
         validate_make_invocations "$requirement" "$command"
+        validate_local_command_references "$requirement" "$command"
       done < <(
         printf '%s\n' "$verification" | grep -oE '`[^`]+`' || true
       )

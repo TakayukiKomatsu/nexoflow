@@ -7,6 +7,11 @@ export type IsoDate = string;
 export type IsoInstant = string;
 export type Int32 = number;
 export type Int64 = number;
+export type Currency = "BRL" | "USD";
+export type ProductType = "MERCANTILE_INVOICE" | "POST_DATED_CHEQUE";
+export type ReceivableStatus = "REGISTERED" | "SETTLED" | "REVERSED";
+export type QuoteStatus = "ACTIVE" | "EXPIRED" | "CONSUMED";
+export type SettlementStatus = "COMPLETED";
 
 export const API_OPERATIONS = {
   login: { method: "POST", path: "/auth/login" },
@@ -36,34 +41,34 @@ export type CurrentUser = {
 };
 export type ReceivableRequest = {
   assignorId: Uuid;
-  productType: string;
+  productType: ProductType;
   faceAmount: string;
-  faceCurrency: string;
+  faceCurrency: Currency;
   issueDate: IsoDate;
   dueDate: IsoDate;
 };
 export type Receivable = {
   id: Uuid;
   assignorId: Uuid;
-  productType: string;
+  productType: ProductType;
   faceAmount: string;
-  faceCurrency: string;
+  faceCurrency: Currency;
   issueDate: IsoDate;
   dueDate: IsoDate;
-  status: string;
+  status: ReceivableStatus;
   version: Int64;
 };
 
 export type PricingSimulationRequest = {
   faceAmount: string;
-  faceCurrency: string;
-  productType: string;
+  faceCurrency: Currency;
+  productType: ProductType;
   dueDate: IsoDate;
-  settlementCurrency: string;
+  settlementCurrency: Currency;
 };
 export type QuoteRequest = {
   receivableId: Uuid;
-  settlementCurrency: string;
+  settlementCurrency: Currency;
 };
 export type QuoteIdsRequest = {
   quoteIds: Uuid[];
@@ -78,25 +83,25 @@ export type StatementFilters = {
   from?: IsoInstant;
   to?: IsoInstant;
   assignorId?: Uuid;
-  assetCurrency?: string;
-  settlementCurrency?: string;
-  productType?: string;
+  assetCurrency?: Currency;
+  settlementCurrency?: Currency;
+  productType?: ProductType;
   page?: Int32;
   size?: Int32;
 };
 
 export type PricingBreakdown = {
   faceAmount: string;
-  faceCurrency: string;
-  settlementCurrency: string;
+  faceCurrency: Currency;
+  settlementCurrency: Currency;
   baseRate: string;
   spread: string;
   strategyCode: string;
   dayCountConvention: string;
   termInMonths: string;
   discountedAmount: string;
-  fxBaseCurrency: string;
-  fxQuoteCurrency: string;
+  fxBaseCurrency: Currency;
+  fxQuoteCurrency: Currency;
   fxRate: string;
   fxSource: string;
   fxObservedAt: IsoInstant;
@@ -108,11 +113,11 @@ export type PricingSimulation = PricingBreakdown;
 export type PricingQuote = {
   id: Uuid;
   receivableId: Uuid;
-  productType: string;
+  productType: ProductType;
   dueDate: IsoDate;
   pricing: PricingBreakdown;
   expiresAt: IsoInstant;
-  status: string;
+  status: QuoteStatus;
   createdBy: string;
 };
 export type SettlementItem = {
@@ -122,16 +127,16 @@ export type SettlementItem = {
 };
 export type SettlementPreview = {
   items: SettlementItem[];
-  settlementCurrency: string;
+  settlementCurrency: Currency;
   totalAmount: string;
   asOf: IsoInstant;
   earliestExpiry: IsoInstant;
 };
 export type Settlement = {
   settlementId: Uuid;
-  status: string;
+  status: SettlementStatus;
   items: SettlementItem[];
-  settlementCurrency: string;
+  settlementCurrency: Currency;
   totalAmount: string;
   completedAt: IsoInstant;
 };
@@ -143,9 +148,9 @@ export type StatementEntry = {
   settlementId: Uuid;
   reversalId: Uuid | null;
   assignorId: Uuid;
-  assetCurrency: string;
-  settlementCurrency: string;
-  productType: string;
+  assetCurrency: Currency;
+  settlementCurrency: Currency;
+  productType: ProductType;
   receivableId: Uuid;
 };
 export type StatementPage = {
@@ -242,6 +247,16 @@ function optionalInteger(
   return value === null ? undefined : Number(value);
 }
 
+function optionalCurrency(value: string | null): Currency | undefined {
+  return value === "BRL" || value === "USD" ? value : undefined;
+}
+
+function optionalProductType(value: string | null): ProductType | undefined {
+  return value === "MERCANTILE_INVOICE" || value === "POST_DATED_CHEQUE"
+    ? value
+    : undefined;
+}
+
 export function statementFiltersFromSearch(
   search: URLSearchParams,
 ): StatementFilters {
@@ -249,9 +264,9 @@ export function statementFiltersFromSearch(
     from: search.get("from") ?? undefined,
     to: search.get("to") ?? undefined,
     assignorId: search.get("assignorId") ?? undefined,
-    assetCurrency: search.get("assetCurrency") ?? undefined,
-    settlementCurrency: search.get("settlementCurrency") ?? undefined,
-    productType: search.get("productType") ?? undefined,
+    assetCurrency: optionalCurrency(search.get("assetCurrency")),
+    settlementCurrency: optionalCurrency(search.get("settlementCurrency")),
+    productType: optionalProductType(search.get("productType")),
     page: optionalInteger(search, "page"),
     size: optionalInteger(search, "size"),
   };
@@ -300,7 +315,11 @@ export const api = {
       token,
     );
   },
-  createQuote(receivableId: string, settlementCurrency: string, token: string) {
+  createQuote(
+    receivableId: string,
+    settlementCurrency: Currency,
+    token: string,
+  ) {
     const input: QuoteRequest = { receivableId, settlementCurrency };
     return request<PricingQuote>(
       API_OPERATIONS.createQuote,

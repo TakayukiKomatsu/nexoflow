@@ -72,17 +72,25 @@ class OpenApiExportTest {
                         "Unauthorized",
                         "Forbidden",
                         "NotFound",
+                        "MethodNotAllowed",
+                        "NotAcceptable",
                         "Conflict",
+                        "UnsupportedMediaType",
                         "UnprocessableEntity",
                         "TooManyRequests",
-                        "InternalError");
+                        "InternalError",
+                        "ServiceUnavailable");
         assertThat(document.at("/paths/~1api~1v1~1pricing-quotes/post/responses/401/$ref").asText())
                 .isEqualTo("#/components/responses/Unauthorized");
         assertThat(document.at("/paths/~1api~1v1~1pricing-quotes/post/responses/403/$ref").asText())
                 .isEqualTo("#/components/responses/Forbidden");
         assertThat(document.at("/paths/~1api~1v1~1auth~1login/post/responses/429/$ref").asText())
                 .isEqualTo("#/components/responses/TooManyRequests");
+        assertThat(document.at("/paths/~1api~1v1~1auth~1login/post/responses/415/$ref").asText())
+                .isEqualTo("#/components/responses/UnsupportedMediaType");
         assertDistinctMutationRequestSchemas(document);
+        assertBoundedNonBlankStrings(document);
+        assertLifecycleStatesAreClosed(document);
         assertCreatedSettlementResponses(document);
 
         String output = System.getProperty("srm.openapi.output", "");
@@ -96,6 +104,42 @@ class OpenApiExportTest {
             Files.createDirectories(target.getParent());
             Files.writeString(target, json, StandardCharsets.UTF_8);
         }
+    }
+
+    private void assertBoundedNonBlankStrings(JsonNode document) {
+        assertStringBounds(document, "AssignorRequest", "legalName", 1, 200);
+        assertStringBounds(document, "AssignorRequest", "taxId", 1, 32);
+        assertStringBounds(document, "ExchangeRateRequest", "source", 1, 50);
+    }
+
+    private void assertStringBounds(
+            JsonNode document, String schemaName, String propertyName, int minimum, int maximum) {
+        JsonNode property = document.at(
+                "/components/schemas/" + schemaName + "/properties/" + propertyName);
+        assertThat(property.path("minLength").asInt()).isEqualTo(minimum);
+        assertThat(property.path("maxLength").asInt()).isEqualTo(maximum);
+    }
+
+    private void assertLifecycleStatesAreClosed(JsonNode document) {
+        assertStringEnum(
+                document,
+                "ReceivableResponse",
+                "status",
+                "REGISTERED",
+                "SETTLED",
+                "REVERSED");
+        assertStringEnum(document, "QuoteResponse", "status", "ACTIVE", "EXPIRED", "CONSUMED");
+        assertStringEnum(document, "SettlementResponse", "status", "COMPLETED");
+    }
+
+    private void assertStringEnum(
+            JsonNode document, String schemaName, String propertyName, String... expected) {
+        JsonNode values = document.at(
+                "/components/schemas/" + schemaName + "/properties/" + propertyName + "/enum");
+        assertThat(java.util.stream.StreamSupport.stream(values.spliterator(), false)
+                        .map(JsonNode::asText)
+                        .toList())
+                .containsExactlyInAnyOrder(expected);
     }
 
     private void assertDistinctMutationRequestSchemas(JsonNode document) {
@@ -118,14 +162,21 @@ class OpenApiExportTest {
     }
 
     private void assertCreatedSettlementResponses(JsonNode document) {
-        for (String pointer : java.util.List.of(
-                "/paths/~1api~1v1~1settlements/post/responses",
-                "/paths/~1api~1v1~1settlements~1{settlementId}~1reversals/post/responses")) {
+        Map<String, String> responsesByPointer = Map.of(
+                "/paths/~1api~1v1~1settlements/post/responses", "#/components/schemas/SettlementResponse",
+                "/paths/~1api~1v1~1settlements~1{settlementId}~1reversals/post/responses",
+                        "#/components/schemas/ReversalResponse");
+        for (Map.Entry<String, String> expected : responsesByPointer.entrySet()) {
+            String pointer = expected.getKey();
             JsonNode responses = document.at(pointer);
             assertThat(responses.has("201")).as("201 response at %s", pointer).isTrue();
             assertThat(responses.has("200")).as("no false 200 response at %s", pointer).isFalse();
             assertThat(responses.at("/201/headers/Idempotent-Replay/schema/type").asText())
                     .isEqualTo("string");
+            assertThat(responses.at("/201/headers/Idempotent-Replay/schema/enum/0").asText())
+                    .isEqualTo("true");
+            assertThat(responses.at("/201/content/application~1json/schema/$ref").asText())
+                    .isEqualTo(expected.getValue());
         }
     }
 

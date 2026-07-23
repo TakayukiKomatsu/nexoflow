@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -123,27 +124,27 @@ class RuntimeMetadataContractTest {
 
     @Test
     void marksEveryAlwaysSerializedResponsePropertyAsRequiredInOpenApi() throws Exception {
-        JsonNode schemas = new ObjectMapper()
+        JsonNode document = new ObjectMapper()
                 .readTree(mockMvc.perform(get("/v3/api-docs"))
                         .andExpect(status().isOk())
                         .andReturn()
                         .getResponse()
-                        .getContentAsString())
-                .path("components")
-                .path("schemas");
+                        .getContentAsString());
+        JsonNode schemas = document.path("components").path("schemas");
+        Set<String> successfulSchemas = new LinkedHashSet<>();
+        document.path("paths").properties().forEach(path -> path.getValue().properties().forEach(operation ->
+                operation.getValue().path("responses").properties()
+                        .stream()
+                        .filter(response -> response.getKey().matches("2\\d\\d"))
+                        .forEach(response -> response.getValue().path("content").properties().forEach(media ->
+                                collectReferencedSchemas(media.getValue().path("schema"), schemas, successfulSchemas)))));
 
-        for (String schemaName : List.of(
-                "AccessToken",
-                "CurrentUser",
-                "EntryResponse",
-                "ItemResponse",
-                "PageResponse",
-                "PreviewResponse",
-                "PricingBreakdownResponse",
-                "QuoteResponse",
-                "Response",
-                "SettlementResponse")) {
+        assertThat(successfulSchemas)
+                .contains("AssignorResponse", "ReceivableResponse", "ReversalResponse")
+                .isNotEmpty();
+        for (String schemaName : successfulSchemas) {
             JsonNode schema = schemas.path(schemaName);
+            if (!schema.path("properties").isObject()) continue;
             Set<String> properties = StreamSupport.stream(
                             ((Iterable<String>) () -> schema.path("properties").fieldNames()).spliterator(), false)
                     .collect(Collectors.toSet());
@@ -175,6 +176,24 @@ class RuntimeMetadataContractTest {
                         .path("enum"))
                 .extracting(JsonNode::asText)
                 .containsExactly("OPERATOR", "ANALYST", "ADMIN", "AUDITOR");
+    }
+
+    private static void collectReferencedSchemas(
+            JsonNode node, JsonNode schemas, Set<String> collected) {
+        if (node == null || node.isMissingNode()) return;
+        if (node.isObject()) {
+            String reference = node.path("$ref").asText();
+            String prefix = "#/components/schemas/";
+            if (reference.startsWith(prefix)) {
+                String schemaName = reference.substring(prefix.length());
+                if (collected.add(schemaName)) {
+                    collectReferencedSchemas(schemas.path(schemaName), schemas, collected);
+                }
+            }
+            node.elements().forEachRemaining(child -> collectReferencedSchemas(child, schemas, collected));
+        } else if (node.isArray()) {
+            node.elements().forEachRemaining(child -> collectReferencedSchemas(child, schemas, collected));
+        }
     }
 
     @Test
@@ -266,8 +285,20 @@ class RuntimeMetadataContractTest {
                         .path("properties")
                         .path("quoteIds")
                         .path("maxItems")
-                        .asInt())
+                .asInt())
                 .isEqualTo(100);
+        assertThat(schemas.path("QuoteIdsRequest")
+                        .path("properties")
+                        .path("quoteIds")
+                        .path("minItems")
+                        .asInt())
+                .isEqualTo(1);
+        assertThat(schemas.path("QuoteIdsRequest")
+                        .path("properties")
+                        .path("quoteIds")
+                        .path("uniqueItems")
+                        .asBoolean())
+                .isTrue();
     }
 
     @Test

@@ -13,10 +13,10 @@ const jsonResponse = (body: unknown, status = 200) =>
 const simulationInput = {
   faceAmount: "1000.00",
   faceCurrency: "BRL",
-  productType: "INVOICE",
+  productType: "MERCANTILE_INVOICE",
   dueDate: "2030-02-15",
   settlementCurrency: "BRL",
-};
+} as const;
 
 afterEach(() => {
   vi.unstubAllGlobals();

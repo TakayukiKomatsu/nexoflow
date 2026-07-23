@@ -93,4 +93,40 @@ fi
 grep -Fq "target-that-does-not-exist" "$fixture_dir/source-matrix-target.out" \
   || { echo "source-matrix target failure did not identify the bad target" >&2; exit 1; }
 
-echo "TRACE-VALIDATOR-001 passed: scenario and source-matrix paths and compound Make commands resolve"
+missing_script_fixture="$fixture_dir/missing-script.md"
+awk '
+  {
+    if (index($0, "| Java backend and modern SPA |") > 0) {
+      sub(/make build/, "scripts/does-not-exist.sh")
+    }
+    print
+  }
+' "$traceability" >"$missing_script_fixture"
+
+if TRACEABILITY_FILE="$missing_script_fixture" "$validator" \
+  >"$fixture_dir/missing-script.out" 2>&1; then
+  echo "traceability validator accepted a nonexistent local script" >&2
+  exit 1
+fi
+grep -Fq "scripts/does-not-exist.sh" "$fixture_dir/missing-script.out" \
+  || { echo "local-script failure did not identify the bad command" >&2; exit 1; }
+
+missing_npm_script_fixture="$fixture_dir/missing-npm-script.md"
+awk '
+  {
+    if (index($0, "| Java backend and modern SPA |") > 0) {
+      sub(/make build/, "npm --prefix frontend run does-not-exist")
+    }
+    print
+  }
+' "$traceability" >"$missing_npm_script_fixture"
+
+if TRACEABILITY_FILE="$missing_npm_script_fixture" "$validator" \
+  >"$fixture_dir/missing-npm-script.out" 2>&1; then
+  echo "traceability validator accepted a nonexistent npm script" >&2
+  exit 1
+fi
+grep -Fq "does-not-exist" "$fixture_dir/missing-npm-script.out" \
+  || { echo "npm-script failure did not identify the bad command" >&2; exit 1; }
+
+echo "TRACE-VALIDATOR-001 passed: classified paths, Make targets, local scripts, and npm scripts resolve"

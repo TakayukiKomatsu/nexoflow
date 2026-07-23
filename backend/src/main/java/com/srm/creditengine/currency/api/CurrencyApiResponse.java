@@ -26,7 +26,12 @@ final class CurrencyApiResponse {
     @Schema(
             name = "Observation",
             requiredProperties = {"base", "quote", "rate", "source", "observedAt"})
-    record Observation(String base, String quote, String rate, String source, Instant observedAt) {}
+    record Observation(
+            @Schema(allowableValues = {"BRL", "USD"}) String base,
+            @Schema(allowableValues = {"BRL", "USD"}) String quote,
+            String rate,
+            String source,
+            Instant observedAt) {}
 
     @Schema(
             name = "Conversion",

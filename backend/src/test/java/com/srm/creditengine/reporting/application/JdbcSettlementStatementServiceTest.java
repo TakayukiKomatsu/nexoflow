@@ -1,9 +1,11 @@
 package com.srm.creditengine.reporting.application;
 
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
@@ -78,6 +80,25 @@ class JdbcSettlementStatementServiceTest {
         assertThatThrownBy(() -> service.query(filter(null, null, 10_001, 1)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("page offset is out of bounds");
+    }
+
+    @Test
+    void rejectsUnsupportedClosedDomainFiltersBeforeQuerying() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        JdbcSettlementStatementService service = service(jdbc);
+
+        assertThatThrownBy(() -> service.query(new SettlementStatementService.Filter(
+                        null, null, null, "EUR", null, null, 0, 50)))
+                .isInstanceOf(UnsupportedCurrencyException.class);
+        assertThatThrownBy(() -> service.query(new SettlementStatementService.Filter(
+                        null, null, null, null, "EUR", null, 0, 50)))
+                .isInstanceOf(UnsupportedCurrencyException.class);
+        assertThatThrownBy(() -> service.query(new SettlementStatementService.Filter(
+                        null, null, null, null, null, "BOGUS", 0, 50)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unsupported product type");
+
+        verifyNoInteractions(jdbc);
     }
 
     private static JdbcSettlementStatementService service(JdbcTemplate jdbc) {

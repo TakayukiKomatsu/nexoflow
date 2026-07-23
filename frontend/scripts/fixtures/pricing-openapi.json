@@ -64,7 +64,7 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": { "$ref": "#/components/schemas/Request" }
+              "schema": { "$ref": "#/components/schemas/ReceivableRequest" }
             }
           }
         },
@@ -72,7 +72,7 @@
           "201": {
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Response" }
+                "schema": { "$ref": "#/components/schemas/ReceivableResponse" }
               }
             }
           }
@@ -200,19 +200,22 @@
             "in": "query",
             "name": "assetCurrency",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "enum": ["BRL", "USD"] }
           },
           {
             "in": "query",
             "name": "settlementCurrency",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": { "type": "string", "enum": ["BRL", "USD"] }
           },
           {
             "in": "query",
             "name": "productType",
             "required": false,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string",
+              "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+            }
           },
           {
             "in": "query",
@@ -260,13 +263,19 @@
         ],
         "properties": {
           "faceAmount": { "type": "string" },
-          "faceCurrency": { "type": "string" },
-          "productType": { "type": "string" },
+          "faceCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
           "dueDate": { "type": "string", "format": "date" },
-          "settlementCurrency": { "type": "string" }
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          }
         }
       },
-      "Request": {
+      "ReceivableRequest": {
         "type": "object",
         "required": [
           "assignorId",
@@ -279,9 +288,12 @@
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "assignorId": { "type": "string", "format": "uuid" },
-          "productType": { "type": "string" },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
           "faceAmount": { "type": "string" },
-          "faceCurrency": { "type": "string" },
+          "faceCurrency": { "type": "string", "enum": ["BRL", "USD"] },
           "issueDate": { "type": "string", "format": "date" },
           "dueDate": { "type": "string", "format": "date" }
         }
@@ -291,7 +303,10 @@
         "required": ["receivableId", "settlementCurrency"],
         "properties": {
           "receivableId": { "type": "string", "format": "uuid" },
-          "settlementCurrency": { "type": "string" }
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          }
         }
       },
       "QuoteIdsRequest": {
@@ -319,7 +334,10 @@
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "receivableId": { "type": "string", "format": "uuid" },
-          "productType": { "type": "string" },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
           "dueDate": { "type": "string", "format": "date" },
           "pricing": {
             "$ref": "#/components/schemas/PricingBreakdownResponse"
@@ -351,16 +369,22 @@
         ],
         "properties": {
           "faceAmount": { "type": "string" },
-          "faceCurrency": { "type": "string" },
-          "settlementCurrency": { "type": "string" },
+          "faceCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
           "baseRate": { "type": "string" },
           "spread": { "type": "string" },
           "strategyCode": { "type": "string" },
           "dayCountConvention": { "type": "string" },
           "termInMonths": { "type": "string" },
           "discountedAmount": { "type": "string" },
-          "fxBaseCurrency": { "type": "string" },
-          "fxQuoteCurrency": { "type": "string" },
+          "fxBaseCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "fxQuoteCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
           "fxRate": { "type": "string" },
           "fxSource": { "type": "string" },
           "fxObservedAt": { "type": "string", "format": "date-time" },
@@ -385,7 +409,10 @@
             "type": "array",
             "items": { "$ref": "#/components/schemas/ItemResponse" }
           },
-          "settlementCurrency": { "type": "string" },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
           "totalAmount": { "type": "string" },
           "completedAt": { "type": "string", "format": "date-time" }
         }
@@ -404,7 +431,10 @@
             "type": "array",
             "items": { "$ref": "#/components/schemas/ItemResponse" }
           },
-          "settlementCurrency": { "type": "string" },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
           "totalAmount": { "type": "string" },
           "asOf": { "type": "string", "format": "date-time" },
           "earliestExpiry": { "type": "string", "format": "date-time" }
@@ -448,9 +478,15 @@
             "format": "uuid"
           },
           "assignorId": { "type": "string", "format": "uuid" },
-          "assetCurrency": { "type": "string" },
-          "settlementCurrency": { "type": "string" },
-          "productType": { "type": "string" },
+          "assetCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
           "receivableId": { "type": "string", "format": "uuid" }
         }
       },
@@ -491,7 +527,7 @@
           }
         }
       },
-      "Response": {
+      "ReceivableResponse": {
         "type": "object",
         "required": [
           "id",
@@ -507,9 +543,12 @@
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "assignorId": { "type": "string", "format": "uuid" },
-          "productType": { "type": "string" },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
           "faceAmount": { "type": "string" },
-          "faceCurrency": { "type": "string" },
+          "faceCurrency": { "type": "string", "enum": ["BRL", "USD"] },
           "issueDate": { "type": "string", "format": "date" },
           "dueDate": { "type": "string", "format": "date" },
           "status": { "type": "string" },

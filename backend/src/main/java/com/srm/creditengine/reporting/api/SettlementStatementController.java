@@ -1,7 +1,10 @@
 package com.srm.creditengine.reporting.api;
 
 import com.srm.creditengine.reporting.application.SettlementStatementService;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -18,9 +21,17 @@ class SettlementStatementController {
     @GetMapping("/api/v1/settlement-statements")
     PageResponse statements(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
-            @RequestParam(required = false) UUID assignorId, @RequestParam(required = false) String assetCurrency,
-            @RequestParam(required = false) String settlementCurrency, @RequestParam(required = false) String productType,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
+            @RequestParam(required = false) UUID assignorId,
+            @Parameter(schema = @Schema(allowableValues = {"BRL", "USD"}))
+            @RequestParam(required = false) String assetCurrency,
+            @Parameter(schema = @Schema(allowableValues = {"BRL", "USD"}))
+            @RequestParam(required = false) String settlementCurrency,
+            @Parameter(schema = @Schema(allowableValues = {"MERCANTILE_INVOICE", "POST_DATED_CHEQUE"}))
+            @RequestParam(required = false) String productType,
+            @Parameter(description = "Zero-based page; page multiplied by size must not exceed 10000.")
+            @RequestParam(defaultValue = "0") @Min(0) @Max(10_000) int page,
+            @Parameter(description = "Page size from 1 through 100.")
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size) {
         var result = statements.query(new SettlementStatementService.Filter(from, to, assignorId, assetCurrency, settlementCurrency, productType, page, size));
         return new PageResponse(result.entries().stream().map(EntryResponse::from).toList(), result.page(), result.size(), result.hasNext());
     }
@@ -38,9 +49,9 @@ class SettlementStatementController {
             UUID settlementId,
             @Schema(types = {"string", "null"}, format = "uuid") UUID reversalId,
             UUID assignorId,
-            String assetCurrency,
-            String settlementCurrency,
-            String productType,
+            @Schema(allowableValues = {"BRL", "USD"}) String assetCurrency,
+            @Schema(allowableValues = {"BRL", "USD"}) String settlementCurrency,
+            @Schema(allowableValues = {"MERCANTILE_INVOICE", "POST_DATED_CHEQUE"}) String productType,
             UUID receivableId) {
         static EntryResponse from(SettlementStatementService.Entry e) { return new EntryResponse(e.entryId(), e.entryType(), money(e.signedAmount()), e.effectiveAt(), e.settlementId(), e.reversalId(), e.assignorId(), e.assetCurrency(), e.settlementCurrency(), e.productType(), e.receivableId()); }
     }

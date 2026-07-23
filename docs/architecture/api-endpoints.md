@@ -32,10 +32,9 @@ a reviewer index, not a second handwritten schema.
 | Reversal | `POST /api/v1/settlements/{settlementId}/reversals` |
 | Reporting | `GET /api/v1/settlement-statements` |
 | Audit | `GET /api/v1/audit-events` |
-| Runtime test contract | `GET /api/v1/runtime/validation` |
-| Runtime test contract | `GET /api/v1/runtime/failure` |
-| Runtime test contract | `POST /api/v1/runtime/echo` |
 
 OpenAPI is served at `/v3/api-docs`; liveness, readiness, and authenticated
 Prometheus endpoints live under `/actuator` and are operational endpoints rather
-than `/api/v1` business endpoints.
+than `/api/v1` business endpoints. Test-only controller fixtures are not loaded
+by the canonical `contract` profile and are deliberately absent from this
+production inventory.

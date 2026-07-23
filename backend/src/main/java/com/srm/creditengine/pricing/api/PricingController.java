@@ -26,10 +26,12 @@ class PricingController {
     QuoteResponse getQuote(@PathVariable UUID id) { return QuoteResponse.from(pricing.getQuote(id)); }
     record SimulationRequest(
             @NotNull DecimalString faceAmount,
-            @NotBlank @Pattern(regexp="[A-Z]{3}") String faceCurrency,
-            @NotBlank String productType,
+            @NotBlank @Pattern(regexp="[A-Z]{3}")
+                    @Schema(allowableValues = {"BRL", "USD"}) String faceCurrency,
+            @NotBlank @Schema(allowableValues = {"MERCANTILE_INVOICE", "POST_DATED_CHEQUE"}) String productType,
             @NotNull @Schema(description = "Due date no more than ten years after the server pricing date") LocalDate dueDate,
-            @NotBlank @Pattern(regexp="[A-Z]{3}") String settlementCurrency) {
+            @NotBlank @Pattern(regexp="[A-Z]{3}")
+                    @Schema(allowableValues = {"BRL", "USD"}) String settlementCurrency) {
         @AssertTrue(message = "faceAmount must be positive with no more than 15 integer digits and 4 fractional digits")
         boolean isFaceAmountValid() {
             if (faceAmount == null) return true;
@@ -37,14 +39,32 @@ class PricingController {
             return value.signum() > 0 && value.scale() <= 4 && value.precision() - value.scale() <= 15;
         }
     }
-    record QuoteRequest(@NotNull UUID receivableId, @NotBlank String settlementCurrency) {}
+    record QuoteRequest(
+            @NotNull UUID receivableId,
+            @NotBlank @Schema(allowableValues = {"BRL", "USD"}) String settlementCurrency) {}
     @Schema(name = "PricingBreakdownResponse", requiredProperties = {
         "faceAmount", "faceCurrency", "settlementCurrency", "baseRate", "spread",
         "strategyCode", "dayCountConvention", "termInMonths", "discountedAmount",
         "fxBaseCurrency", "fxQuoteCurrency", "fxRate", "fxSource", "fxObservedAt",
         "settlementAmount", "pricedAt"
     })
-    record PricingBreakdownResponse(String faceAmount, String faceCurrency, String settlementCurrency, String baseRate, String spread, String strategyCode, String dayCountConvention, String termInMonths, String discountedAmount, String fxBaseCurrency, String fxQuoteCurrency, String fxRate, String fxSource, Instant fxObservedAt, String settlementAmount, Instant pricedAt) {
+    record PricingBreakdownResponse(
+            String faceAmount,
+            @Schema(allowableValues = {"BRL", "USD"}) String faceCurrency,
+            @Schema(allowableValues = {"BRL", "USD"}) String settlementCurrency,
+            String baseRate,
+            String spread,
+            String strategyCode,
+            String dayCountConvention,
+            String termInMonths,
+            String discountedAmount,
+            @Schema(allowableValues = {"BRL", "USD"}) String fxBaseCurrency,
+            @Schema(allowableValues = {"BRL", "USD"}) String fxQuoteCurrency,
+            String fxRate,
+            String fxSource,
+            Instant fxObservedAt,
+            String settlementAmount,
+            Instant pricedAt) {
         static PricingBreakdownResponse from(PricingService.Breakdown breakdown) {
             return new PricingBreakdownResponse(
                     decimal(breakdown.faceAmount()),
@@ -68,7 +88,15 @@ class PricingController {
     @Schema(requiredProperties = {
         "id", "receivableId", "productType", "dueDate", "pricing", "expiresAt", "status", "createdBy"
     })
-    record QuoteResponse(UUID id, UUID receivableId, String productType, LocalDate dueDate, PricingBreakdownResponse pricing, Instant expiresAt, String status, String createdBy) {
+    record QuoteResponse(
+            UUID id,
+            UUID receivableId,
+            @Schema(allowableValues = {"MERCANTILE_INVOICE", "POST_DATED_CHEQUE"}) String productType,
+            LocalDate dueDate,
+            PricingBreakdownResponse pricing,
+            Instant expiresAt,
+            @Schema(allowableValues = {"ACTIVE", "EXPIRED", "CONSUMED"}) String status,
+            String createdBy) {
         static QuoteResponse from(PricingService.Quote quote) {
             return new QuoteResponse(
                     quote.id(),

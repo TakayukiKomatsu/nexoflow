@@ -1,4 +1,5 @@
 import type { PricingWorkflow } from "../hooks/usePricingWorkflow";
+import type { Currency, ProductType } from "../api/client";
 
 type PricingFormProps = Pick<
   PricingWorkflow,
@@ -36,7 +37,9 @@ export function PricingForm({
           Product
           <select
             value={values.productType}
-            onChange={(event) => set("productType", event.target.value)}
+            onChange={(event) =>
+              set("productType", event.target.value as ProductType)
+            }
           >
             <option value="MERCANTILE_INVOICE">Invoice</option>
             <option value="POST_DATED_CHEQUE">Post-dated cheque</option>
@@ -62,18 +65,20 @@ export function PricingForm({
         </div>
         <div className="field">
           <label htmlFor="faceCurrency">Face currency</label>
-          <input
+          <select
             id="faceCurrency"
-            maxLength={3}
             value={values.faceCurrency}
             onChange={(event) =>
-              set("faceCurrency", event.target.value.toUpperCase())
+              set("faceCurrency", event.target.value as Currency)
             }
             aria-invalid={!!fieldErrors.faceCurrency}
             aria-describedby={
               fieldErrors.faceCurrency ? "faceCurrency-error" : undefined
             }
-          />
+          >
+            <option value="BRL">BRL</option>
+            <option value="USD">USD</option>
+          </select>
           {fieldErrors.faceCurrency && (
             <p id="faceCurrency-error" className="field-error">
               {fieldErrors.faceCurrency}
@@ -82,12 +87,11 @@ export function PricingForm({
         </div>
         <div className="field">
           <label htmlFor="settlementCurrency">Settlement currency</label>
-          <input
+          <select
             id="settlementCurrency"
-            maxLength={3}
             value={values.settlementCurrency}
             onChange={(event) =>
-              set("settlementCurrency", event.target.value.toUpperCase())
+              set("settlementCurrency", event.target.value as Currency)
             }
             aria-invalid={!!fieldErrors.settlementCurrency}
             aria-describedby={
@@ -95,7 +99,10 @@ export function PricingForm({
                 ? "settlementCurrency-error"
                 : undefined
             }
-          />
+          >
+            <option value="BRL">BRL</option>
+            <option value="USD">USD</option>
+          </select>
           {fieldErrors.settlementCurrency && (
             <p id="settlementCurrency-error" className="field-error">
               {fieldErrors.settlementCurrency}

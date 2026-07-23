@@ -2,6 +2,16 @@ import { loadEnv } from "vite";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
+export const productionCoverageScope = {
+  include: ["src/**/*.{ts,tsx}"],
+  exclude: [
+    "src/**/*.test.{ts,tsx}",
+    "src/**/*.d.ts",
+    "src/main.tsx",
+    "src/test/**",
+  ],
+} as const;
+
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, process.cwd(), "");
   const backendOrigin =
@@ -27,13 +37,8 @@ export default defineConfig(({ mode }) => {
       coverage: {
         provider: "v8",
         reporter: ["text-summary", "json-summary", "lcov"],
-        include: [
-          "src/App.tsx",
-          "src/SettlementWorkspace.tsx",
-          "src/ErrorBoundary.tsx",
-          "src/api/client.ts",
-          "src/session.ts",
-        ],
+        include: [...productionCoverageScope.include],
+        exclude: [...productionCoverageScope.exclude],
         thresholds: {
           lines: 95,
           functions: 95,

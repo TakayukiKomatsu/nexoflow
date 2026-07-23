@@ -52,7 +52,7 @@ These are documented as evolution paths rather than simulated with unnecessary c
 - Spring Security
 - Spring JDBC for transactional command and reporting paths; JPA for runtime integration/schema validation
 - PostgreSQL 16
-- Flyway SQL and Java migrations (V1–V16)
+- Flyway SQL and Java migrations (V1–V22)
 - Bean Validation
 - springdoc-openapi
 - Bounded retry and circuit-breaker behavior implemented in the FX HTTP adapter; no Resilience4j dependency
@@ -250,7 +250,9 @@ There is no `/product-types` management API in the implemented surface.
 
 - `POST /assignors`
 - `GET /assignors`
+- `GET /assignors/{id}`
 - `POST /receivables`
+- `GET /receivables`
 - `GET /receivables/{id}`
 
 ### Pricing
@@ -272,10 +274,6 @@ There is no `/product-types` management API in the implemented surface.
 
 - `GET /settlement-statements`
 
-### Audit
-
-- `GET /audit-events`
-
 Supported parameters:
 
 - `from`
@@ -286,9 +284,14 @@ Supported parameters:
 - `productType`
 - `page`
 - `size`
-- `sort`
 
-Pagination is server-side with a capped page size. Cursor pagination is documented as the high-scale evolution; offset pagination is sufficient for the exercise UI.
+Results use a fixed deterministic descending order. Pagination is server-side with a capped page size. Cursor pagination is documented as the high-scale evolution; offset pagination is sufficient for the exercise UI.
+
+### Audit
+
+- `GET /audit-events`
+
+The audit endpoint accepts only a bounded `size` parameter from 1 through 100.
 
 ### Error contract
 
@@ -338,7 +341,7 @@ Important constraints and indexes:
 - Optimistic version on receivables
 - Foreign keys for all financial relationships
 - PostgreSQL immutability triggers protect exchange-rate, quote, settlement, settlement-item, reversal, and audit history; quote lifecycle permits only `ACTIVE` → `CONSUMED` without changing snapshot values.
-- Flyway migrations V1–V16 are the schema authority; [`architecture/er-diagram.mmd`](architecture/er-diagram.mmd) mirrors those tables and the derived ledger identity.
+- Flyway migrations V1–V22 are the schema authority; [`architecture/er-diagram.mmd`](architecture/er-diagram.mmd) mirrors those tables and the derived ledger identity.
 
 ---
 

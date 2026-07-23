@@ -35,7 +35,9 @@ class ReferenceRateController {
                 request.currency(), request.monthlyRate().value(), request.effectiveAt(), actors.currentActor().email());
     }
     @GetMapping("/api/v1/base-rates")
-    List<BaseRateResponse> listBase(@RequestParam String currency, @RequestParam Instant effectiveAt) {
+    List<BaseRateResponse> listBase(
+            @RequestParam @Schema(allowableValues = {"BRL", "USD"}) String currency,
+            @RequestParam Instant effectiveAt) {
         return references.baseRates(currency, effectiveAt).stream().map(BaseRateResponse::from).toList();
     }
     @PostMapping("/api/v1/product-spreads") @ResponseStatus(HttpStatus.CREATED)
@@ -49,14 +51,15 @@ class ReferenceRateController {
     }
 
     record BaseRateRequest(
-            @NotBlank String currency,
+            @NotBlank @Schema(allowableValues = {"BRL", "USD"}) String currency,
             @NotNull @Schema(type = "string", description = "Positive monthly rate at most 1.0000000000 with at most 10 fractional digits") DecimalString monthlyRate,
             @NotNull Instant effectiveAt) {
         @AssertTrue(message = "monthlyRate must be positive, at most 1.0000000000, with at most 10 fractional digits")
         boolean isMonthlyRateValid() { return validMonthlyRate(monthlyRate); }
     }
     record ProductSpreadRequest(
-            @NotBlank @Size(max = 50) String productType,
+            @NotBlank @Size(min = 1, max = 50)
+                    @Schema(allowableValues = {"MERCANTILE_INVOICE", "POST_DATED_CHEQUE"}) String productType,
             @NotNull @Schema(type = "string", description = "Positive monthly spread at most 1.0000000000 with at most 10 fractional digits") DecimalString monthlySpread,
             @NotNull Instant effectiveAt) {
         @AssertTrue(message = "monthlySpread must be positive, at most 1.0000000000, with at most 10 fractional digits")
@@ -66,7 +69,11 @@ class ReferenceRateController {
     @Schema(
             name = "BaseRate",
             requiredProperties = {"currency", "monthlyRate", "effectiveAt", "createdBy"})
-    record BaseRateResponse(String currency, String monthlyRate, Instant effectiveAt, String createdBy) {
+    record BaseRateResponse(
+            @Schema(allowableValues = {"BRL", "USD"}) String currency,
+            String monthlyRate,
+            Instant effectiveAt,
+            String createdBy) {
         static BaseRateResponse from(ReferenceRateService.BaseRate value) {
             return new BaseRateResponse(
                     value.currency(), value.monthlyRate().toPlainString(), value.effectiveAt(), value.createdBy());
@@ -77,7 +84,10 @@ class ReferenceRateController {
             name = "ProductSpread",
             requiredProperties = {"productType", "monthlySpread", "effectiveAt", "createdBy"})
     record ProductSpreadResponse(
-            String productType, String monthlySpread, Instant effectiveAt, String createdBy) {
+            @Schema(allowableValues = {"MERCANTILE_INVOICE", "POST_DATED_CHEQUE"}) String productType,
+            String monthlySpread,
+            Instant effectiveAt,
+            String createdBy) {
         static ProductSpreadResponse from(ReferenceRateService.ProductSpread value) {
             return new ProductSpreadResponse(
                     value.productType(), value.monthlySpread().toPlainString(), value.effectiveAt(), value.createdBy());

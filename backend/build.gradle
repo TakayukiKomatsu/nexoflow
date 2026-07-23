@@ -99,22 +99,27 @@ tasks.register('integrationTest', Test) {
     shouldRunAfter tasks.named('test')
 }
 def riskCoverageIncludes = [
-        // assignor and receivable: new financial-module scope (domain/infrastructure non-existent until Task 2)
+        // Financial APIs are risk-bearing: they own wire bounds, response rounding,
+        // status codes, idempotency headers, and generated OpenAPI schema names.
+        'com/srm/creditengine/assignor/api/**',
         'com/srm/creditengine/assignor/domain/**',
         'com/srm/creditengine/assignor/application/**',
         'com/srm/creditengine/assignor/infrastructure/**',
+        'com/srm/creditengine/receivable/api/**',
         'com/srm/creditengine/receivable/domain/**',
         'com/srm/creditengine/receivable/application/**',
         'com/srm/creditengine/receivable/infrastructure/**',
-        // currency and pricing: broad selector preserves root-package classes (Money, Rate, FxConversionService…)
-        // that exist outside a sub-package; api/** is excluded below
         'com/srm/creditengine/currency/**',
         'com/srm/creditengine/pricing/**',
-        // settlement: sub-package paths; root classes live in application
+        'com/srm/creditengine/settlement/api/**',
         'com/srm/creditengine/settlement/domain/**',
         'com/srm/creditengine/settlement/application/**',
         'com/srm/creditengine/settlement/infrastructure/**',
+        'com/srm/creditengine/reporting/api/**',
         'com/srm/creditengine/reporting/application/**',
+        'com/srm/creditengine/audit/api/**',
+        'com/srm/creditengine/audit/application/**',
+        'com/srm/creditengine/audit/infrastructure/**',
         'com/srm/creditengine/identity/application/**',
         'com/srm/creditengine/identity/domain/**',
         'com/srm/creditengine/identity/api/**',
@@ -122,8 +127,6 @@ def riskCoverageIncludes = [
         'com/srm/creditengine/shared/api/**'
 ]
 def riskCoverageExcludes = [
-        'com/srm/creditengine/pricing/api/**',
-        'com/srm/creditengine/currency/api/**',
         'com/srm/creditengine/identity/infrastructure/DevelopmentOperatorSeeder.class'
 ]
 def riskClassDirectories = sourceSets.main.output.classesDirs.asFileTree.matching {

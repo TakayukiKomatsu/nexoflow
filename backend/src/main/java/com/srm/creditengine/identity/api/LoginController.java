@@ -29,8 +29,8 @@ class LoginController {
     }
 
     record LoginRequest(
-            @Email @NotBlank @Size(max = 254) String email,
-            @NotBlank @Size(max = 1024) String password) {}
+            @Email @NotBlank @Size(min = 1, max = 254) @Schema(minLength = 1, maxLength = 254) String email,
+            @NotBlank @Size(min = 1, max = 1024) @Schema(minLength = 1, maxLength = 1024) String password) {}
 
     @Schema(name = "AccessToken", requiredProperties = {"accessToken", "tokenType", "expiresIn"})
     record AccessTokenResponse(String accessToken, String tokenType, long expiresIn) {

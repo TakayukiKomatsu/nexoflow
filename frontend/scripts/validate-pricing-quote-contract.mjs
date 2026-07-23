@@ -504,9 +504,9 @@ function compareOperations(document, model) {
     },
     {
       key: "createReceivable",
-      bodySchema: "Request",
+      bodySchema: "ReceivableRequest",
       bodyType: "ReceivableRequest",
-      responseSchema: "Response",
+      responseSchema: "ReceivableResponse",
     },
     {
       key: "createQuote",
@@ -641,7 +641,7 @@ export async function validateContract(options) {
     ["PageResponse", "StatementPage"],
     ["AccessToken", "AccessToken"],
     ["CurrentUser", "CurrentUser"],
-    ["Response", "Receivable"],
+    ["ReceivableResponse", "Receivable"],
   ];
   for (const [schemaName, typeName] of mappings) {
     const type = namedType(typeName);

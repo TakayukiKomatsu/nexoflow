@@ -29,9 +29,10 @@ class ReceivableController {
     record Request(
             UUID id,
             @NotNull UUID assignorId,
-            @NotBlank @Size(max = 50) String productType,
+            @NotBlank @Size(min = 1, max = 50)
+                    @Schema(allowableValues = {"MERCANTILE_INVOICE", "POST_DATED_CHEQUE"}) String productType,
             @NotNull DecimalString faceAmount,
-            @NotBlank @Size(max = 3) String faceCurrency,
+            @NotBlank @Size(min = 1, max = 3) @Schema(allowableValues = {"BRL", "USD"}) String faceCurrency,
             @NotNull LocalDate issueDate,
             @NotNull @Schema(description = "Due date no more than ten years after the issue date") LocalDate dueDate) {
         @AssertTrue(message = "faceAmount must be positive with no more than 15 integer digits and 4 fractional digits")
@@ -45,9 +46,16 @@ class ReceivableController {
         "id", "assignorId", "productType", "faceAmount", "faceCurrency",
         "issueDate", "dueDate", "status", "version"
     })
-    record Response(UUID id, UUID assignorId, String productType, String faceAmount,
-                    String faceCurrency, LocalDate issueDate, LocalDate dueDate,
-                    String status, long version) {
+    record Response(
+                    UUID id,
+                    UUID assignorId,
+                    @Schema(allowableValues = {"MERCANTILE_INVOICE", "POST_DATED_CHEQUE"}) String productType,
+                    String faceAmount,
+                    @Schema(allowableValues = {"BRL", "USD"}) String faceCurrency,
+                    LocalDate issueDate,
+                    LocalDate dueDate,
+                    @Schema(allowableValues = {"REGISTERED", "SETTLED", "REVERSED"}) String status,
+                    long version) {
         static Response from(ReceivableService.Receivable value) {
             return new Response(value.id(), value.assignorId(), value.productType(),
                     value.faceAmount().setScale(4, RoundingMode.HALF_EVEN).toPlainString(),

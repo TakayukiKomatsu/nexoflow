@@ -26,7 +26,7 @@ export function pricingValidation(values: FormValues): FieldErrors {
   const errors: FieldErrors = {};
   if (
     !/^\d{1,15}(\.\d{1,4})?$/.test(values.faceAmount) ||
-    Number(values.faceAmount) <= 0
+    /^0+(?:\.0+)?$/.test(values.faceAmount)
   ) {
     errors.faceAmount =
       "Enter a positive amount with up to four decimal places.";

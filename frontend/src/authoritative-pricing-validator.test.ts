@@ -68,4 +68,23 @@ it("scans extracted production modules while excluding test infrastructure", asy
       stderr: expect.stringContaining("components/PricingBreakdown.tsx"),
     }),
   );
+
+  for (const mutation of [
+    "const amount = quote.settlementAmount; export const forbidden = amount * 2;",
+    "const { settlementAmount } = quote; export const forbidden = settlementAmount / 2;",
+    "const amount = quote.settlementAmount; export const forbidden = Number(amount);",
+    'const amount = quote.settlementAmount ?? "0"; export const forbidden = amount * 2;',
+    'const amount = condition ? quote.settlementAmount : "0"; export const forbidden = amount * 2;',
+  ]) {
+    await writeFile(
+      resolve(sourceRoot, "components/PricingBreakdown.tsx"),
+      mutation,
+      "utf8",
+    );
+    await expect(validate(sourceRoot)).rejects.toEqual(
+      expect.objectContaining({
+        stderr: expect.stringContaining("components/PricingBreakdown.tsx"),
+      }),
+    );
+  }
 });
