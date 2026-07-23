@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Timestamp;
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 import javax.sql.DataSource;
 
@@ -114,5 +116,42 @@ class PostgresMigrationIntegrationTest {
         assertThatThrownBy(() -> jdbc.update(
                         "delete from product_spread_versions where id=?", spreadId))
                 .hasMessageContaining("product_spread_versions rows are immutable");
+    }
+
+    @Test
+    void receivableTableRejectsMaturitiesBeyondTenYears() {
+        UUID assignorId = UUID.randomUUID();
+        jdbc.update(
+                "insert into assignors (id,legal_name,normalized_tax_id,active,created_at,created_by) values (?,?,?,?,?,?)",
+                assignorId,
+                "Maturity Constraint Co",
+                "MATURITY-" + assignorId.toString().substring(0, 8),
+                true,
+                Timestamp.from(Instant.parse("2030-01-15T12:00:00Z")),
+                "migration-test");
+
+        assertThatThrownBy(() -> jdbc.update(
+                        """
+                        insert into receivables
+                            (id,assignor_id,product_type_code,face_currency_code,face_amount,
+                             issue_date,due_date,status,version,created_at,created_by)
+                        values (?,?,?,?,?,?,?,?,?,?,?)
+                        """,
+                        UUID.randomUUID(),
+                        assignorId,
+                        "MERCANTILE_INVOICE",
+                        "BRL",
+                        new BigDecimal("1000.0000"),
+                        Date.valueOf(LocalDate.parse("2030-01-15")),
+                        Date.valueOf(LocalDate.parse("2040-01-16")),
+                        "REGISTERED",
+                        0,
+                        Timestamp.from(Instant.parse("2030-01-15T12:00:00Z")),
+                        "migration-test"))
+                .hasMessageContaining("receivables_maximum_maturity");
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from pg_constraint where conname in ('receivables_maximum_maturity','pricing_quotes_maximum_term')",
+                        Integer.class))
+                .isEqualTo(2);
     }
 }

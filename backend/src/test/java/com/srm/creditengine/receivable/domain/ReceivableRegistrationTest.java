@@ -77,4 +77,21 @@ class ReceivableRegistrationTest {
                 LocalDate.of(2030, 2, 1), "operator@srm.local");
         assertThatCode(() -> ReceivableRegistration.validate(command)).doesNotThrowAnyException();
     }
+
+    @Test
+    void rejectsAReceivableMaturityBeyondTenYears() {
+        var command = new RegisterCommand(
+                null,
+                UUID.randomUUID(),
+                "MERCANTILE_INVOICE",
+                new BigDecimal("1000.0000"),
+                "BRL",
+                LocalDate.of(2030, 1, 15),
+                LocalDate.of(2040, 1, 16),
+                "operator@srm.local");
+
+        assertThatThrownBy(() -> ReceivableRegistration.validate(command))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Receivable maturity must not exceed ten years");
+    }
 }

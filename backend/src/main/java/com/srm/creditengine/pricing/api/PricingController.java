@@ -23,7 +23,12 @@ class PricingController {
     QuoteResponse quote(@Valid @RequestBody QuoteRequest request) { return QuoteResponse.from(pricing.createQuote(request.receivableId(),request.settlementCurrency(),actors.currentActor().email())); }
     @GetMapping("/api/v1/pricing-quotes/{id}")
     QuoteResponse getQuote(@PathVariable UUID id) { return QuoteResponse.from(pricing.getQuote(id)); }
-    record SimulationRequest(@NotNull DecimalString faceAmount, @NotBlank @Pattern(regexp="[A-Z]{3}") String faceCurrency, @NotBlank String productType, @NotNull LocalDate dueDate, @NotBlank @Pattern(regexp="[A-Z]{3}") String settlementCurrency) {
+    record SimulationRequest(
+            @NotNull DecimalString faceAmount,
+            @NotBlank @Pattern(regexp="[A-Z]{3}") String faceCurrency,
+            @NotBlank String productType,
+            @NotNull @Schema(description = "Due date no more than ten years after the server pricing date") LocalDate dueDate,
+            @NotBlank @Pattern(regexp="[A-Z]{3}") String settlementCurrency) {
         @AssertTrue(message = "faceAmount must be positive with no more than 15 integer digits and 4 fractional digits")
         boolean isFaceAmountValid() {
             if (faceAmount == null) return true;

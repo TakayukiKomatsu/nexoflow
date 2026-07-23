@@ -136,6 +136,25 @@ class RuntimeMetadataContractTest {
     }
 
     @Test
+    void documentsTheTenYearPricingTermBoundaryInOpenApi() throws Exception {
+        JsonNode schemas = new ObjectMapper()
+                .readTree(mockMvc.perform(get("/v3/api-docs"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString())
+                .path("components")
+                .path("schemas");
+
+        assertThat(schemas.path("SimulationRequest")
+                        .path("properties")
+                        .path("dueDate")
+                        .path("description")
+                        .asText())
+                .contains("ten years");
+    }
+
+    @Test
     void oneFxProviderUrlDrivesTheAdapterAndBoundedReadinessHealth() throws Exception {
         providerRequests.clear();
 

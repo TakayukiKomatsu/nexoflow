@@ -1,6 +1,7 @@
 package com.srm.creditengine.pricing.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.srm.creditengine.currency.domain.FxConversionService;
 import com.srm.creditengine.currency.application.CurrencyService;
@@ -79,6 +80,26 @@ class PricingExactVectorTest {
         assertThat(result.termInMonths()).isEqualByComparingTo("1.5000000000");
         assertThat(result.discountedAmount()).isEqualByComparingTo("192.4501");
         assertThat(result.settlementAmount()).isEqualByComparingTo("192.45");
+    }
+
+    @Test
+    void rejectsAProspectivePricingTermBeyondTenYears() {
+        var pricing = service("0.010", Map.of("MERCANTILE_INVOICE", "0.015"), identity());
+
+        assertThatThrownBy(() -> pricing.simulate(
+                        input("1000.00", "BRL", "MERCANTILE_INVOICE", "2040-01-16", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Pricing term must not exceed ten years");
+    }
+
+    @Test
+    void acceptsTheExactTenYearBoundaryWithAnIndependentLongTermVector() {
+        var result = service("0.010", Map.of("MERCANTILE_INVOICE", "0.015"), identity())
+                .simulate(input("1000.00", "BRL", "MERCANTILE_INVOICE", "2040-01-15", "BRL"));
+
+        assertThat(result.termInMonths()).isEqualByComparingTo("121.7333333333");
+        assertThat(result.discountedAmount()).isEqualByComparingTo("49.4935");
+        assertThat(result.settlementAmount()).isEqualByComparingTo("49.49");
     }
 
     private static PricingService.Input input(

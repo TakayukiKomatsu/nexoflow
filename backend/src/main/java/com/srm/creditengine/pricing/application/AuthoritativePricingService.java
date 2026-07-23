@@ -126,7 +126,6 @@ class AuthoritativePricingService implements PricingService {
                 .map(snapshot -> toQuote(snapshot, clock.instant()))
                 .orElseThrow(() -> new IllegalArgumentException("Pricing quote not found"));
     }
-
     private Breakdown calculate(Input input, Instant at) {
         if (input.faceAmount() == null || input.faceAmount().signum() <= 0 || input.faceAmount().scale() > 4) {
             throw new IllegalArgumentException("Face amount must be positive with no more than four decimal places");
@@ -138,6 +137,9 @@ class AuthoritativePricingService implements PricingService {
         LocalDate pricingDate = at.atZone(ZoneOffset.UTC).toLocalDate();
         if (!input.dueDate().isAfter(pricingDate)) {
             throw new IllegalArgumentException("Due date must be after pricing date");
+        }
+        if (input.dueDate().isAfter(pricingDate.plusYears(10))) {
+            throw new IllegalArgumentException("Pricing term must not exceed ten years");
         }
         PricingStrategy strategy = strategies.forProduct(input.productType());
         BigDecimal base = effectiveBaseRate(input.faceCurrency(), at);

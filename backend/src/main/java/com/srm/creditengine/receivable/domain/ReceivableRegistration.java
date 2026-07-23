@@ -45,5 +45,8 @@ public final class ReceivableRegistration {
                     "Receivable face amount must be positive with no more than four decimal places"
                             + " and due date must be after issue date");
         }
+        if (command.dueDate().isAfter(command.issueDate().plusYears(10))) {
+            throw new IllegalArgumentException("Receivable maturity must not exceed ten years");
+        }
     }
 }

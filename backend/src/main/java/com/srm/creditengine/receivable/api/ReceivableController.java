@@ -3,6 +3,7 @@ package com.srm.creditengine.receivable.api;
 import com.srm.creditengine.identity.application.ActorContext;
 import com.srm.creditengine.receivable.application.ReceivableService;
 import com.srm.creditengine.shared.api.DecimalString;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.math.BigDecimal;
@@ -20,7 +21,14 @@ class ReceivableController {
     @PostMapping @ResponseStatus(HttpStatus.CREATED) Response create(@Valid @RequestBody Request r) { return Response.from(service.register(new ReceivableService.RegisterCommand(r.id(),r.assignorId(),r.productType(),r.faceAmount().value(),r.faceCurrency(),r.issueDate(),r.dueDate(),actors.currentActor().email()))); }
     @GetMapping List<Response> list() { return service.list().stream().map(Response::from).toList(); }
     @GetMapping("/{id}") Response get(@PathVariable UUID id) { return Response.from(service.get(id)); }
-    record Request(UUID id, @NotNull UUID assignorId, @NotBlank String productType, @NotNull DecimalString faceAmount, @NotBlank String faceCurrency, @NotNull LocalDate issueDate, @NotNull LocalDate dueDate) {
+    record Request(
+            UUID id,
+            @NotNull UUID assignorId,
+            @NotBlank String productType,
+            @NotNull DecimalString faceAmount,
+            @NotBlank String faceCurrency,
+            @NotNull LocalDate issueDate,
+            @NotNull @Schema(description = "Due date no more than ten years after the issue date") LocalDate dueDate) {
         @AssertTrue(message = "faceAmount must be positive with no more than 15 integer digits and 4 fractional digits")
         boolean isFaceAmountValid() {
             if (faceAmount == null) return true;
