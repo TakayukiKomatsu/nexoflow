@@ -75,6 +75,43 @@ afterEach(() => {
 });
 
 describe("UI-SETTLE-004 retry-safe settlement intent", () => {
+  it("announces preview loading on the busy settlement region", async () => {
+    const pendingPreview = deferred<Response>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("settlement-statements")) {
+          return json({ entries: [], page: 0, size: 50, hasNext: false });
+        }
+        if (url.includes("settlement-previews")) return pendingPreview.promise;
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    render(
+      <SettlementWorkspace
+        session={session}
+        quotes={[quote]}
+        onExpired={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Request server preview" }),
+    );
+
+    const settlement = screen
+      .getByRole("heading", { name: "Settlement intent" })
+      .closest("section");
+    expect(settlement).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.getByRole("button", { name: "Requesting server preview…" }),
+    ).toBeDisabled();
+
+    pendingPreview.resolve(await json(preview));
+    await screen.findByRole("button", { name: "Confirm settlement" });
+    expect(settlement).toHaveAttribute("aria-busy", "false");
+  });
+
   it("removes consumed quotes and refreshes the signed ledger after settlement", async () => {
     let statementRequests = 0;
     const fetchMock = vi.fn((url: string) => {
@@ -564,6 +601,102 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
 });
 
 describe("UI-LEDGER-006 signed reversal statement", () => {
+  it("replaces URL filter state and debounces statement requests while typing", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: string) =>
+      json({ entries: [], page: 0, size: 50, hasNext: false }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const pushState = vi.spyOn(window.history, "pushState");
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    render(
+      <SettlementWorkspace session={session} quotes={[]} onExpired={vi.fn()} />,
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const currency = screen.getByLabelText("Ledger settlement currency");
+    fireEvent.change(currency, { target: { value: "b" } });
+    fireEvent.change(currency, { target: { value: "br" } });
+    fireEvent.change(currency, { target: { value: "brl" } });
+
+    expect(window.location.search).toContain("settlementCurrency=BRL");
+    expect(window.location.search).toContain("page=0");
+    expect(replaceState).toHaveBeenCalled();
+    expect(pushState).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(299);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toContain("settlementCurrency=BRL");
+  });
+
+  it("renders UTC instants in local datetime fields without shifting the filter", () => {
+    const previousTimeZone = process.env.TZ;
+    process.env.TZ = "America/Sao_Paulo";
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => json({ entries: [], page: 0, size: 50, hasNext: false })),
+      );
+      window.history.replaceState(
+        null,
+        "",
+        "/?from=2030-01-01T12%3A00%3A00.000Z",
+      );
+
+      render(
+        <SettlementWorkspace
+          session={session}
+          quotes={[]}
+          onExpired={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByLabelText("From filter")).toHaveValue(
+        "2030-01-01T09:00",
+      );
+    } finally {
+      if (previousTimeZone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimeZone;
+    }
+  });
+
+  it("announces the statement loading state on the busy ledger region", async () => {
+    const statement = deferred<Response>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => statement.promise),
+    );
+    render(
+      <SettlementWorkspace session={session} quotes={[]} onExpired={vi.fn()} />,
+    );
+
+    const ledger = screen
+      .getByRole("heading", { name: "Signed settlement statement" })
+      .closest("section");
+    expect(ledger).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.getByText("Loading settlement statement…"),
+    ).toBeInTheDocument();
+
+    statement.resolve(
+      await json({ entries: [], page: 0, size: 50, hasNext: false }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(ledger).toHaveAttribute("aria-busy", "false");
+  });
+
   it("keeps filters in the URL and renders settlement and reversal as separate signed rows", async () => {
     const fetchMock = vi.fn((_url: string) =>
       json({
@@ -595,11 +728,12 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       <SettlementWorkspace session={session} quotes={[]} onExpired={vi.fn()} />,
     );
     await screen.findByText("SETTLEMENT");
+    vi.useFakeTimers();
     fireEvent.change(screen.getByLabelText("Ledger settlement currency"), {
       target: { value: "brl" },
     });
     await act(async () => {
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(300);
     });
     expect(window.location.search).toContain("settlementCurrency=BRL");
     expect(screen.getByText("REVERSAL")).toBeInTheDocument();

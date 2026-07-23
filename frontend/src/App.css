@@ -58,7 +58,7 @@ button {
 input,
 select {
   padding: 0.6rem;
-  border: 1px solid #9fb3c8;
+  border: 1px solid #6f879f;
   border-radius: 6px;
   background: #fff;
   color: #10243a;
@@ -66,7 +66,7 @@ select {
 input:focus,
 select:focus,
 button:focus-visible {
-  outline: 3px solid #72b6f9;
+  outline: 3px solid #005fcc;
   outline-offset: 2px;
 }
 button {
@@ -168,7 +168,7 @@ dl div {
 }
 dt {
   font-size: 0.82rem;
-  color: #627d98;
+  color: #526d86;
 }
 dd {
   margin: 0.1rem 0;

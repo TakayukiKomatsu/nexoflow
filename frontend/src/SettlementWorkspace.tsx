@@ -13,6 +13,21 @@ type Intent = { email: string; quoteIds: string[]; key: string };
 const INTENT_STORAGE_KEY = "srm-settlement-intent";
 type PreviewState = { quoteKey: string; value: SettlementPreview };
 export const SETTLEMENT_TIMEOUT_MS = 10_000;
+export const LEDGER_FILTER_DEBOUNCE_MS = 300;
+
+function toLocalDateTimeValue(instant?: string): string {
+  if (!instant) return "";
+  const date = new Date(instant);
+  if (Number.isNaN(date.getTime())) return "";
+  const localTime = new Date(
+    date.getTime() - date.getTimezoneOffset() * 60_000,
+  );
+  return localTime.toISOString().slice(0, 16);
+}
+
+function toUtcInstant(localDateTime: string): string {
+  return localDateTime ? new Date(localDateTime).toISOString() : "";
+}
 
 function loadIntent(email: string): Intent | undefined {
   try {
@@ -278,7 +293,11 @@ export function SettlementWorkspace({
 
   return (
     <>
-      <section className="card settlement" aria-labelledby="settlement-title">
+      <section
+        className="card settlement"
+        aria-labelledby="settlement-title"
+        aria-busy={previewPending || settlementPending}
+      >
         <h2 id="settlement-title">Settlement intent</h2>
         {canSettle && quotes.length ? (
           <fieldset>
@@ -461,6 +480,7 @@ function SettlementDetail({
     <section
       className="card settlement-detail"
       aria-labelledby="settlement-detail-title"
+      aria-busy={!settlement && !message}
     >
       <h2 id="settlement-detail-title">Settlement detail</h2>
       {settlement ? (
@@ -486,7 +506,7 @@ function SettlementDetail({
           {message}
         </p>
       ) : (
-        <p>Loading settlement…</p>
+        <p role="status">Loading settlement…</p>
       )}
     </section>
   );
@@ -501,18 +521,26 @@ function StatementLedger({
   onExpired: () => void;
   refreshRevision: number;
 }) {
+  const [filters, setFilters] = useState(
+    () => new URLSearchParams(window.location.search),
+  );
   const [search, setSearch] = useState(
     () => new URLSearchParams(window.location.search),
   );
   const [page, setPage] = useState<StatementPage>();
   const [message, setMessage] = useState<string>();
+  const [loading, setLoading] = useState(true);
   const statementRequestId = useRef(0);
+  const statementAbort = useRef<AbortController | undefined>(undefined);
+  const filterTimeout = useRef<number | undefined>(undefined);
   useEffect(() => {
     const requestId = ++statementRequestId.current;
     const requestKey = search.toString();
     const controller = new AbortController();
+    statementAbort.current = controller;
     setPage(undefined);
     setMessage(undefined);
+    setLoading(true);
     api
       .statement(search, session.accessToken, controller.signal)
       .then((nextPage) => {
@@ -535,44 +563,89 @@ function StatementLedger({
         setMessage(
           errorMessage(cause, "Could not load the settlement statement."),
         );
+      })
+      .finally(() => {
+        if (requestId === statementRequestId.current) {
+          setLoading(false);
+          if (statementAbort.current === controller) {
+            statementAbort.current = undefined;
+          }
+        }
       });
     return () => controller.abort();
   }, [search, session.accessToken, onExpired, refreshRevision]);
   useEffect(() => {
-    const restore = () =>
-      setSearch(new URLSearchParams(window.location.search));
+    const restore = () => {
+      if (filterTimeout.current !== undefined) {
+        window.clearTimeout(filterTimeout.current);
+        filterTimeout.current = undefined;
+      }
+      const restored = new URLSearchParams(window.location.search);
+      setFilters(restored);
+      setSearch(new URLSearchParams(restored));
+    };
     window.addEventListener("popstate", restore);
-    return () => window.removeEventListener("popstate", restore);
+    return () => {
+      window.removeEventListener("popstate", restore);
+      if (filterTimeout.current !== undefined) {
+        window.clearTimeout(filterTimeout.current);
+      }
+    };
   }, []);
-  function navigate(next: URLSearchParams) {
-    window.history.pushState(
+  function updateLocation(
+    next: URLSearchParams,
+    mode: "pushState" | "replaceState",
+  ) {
+    window.history[mode](
       null,
       "",
       `${window.location.pathname}${next.toString() ? `?${next}` : ""}${window.location.hash}`,
     );
-    setSearch(next);
   }
   function change(name: string, value: string) {
-    const next = new URLSearchParams(search);
+    const next = new URLSearchParams(filters);
     if (value) next.set(name, value);
     else next.delete(name);
     next.set("page", "0");
-    navigate(next);
+    updateLocation(next, "replaceState");
+    setFilters(next);
+    statementRequestId.current += 1;
+    statementAbort.current?.abort();
+    setPage(undefined);
+    setMessage(undefined);
+    setLoading(true);
+    if (filterTimeout.current !== undefined) {
+      window.clearTimeout(filterTimeout.current);
+    }
+    filterTimeout.current = window.setTimeout(() => {
+      filterTimeout.current = undefined;
+      setSearch(new URLSearchParams(next));
+    }, LEDGER_FILTER_DEBOUNCE_MS);
   }
   function move(nextPage: number) {
-    const next = new URLSearchParams(search);
+    const next = new URLSearchParams(filters);
     next.set("page", String(nextPage));
-    navigate(next);
+    if (filterTimeout.current !== undefined) {
+      window.clearTimeout(filterTimeout.current);
+      filterTimeout.current = undefined;
+    }
+    updateLocation(next, "pushState");
+    setFilters(next);
+    setSearch(new URLSearchParams(next));
   }
   return (
-    <section className="card ledger" aria-labelledby="statement-title">
+    <section
+      className="card ledger"
+      aria-labelledby="statement-title"
+      aria-busy={loading}
+    >
       <h2 id="statement-title">Signed settlement statement</h2>
       <div className="ledger-filters">
         <label>
           Ledger settlement currency
           <input
             aria-label="Ledger settlement currency"
-            value={search.get("settlementCurrency") ?? ""}
+            value={filters.get("settlementCurrency") ?? ""}
             onChange={(e) =>
               change("settlementCurrency", e.target.value.toUpperCase())
             }
@@ -583,7 +656,7 @@ function StatementLedger({
           Ledger product
           <input
             aria-label="Ledger product"
-            value={search.get("productType") ?? ""}
+            value={filters.get("productType") ?? ""}
             onChange={(e) => change("productType", e.target.value)}
           />
         </label>
@@ -592,13 +665,8 @@ function StatementLedger({
           <input
             aria-label="From filter"
             type="datetime-local"
-            value={search.get("from")?.slice(0, 16) ?? ""}
-            onChange={(e) =>
-              change(
-                "from",
-                e.target.value ? new Date(e.target.value).toISOString() : "",
-              )
-            }
+            value={toLocalDateTimeValue(filters.get("from") ?? undefined)}
+            onChange={(e) => change("from", toUtcInstant(e.target.value))}
           />
         </label>
         <label>
@@ -606,20 +674,15 @@ function StatementLedger({
           <input
             aria-label="To filter"
             type="datetime-local"
-            value={search.get("to")?.slice(0, 16) ?? ""}
-            onChange={(e) =>
-              change(
-                "to",
-                e.target.value ? new Date(e.target.value).toISOString() : "",
-              )
-            }
+            value={toLocalDateTimeValue(filters.get("to") ?? undefined)}
+            onChange={(e) => change("to", toUtcInstant(e.target.value))}
           />
         </label>
         <label>
           Ledger assignor ID
           <input
             aria-label="Ledger assignor ID"
-            value={search.get("assignorId") ?? ""}
+            value={filters.get("assignorId") ?? ""}
             onChange={(e) => change("assignorId", e.target.value)}
           />
         </label>
@@ -627,7 +690,7 @@ function StatementLedger({
           Ledger asset currency
           <input
             aria-label="Ledger asset currency"
-            value={search.get("assetCurrency") ?? ""}
+            value={filters.get("assetCurrency") ?? ""}
             onChange={(e) =>
               change("assetCurrency", e.target.value.toUpperCase())
             }
@@ -638,7 +701,7 @@ function StatementLedger({
           Rows
           <select
             aria-label="Page size"
-            value={search.get("size") ?? "50"}
+            value={filters.get("size") ?? "50"}
             onChange={(e) => change("size", e.target.value)}
           >
             <option value="25">25</option>
@@ -647,6 +710,7 @@ function StatementLedger({
           </select>
         </label>
       </div>
+      {loading && <p role="status">Loading settlement statement…</p>}
       {message && (
         <p className="error" role="alert">
           {message}
