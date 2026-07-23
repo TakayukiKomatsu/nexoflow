@@ -25,7 +25,12 @@ const arithmeticOperators = new Set([
   ts.SyntaxKind.SlashEqualsToken,
   ts.SyntaxKind.PercentEqualsToken,
 ]);
-const numericConversions = new Set(["Number", "parseFloat", "parseInt", "BigInt"]);
+const numericConversions = new Set([
+  "Number",
+  "parseFloat",
+  "parseInt",
+  "BigInt",
+]);
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultSourceRoot = resolve(scriptDirectory, "../src");
 
@@ -161,9 +166,10 @@ for (const fileName of sourceFiles) {
     discoveredAlias = false;
     function discover(node) {
       if (ts.isBindingElement(node) && ts.isIdentifier(node.name)) {
-        const sourceName = node.propertyName && ts.isIdentifier(node.propertyName)
-          ? node.propertyName.text
-          : node.name.text;
+        const sourceName =
+          node.propertyName && ts.isIdentifier(node.propertyName)
+            ? node.propertyName.text
+            : node.name.text;
         if (
           financialFields.has(sourceName) &&
           !taintedIdentifiers.has(node.name.text)

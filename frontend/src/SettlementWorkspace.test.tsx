@@ -1131,11 +1131,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     );
     window.history.replaceState(null, "", "/#settlement-detail-403");
     render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[]}
-        showLedger={false}
-      />,
+      <SettlementWorkspace session={session} quotes={[]} showLedger={false} />,
     );
 
     expect(
