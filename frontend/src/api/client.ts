@@ -37,6 +37,7 @@ export type PricingQuote = {
   pricing: PricingBreakdown;
   expiresAt: string;
   status: string;
+  createdBy: string;
 };
 export type SettlementPreview = {
   items: Array<{

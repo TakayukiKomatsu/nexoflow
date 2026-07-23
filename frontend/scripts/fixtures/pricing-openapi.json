@@ -1,0 +1,43 @@
+{
+  "openapi": "3.0.1",
+  "components": {
+    "schemas": {
+      "QuoteResponse": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "receivableId": { "type": "string", "format": "uuid" },
+          "productType": { "type": "string" },
+          "dueDate": { "type": "string", "format": "date" },
+          "pricing": {
+            "$ref": "#/components/schemas/PricingBreakdownResponse"
+          },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "status": { "type": "string" },
+          "createdBy": { "type": "string" }
+        }
+      },
+      "PricingBreakdownResponse": {
+        "type": "object",
+        "properties": {
+          "faceAmount": { "type": "string" },
+          "faceCurrency": { "type": "string" },
+          "settlementCurrency": { "type": "string" },
+          "baseRate": { "type": "string" },
+          "spread": { "type": "string" },
+          "strategyCode": { "type": "string" },
+          "dayCountConvention": { "type": "string" },
+          "termInMonths": { "type": "string" },
+          "discountedAmount": { "type": "string" },
+          "fxBaseCurrency": { "type": "string" },
+          "fxQuoteCurrency": { "type": "string" },
+          "fxRate": { "type": "string" },
+          "fxSource": { "type": "string" },
+          "fxObservedAt": { "type": "string", "format": "date-time" },
+          "settlementAmount": { "type": "string" },
+          "pricedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}
