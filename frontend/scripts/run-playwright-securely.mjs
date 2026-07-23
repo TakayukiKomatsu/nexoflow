@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { secureRunnerExitCode } from "./secure-child-result.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const frontendDirectory = resolve(scriptDirectory, "..");
@@ -21,4 +22,4 @@ const evidenceScan = spawnSync(process.execPath, [scanner], {
   stdio: "inherit",
 });
 
-process.exitCode = testRun.status || evidenceScan.status || 0;
+process.exitCode = secureRunnerExitCode(testRun, evidenceScan);
