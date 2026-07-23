@@ -553,10 +553,7 @@ function SettlementDetailModule({ session }: { session: Session }) {
   );
 }
 
-function useStatementLedger(
-  session: Session,
-  refreshRevision: number,
-) {
+function useStatementLedger(session: Session, refreshRevision: number) {
   const [filters, setFilters] = useState(
     () => new URLSearchParams(window.location.search),
   );

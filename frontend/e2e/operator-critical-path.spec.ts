@@ -32,10 +32,25 @@ const SETTLEMENT_CURRENCY = "BRL"; // same as face currency → IDENTITY, no FX 
 test("E2E-001 operator financial critical path", async ({ page, request }) => {
   // ─── Step 1: Login as OPERATOR ───────────────────────────────────────────
 
-  await page.goto("/");
-  await page.getByLabel("Email").fill(OPERATOR_EMAIL);
-  await page.getByLabel("Password").fill(OPERATOR_PASSWORD);
-  await page.getByRole("button", { name: "Sign in" }).click();
+  const navigation = await page.goto("/");
+  expect(navigation?.headers()["content-security-policy"]).toContain(
+    "frame-ancestors 'none'",
+  );
+  expect(navigation?.headers()["x-frame-options"]).toBe("DENY");
+  expect(navigation?.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(navigation?.headers()["referrer-policy"]).toBe("no-referrer");
+
+  const email = page.getByLabel("Email");
+  const password = page.getByLabel("Password");
+  const signIn = page.getByRole("button", { name: "Sign in" });
+  await email.fill(OPERATOR_EMAIL);
+  await email.focus();
+  await page.keyboard.press("Tab");
+  await expect(password).toBeFocused();
+  await password.fill(OPERATOR_PASSWORD);
+  await page.keyboard.press("Tab");
+  await expect(signIn).toBeFocused();
+  await page.keyboard.press("Enter");
 
   await expect(
     page.getByRole("heading", { name: "Live receivable pricing" }),
@@ -153,6 +168,11 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
       !response.url().includes("/reversals") &&
       response.request().method() === "POST",
   );
+  const automaticLedgerRefresh = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/v1/settlement-statements") &&
+      response.request().method() === "GET",
+  );
 
   await previewDiv.getByRole("button", { name: "Confirm settlement" }).click();
 
@@ -160,6 +180,7 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
 
   const originalResponse = await settlementResponsePromise;
   expect(originalResponse.status()).toBe(201);
+  await automaticLedgerRefresh;
 
   const capturedKey = capturedRequest.headers()["idempotency-key"];
   expect(capturedKey).toMatch(
@@ -168,8 +189,11 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
 
   // response.json() returns any in Playwright – read properties directly
   const capturedBody = capturedRequest.postDataJSON();
+  expect(Object.keys(capturedBody)).toEqual(["quoteIds"]);
   expect(Array.isArray(capturedBody.quoteIds)).toBe(true);
   expect(capturedBody.quoteIds).toHaveLength(1);
+  expect(capturedBody).not.toHaveProperty("totalAmount");
+  expect(capturedBody).not.toHaveProperty("settlementAmount");
 
   // ─── Step 6b: Retry reuses exact key and body ────────────────────────────
   //
@@ -210,6 +234,12 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
   expect(settlementHref).toMatch(/^#settlement-[0-9a-f-]+$/i);
   const settlementId = settlementHref!.replace("#settlement-", "");
   expect(settlementId).toBe(retrySettlementId);
+  await expect(quoteCheckbox).toBeHidden();
+  await expect(
+    settlementSection.getByText(
+      /Create one or more quotes before requesting settlement/,
+    ),
+  ).toBeVisible();
 
   // ─── Step 8: Navigate ledger filters and assert URL restoration ───────────
 
@@ -219,24 +249,56 @@ test("E2E-001 operator financial critical path", async ({ page, request }) => {
   await expect(ledgerSection).toBeVisible();
 
   const currencyFilter = ledgerSection.getByLabel("Ledger settlement currency");
+  const productFilter = ledgerSection.getByLabel("Ledger product");
+  const assignorFilter = ledgerSection.getByLabel("Ledger assignor ID");
+  const assetFilter = ledgerSection.getByLabel("Ledger asset currency");
+  const fromFilter = ledgerSection.getByLabel("From filter");
+  const toFilter = ledgerSection.getByLabel("To filter");
+  const pageSize = ledgerSection.getByLabel("Page size");
+  const historyLength = await page.evaluate(() => window.history.length);
+  const filteredLedgerResponse = page.waitForResponse((response) => {
+    if (!response.url().includes("/api/v1/settlement-statements")) return false;
+    const parameters = new URL(response.url()).searchParams;
+    return (
+      parameters.get("settlementCurrency") === SETTLEMENT_CURRENCY &&
+      parameters.get("productType") === "POST_DATED_CHEQUE" &&
+      parameters.get("assignorId") === ASSIGNOR_ID &&
+      parameters.get("assetCurrency") === "BRL" &&
+      parameters.has("from") &&
+      parameters.has("to") &&
+      parameters.get("size") === "25"
+    );
+  });
 
-  // Apply a filter – pushState updates the URL
+  // Typing replaces one shareable URL entry and debounces one complete vector.
   await currencyFilter.fill(SETTLEMENT_CURRENCY);
-  await currencyFilter.press("Tab");
+  await productFilter.fill("POST_DATED_CHEQUE");
+  await assignorFilter.fill(ASSIGNOR_ID);
+  await assetFilter.fill("BRL");
+  await fromFilter.fill("2020-01-01T00:00");
+  await toFilter.fill("2040-01-01T00:00");
+  await pageSize.selectOption("25");
+  await filteredLedgerResponse;
   await expect(page).toHaveURL(
     new RegExp(`settlementCurrency=${SETTLEMENT_CURRENCY}`),
   );
+  await expect(page).toHaveURL(/productType=POST_DATED_CHEQUE/);
+  await expect(page).toHaveURL(new RegExp(`assignorId=${ASSIGNOR_ID}`));
+  await expect(page).toHaveURL(/assetCurrency=BRL/);
   await expect(page).toHaveURL(/page=0/);
+  expect(await page.evaluate(() => window.history.length)).toBe(historyLength);
+  const filteredUrl = page.url();
 
-  // Back restores the pre-filter URL
+  // A deliberate navigation is restorable; individual keystrokes are not.
+  await page.evaluate(() => {
+    window.history.pushState(null, "", window.location.pathname);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(currencyFilter).toHaveValue("");
   await page.goBack();
-  await expect(page).not.toHaveURL(/settlementCurrency=/);
-
-  // Forward restores the filtered URL
-  await page.goForward();
-  await expect(page).toHaveURL(
-    new RegExp(`settlementCurrency=${SETTLEMENT_CURRENCY}`),
-  );
+  await expect(page).toHaveURL(filteredUrl);
+  await expect(currencyFilter).toHaveValue(SETTLEMENT_CURRENCY);
+  await expect(productFilter).toHaveValue("POST_DATED_CHEQUE");
 
   // ─── Step 9: Login as ADMIN and reverse via the API ──────────────────────
 

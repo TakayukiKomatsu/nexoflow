@@ -957,9 +957,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
           throw new Error(`Unexpected ${url}`);
         }),
       );
-      render(
-        <SettlementWorkspace session={session} quotes={[quote]} />,
-      );
+      render(<SettlementWorkspace session={session} quotes={[quote]} />);
 
       fireEvent.click(screen.getByRole("checkbox"));
       fireEvent.click(
@@ -1101,11 +1099,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     window.history.replaceState(null, "", "/#settlement-detail-1");
 
     render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[]}
-        showLedger={false}
-      />,
+      <SettlementWorkspace session={session} quotes={[]} showLedger={false} />,
     );
 
     expect(

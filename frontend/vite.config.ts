@@ -30,7 +30,9 @@ export default defineConfig(({ mode }) => {
         include: [
           "src/App.tsx",
           "src/SettlementWorkspace.tsx",
+          "src/ErrorBoundary.tsx",
           "src/api/client.ts",
+          "src/session.ts",
         ],
         thresholds: {
           lines: 95,

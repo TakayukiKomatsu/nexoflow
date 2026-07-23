@@ -117,6 +117,9 @@ const quote = {
 const ASSIGNOR_A = "11111111-1111-1111-1111-111111111111";
 const ASSIGNOR_B = "22222222-2222-2222-2222-222222222222";
 async function signIn() {
+  fireEvent.change(screen.getByLabelText("Email"), {
+    target: { value: "operator+ui@srm.local" },
+  });
   fireEvent.change(screen.getByLabelText("Password"), {
     target: { value: "test-password" },
   });

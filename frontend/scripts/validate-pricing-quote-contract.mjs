@@ -65,10 +65,13 @@ function loadTypeScriptModel(clientPath) {
     ts.sys.fileExists,
     "tsconfig.app.json",
   );
-  if (!configurationPath) fail(`could not find tsconfig.app.json for ${clientPath}`);
+  if (!configurationPath)
+    fail(`could not find tsconfig.app.json for ${clientPath}`);
   const configuration = ts.readConfigFile(configurationPath, ts.sys.readFile);
   if (configuration.error) {
-    fail(ts.flattenDiagnosticMessageText(configuration.error.messageText, "\n"));
+    fail(
+      ts.flattenDiagnosticMessageText(configuration.error.messageText, "\n"),
+    );
   }
   const parsed = ts.parseJsonConfigFileContent(
     configuration.config,
@@ -80,7 +83,8 @@ function loadTypeScriptModel(clientPath) {
   const sourceFile = program
     .getSourceFiles()
     .find((source) => resolve(source.fileName) === absoluteClientPath);
-  if (!sourceFile) fail(`TypeScript program did not load ${absoluteClientPath}`);
+  if (!sourceFile)
+    fail(`TypeScript program did not load ${absoluteClientPath}`);
   const checker = program.getTypeChecker();
 
   function namedType(name) {
@@ -99,7 +103,11 @@ function loadTypeScriptModel(clientPath) {
 
 function schemaProperties(document, schemaName) {
   const properties = document?.components?.schemas?.[schemaName]?.properties;
-  if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
+  if (
+    !properties ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  ) {
     fail(`OpenAPI schema ${schemaName} has no object properties`);
   }
   return properties;
@@ -124,7 +132,13 @@ function comparePropertyNames(label, openApiProperties, type, checker) {
   }
 }
 
-function comparePropertyTypes(label, openApiProperties, type, checker, document) {
+function comparePropertyTypes(
+  label,
+  openApiProperties,
+  type,
+  checker,
+  document,
+) {
   const symbols = new Map(
     checker.getPropertiesOfType(type).map((symbol) => [symbol.name, symbol]),
   );

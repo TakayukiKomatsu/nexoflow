@@ -25,9 +25,9 @@ async function validate(document: string) {
 
 afterEach(async () => {
   await Promise.all(
-    temporaryDirectories.splice(0).map((directory) =>
-      rm(directory, { recursive: true, force: true }),
-    ),
+    temporaryDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
 
@@ -41,9 +41,7 @@ describe("runtime OpenAPI contract validator", () => {
   });
 
   it("fails when the OpenAPI document drifts from the frontend model", async () => {
-    const directory = await mkdtemp(
-      resolve(tmpdir(), "srm-openapi-contract-"),
-    );
+    const directory = await mkdtemp(resolve(tmpdir(), "srm-openapi-contract-"));
     temporaryDirectories.push(directory);
     const document = JSON.parse(await readFile(fixture, "utf8")) as {
       components: {
