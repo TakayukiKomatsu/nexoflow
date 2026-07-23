@@ -12,6 +12,7 @@ import java.util.stream.Stream;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -48,6 +49,28 @@ class ResourceErrorApiContractTest {
                 "/api/v1/receivables/" + missing,
                 "/api/v1/pricing-quotes/" + missing,
                 "/api/v1/settlements/" + missing);
+    }
+
+    @ParameterizedTest
+    @MethodSource("malformedTypedParameters")
+    void malformedPathAndQueryParametersUseSanitizedValidationProblems(
+            String path, String expectedField) throws Exception {
+        mvc.perform(get(path).header("Authorization", "Bearer " + token()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.detail").value("Request validation failed."))
+                .andExpect(jsonPath("$.violations[0].field").value(expectedField))
+                .andExpect(jsonPath("$.violations[0].message").value("has an invalid value"));
+    }
+
+    static Stream<Arguments> malformedTypedParameters() {
+        return Stream.of(
+                Arguments.of("/api/v1/settlement-statements?page=abc", "page"),
+                Arguments.of("/api/v1/settlement-statements?assignorId=bad", "assignorId"),
+                Arguments.of("/api/v1/settlements/not-a-uuid", "settlementId"),
+                Arguments.of(
+                        "/api/v1/conversions?base=BRL&quote=USD&amount=1&at=bad",
+                        "at"));
     }
 
     @Test

@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import io.micrometer.core.instrument.Metrics;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import com.srm.creditengine.currency.domain.FxRateMissingException;
 import com.srm.creditengine.currency.domain.FxRateStaleException;
 import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
@@ -167,7 +168,8 @@ public class ApiExceptionHandler {
     @ExceptionHandler({
             HandlerMethodValidationException.class,
             MethodArgumentNotValidException.class,
-            MissingServletRequestParameterException.class
+            MissingServletRequestParameterException.class,
+            MethodArgumentTypeMismatchException.class
     })
     ProblemDetail validationFailure(Exception exception, HttpServletRequest request) {
         ProblemDetail detail = problem(
@@ -197,6 +199,9 @@ public class ApiExceptionHandler {
     }
 
     private List<Map<String, String>> violations(Exception exception) {
+        if (exception instanceof MethodArgumentTypeMismatchException mismatch) {
+            return List.of(Map.of("field", mismatch.getName(), "message", "has an invalid value"));
+        }
         if (exception instanceof MissingServletRequestParameterException missing) {
             return List.of(Map.of("field", missing.getParameterName(), "message", "is required"));
         }
