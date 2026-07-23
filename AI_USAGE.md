@@ -2,7 +2,7 @@
 
 ## Scope and responsibility
 
-AI agents were used as engineering copilots for repository exploration, requirements/SDD comparison, implementation, debugging, test design, security and code review, verification, and documentation reconciliation. Work was split into focused planning, execution, review, and verifier lanes; agent records are retained under `docs/.pi-subagents/artifacts/`.
+AI agents were used as engineering copilots for repository exploration, requirements/SDD comparison, implementation, debugging, test design, security and code review, verification, and documentation reconciliation. Work was split into focused planning, execution, review, and verifier lanes. Raw execution records, when produced, remain local under the ignored `.pi-subagents/` workspace because they can contain transient machine context; they are not claimed as committed reviewer evidence. Sanitized decisions, plans, corrections, and command-backed outcomes are retained in `docs/superpowers/`, `docs/evidence/`, this disclosure, and the Git history.
 
 AI output was never treated as evidence by itself. Deterministic builds, tests, runtime probes, database assertions, browser execution, scanners, and document validators establish the observed result. The human owner retains responsibility for code review, design decisions, credentials, and every authorization-gated remote, publication, tag, or release action.
 
