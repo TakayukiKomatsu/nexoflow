@@ -6,6 +6,10 @@ COPY backend/src src
 RUN gradle --no-daemon --console=plain --info bootJar
 
 FROM eclipse-temurin:21-jre-alpine@sha256:3f08b13888f595cc49edabea7250ba69499ba25602b267da591720769400e08c
+RUN apk add --no-cache --upgrade \
+    libexpat=2.8.2-r0 \
+    p11-kit=0.26.2-r0 \
+    p11-kit-trust=0.26.2-r0
 RUN addgroup -S srm && adduser -S srm -G srm
 WORKDIR /app
 COPY --from=build /workspace/build/libs/*.jar /app/app.jar

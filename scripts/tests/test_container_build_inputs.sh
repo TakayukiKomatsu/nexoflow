@@ -24,5 +24,14 @@ if grep -REn 'apk[[:space:]]+upgrade' "$repo_root/backend/Dockerfile" "$repo_roo
   exit 1
 fi
 
+for dockerfile in "$repo_root/backend/Dockerfile" "$repo_root/frontend/Dockerfile"; do
+  final_user="$(grep '^USER ' "$dockerfile" | tail -1 | awk '{ print $2 }')"
+  if [[ -z "$final_user" || "$final_user" == "root" || "$final_user" == "0" ]]; then
+    echo "CONTAINER-PIN-003 failed: Dockerfile must select a final non-root USER: $dockerfile" >&2
+    exit 1
+  fi
+done
+
 echo "CONTAINER-PIN-001 passed: every Dockerfile and Compose base image is digest-pinned"
 echo "CONTAINER-PIN-002 passed: runtime images do not perform uncontrolled apk upgrades"
+echo "CONTAINER-PIN-003 passed: runtime Dockerfiles select an explicit non-root user"
