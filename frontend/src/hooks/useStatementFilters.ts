@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { api, type Session, type StatementPage } from "../api/client";
+import {
+  api,
+  statementFiltersFromSearch,
+  type Session,
+  type StatementPage,
+} from "../api/client";
 import { apiErrorMessage } from "../settlement/model";
 
 export const LEDGER_FILTER_DEBOUNCE_MS = 300;
@@ -41,7 +46,11 @@ export function useStatementFilters(session: Session, refreshRevision: number) {
     setMessage(undefined);
     setLoading(true);
     api
-      .statement(search, session.accessToken, controller.signal)
+      .statement(
+        statementFiltersFromSearch(search),
+        session.accessToken,
+        controller.signal,
+      )
       .then((nextPage) => {
         if (
           controller.signal.aborted ||

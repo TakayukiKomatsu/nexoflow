@@ -98,7 +98,60 @@ function loadTypeScriptModel(clientPath) {
     return checker.getDeclaredTypeOfSymbol(symbol);
   }
 
-  return { checker, namedType };
+  function namedValueType(name) {
+    for (const statement of sourceFile.statements) {
+      if (!ts.isVariableStatement(statement)) continue;
+      const declaration = statement.declarationList.declarations.find(
+        (candidate) =>
+          ts.isIdentifier(candidate.name) && candidate.name.text === name,
+      );
+      if (declaration) return checker.getTypeAtLocation(declaration.name);
+    }
+    fail(`frontend model does not export value ${name}`);
+  }
+
+  function literalProperty(type, propertyName, label) {
+    const symbol = checker.getPropertyOfType(type, propertyName);
+    const declaration = symbol?.valueDeclaration ?? symbol?.declarations?.[0];
+    if (!symbol || !declaration)
+      fail(`${label}.${propertyName} is unavailable`);
+    const propertyType = checker.getTypeOfSymbolAtLocation(symbol, declaration);
+    if ((propertyType.flags & ts.TypeFlags.StringLiteral) === 0) {
+      fail(`${label}.${propertyName} must be a string literal`);
+    }
+    return propertyType.value;
+  }
+
+  function operationDefinitions() {
+    const operationsType = namedValueType("API_OPERATIONS");
+    return new Map(
+      checker.getPropertiesOfType(operationsType).map((symbol) => {
+        const declaration = symbol.valueDeclaration ?? symbol.declarations?.[0];
+        if (!declaration) fail(`API_OPERATIONS.${symbol.name} is unavailable`);
+        const operationType = checker.getTypeOfSymbolAtLocation(
+          symbol,
+          declaration,
+        );
+        return [
+          symbol.name,
+          {
+            method: literalProperty(
+              operationType,
+              "method",
+              `API_OPERATIONS.${symbol.name}`,
+            ),
+            path: literalProperty(
+              operationType,
+              "path",
+              `API_OPERATIONS.${symbol.name}`,
+            ),
+          },
+        ];
+      }),
+    );
+  }
+
+  return { checker, namedType, operationDefinitions };
 }
 
 function schemaObject(document, schemaName) {
@@ -262,6 +315,7 @@ function compareSchemaType(
       elementType,
       checker,
       document,
+      declaration,
     );
     return;
   }
@@ -324,9 +378,239 @@ function compareObjectSchema(label, schema, type, checker, document) {
   comparePropertyTypes(label, properties, type, checker, document);
 }
 
+function compareRequestObjectSchema(label, schema, type, checker, document) {
+  const properties = schema.properties;
+  if (
+    !properties ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  ) {
+    fail(`${label} OpenAPI request object has no properties`);
+  }
+  const symbols = checker.getPropertiesOfType(type);
+  const frontendNames = symbols.map(({ name }) => name);
+  const missingFromOpenApi = frontendNames.filter(
+    (name) => !Object.hasOwn(properties, name),
+  );
+  const openApiRequired = new Set(schema.required ?? []);
+  const requiredOnlyByOpenApi = [...openApiRequired].filter(
+    (name) => !frontendNames.includes(name),
+  );
+  const optionalityMismatch = symbols
+    .filter(
+      (symbol) =>
+        ((symbol.flags & ts.SymbolFlags.Optional) === 0) !==
+        openApiRequired.has(symbol.name),
+    )
+    .map(({ name }) => name);
+  if (
+    missingFromOpenApi.length ||
+    requiredOnlyByOpenApi.length ||
+    optionalityMismatch.length
+  ) {
+    fail(
+      `${label} request mismatch; missing from OpenAPI: ${missingFromOpenApi.join(", ") || "none"}; required only by OpenAPI: ${requiredOnlyByOpenApi.join(", ") || "none"}; optionality mismatch: ${optionalityMismatch.join(", ") || "none"}`,
+    );
+  }
+  const frontendProperties = Object.fromEntries(
+    frontendNames.map((name) => [name, properties[name]]),
+  );
+  comparePropertyTypes(label, frontendProperties, type, checker, document);
+}
+
+function referenceName(schema, label) {
+  if (typeof schema?.$ref !== "string") {
+    fail(`${label} must use a component schema reference`);
+  }
+  return schema.$ref.split("/").at(-1);
+}
+
+function jsonSchema(content, label) {
+  const schema = content?.["application/json"]?.schema;
+  if (!schema) fail(`${label} has no application/json schema`);
+  return schema;
+}
+
+function compareParameterGroup(
+  label,
+  parameters,
+  location,
+  typeName,
+  namedType,
+  checker,
+  document,
+) {
+  const located = parameters.filter((parameter) => parameter.in === location);
+  if (!typeName) {
+    if (located.length) {
+      fail(`${label} has unexpected ${location} parameter ${located[0].name}`);
+    }
+    return;
+  }
+  const schema = {
+    type: "object",
+    properties: Object.fromEntries(
+      located.map((parameter) => [parameter.name, parameter.schema]),
+    ),
+    required: located
+      .filter(({ required }) => required)
+      .map(({ name }) => name),
+  };
+  compareObjectSchema(
+    `${label} ${location} parameters`,
+    schema,
+    namedType(typeName),
+    checker,
+    document,
+  );
+}
+
+function compareOperations(document, model) {
+  const mappings = [
+    {
+      key: "login",
+      bodySchema: "LoginRequest",
+      bodyType: "LoginRequest",
+      responseSchema: "AccessToken",
+    },
+    {
+      key: "currentUser",
+      responseSchema: "CurrentUser",
+    },
+    {
+      key: "simulate",
+      bodySchema: "SimulationRequest",
+      bodyType: "PricingSimulationRequest",
+      responseSchema: "PricingBreakdownResponse",
+    },
+    {
+      key: "createReceivable",
+      bodySchema: "Request",
+      bodyType: "ReceivableRequest",
+      responseSchema: "Response",
+    },
+    {
+      key: "createQuote",
+      bodySchema: "QuoteRequest",
+      bodyType: "QuoteRequest",
+      responseSchema: "QuoteResponse",
+    },
+    {
+      key: "previewSettlement",
+      bodySchema: "QuoteIdsRequest",
+      bodyType: "QuoteIdsRequest",
+      responseSchema: "PreviewResponse",
+    },
+    {
+      key: "settle",
+      bodySchema: "QuoteIdsRequest",
+      bodyType: "QuoteIdsRequest",
+      headerType: "SettlementHeaders",
+      responseSchema: "SettlementResponse",
+    },
+    {
+      key: "settlement",
+      pathType: "SettlementPathParameters",
+      responseSchema: "SettlementResponse",
+    },
+    {
+      key: "statement",
+      queryType: "StatementFilters",
+      responseSchema: "PageResponse",
+    },
+  ];
+  const definitions = model.operationDefinitions();
+  const unmapped = [...definitions.keys()].filter(
+    (name) => !mappings.some(({ key }) => key === name),
+  );
+  if (unmapped.length || definitions.size !== mappings.length) {
+    fail(
+      `API_OPERATIONS mapping mismatch; unmapped frontend operations: ${unmapped.join(", ") || "none"}`,
+    );
+  }
+
+  for (const mapping of mappings) {
+    const definition = definitions.get(mapping.key);
+    if (!definition) fail(`API_OPERATIONS.${mapping.key} is unavailable`);
+    const fullPath = `/api/v1${definition.path}`;
+    const pathItem = document?.paths?.[fullPath];
+    const operation = pathItem?.[definition.method.toLowerCase()];
+    const label = `${definition.method} ${fullPath}`;
+    if (!operation) fail(`${label} is unavailable in OpenAPI`);
+
+    const parameters = [
+      ...(Array.isArray(pathItem.parameters) ? pathItem.parameters : []),
+      ...(Array.isArray(operation.parameters) ? operation.parameters : []),
+    ];
+    compareParameterGroup(
+      label,
+      parameters,
+      "path",
+      mapping.pathType,
+      model.namedType,
+      model.checker,
+      document,
+    );
+    compareParameterGroup(
+      label,
+      parameters,
+      "query",
+      mapping.queryType,
+      model.namedType,
+      model.checker,
+      document,
+    );
+    compareParameterGroup(
+      label,
+      parameters,
+      "header",
+      mapping.headerType,
+      model.namedType,
+      model.checker,
+      document,
+    );
+
+    if (mapping.bodyType) {
+      if (operation.requestBody?.required !== true) {
+        fail(`${label} request body must be required`);
+      }
+      const bodySchema = jsonSchema(operation.requestBody.content, label);
+      const bodySchemaName = referenceName(bodySchema, `${label} request body`);
+      if (bodySchemaName !== mapping.bodySchema) {
+        fail(
+          `${label} request schema mismatch; frontend expects ${mapping.bodySchema}, OpenAPI uses ${bodySchemaName}`,
+        );
+      }
+      compareRequestObjectSchema(
+        `${label} request body`,
+        schemaObject(document, bodySchemaName),
+        model.namedType(mapping.bodyType),
+        model.checker,
+        document,
+      );
+    } else if (operation.requestBody) {
+      fail(`${label} has an unexpected request body`);
+    }
+
+    const successResponse = Object.entries(operation.responses ?? {}).find(
+      ([status]) => /^2\d\d$/.test(status),
+    )?.[1];
+    const responseName = referenceName(
+      jsonSchema(successResponse?.content, `${label} success response`),
+      `${label} success response`,
+    );
+    if (responseName !== mapping.responseSchema) {
+      fail(
+        `${label} response schema mismatch; frontend expects ${mapping.responseSchema}, OpenAPI uses ${responseName}`,
+      );
+    }
+  }
+}
+
 export async function validateContract(options) {
   const document = await loadOpenApi(options.document);
-  const { checker, namedType } = loadTypeScriptModel(resolve(options.client));
+  const model = loadTypeScriptModel(resolve(options.client));
+  const { checker, namedType } = model;
   const mappings = [
     ["QuoteResponse", "PricingQuote"],
     ["PricingBreakdownResponse", "PricingBreakdown"],
@@ -350,6 +634,7 @@ export async function validateContract(options) {
       document,
     );
   }
+  compareOperations(document, model);
 }
 
 try {

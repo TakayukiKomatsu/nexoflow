@@ -23,6 +23,30 @@ type SchemaFixture = {
 };
 
 type ContractFixture = {
+  paths: Record<
+    string,
+    Record<
+      string,
+      {
+        parameters?: Array<{
+          in: string;
+          name: string;
+          required: boolean;
+          schema: SchemaFixture;
+        }>;
+        requestBody?: {
+          content: {
+            "application/json": { schema: SchemaFixture };
+          };
+          required: boolean;
+        };
+        responses: Record<
+          string,
+          { content: { "application/json": { schema: SchemaFixture } } }
+        >;
+      }
+    >
+  >;
   components: {
     schemas: Record<
       string,
@@ -126,6 +150,65 @@ describe("runtime OpenAPI contract validator", () => {
         mutate: (document) => {
           document.components.schemas.QuoteResponse.properties.dueDate.format =
             "date-time";
+        },
+      },
+    ];
+
+    for (const testCase of cases) {
+      const drifted = await driftDocument(testCase.mutate);
+      await expect(validate(drifted)).rejects.toEqual(
+        expect.objectContaining({
+          stderr: expect.stringContaining(testCase.expected),
+        }),
+      );
+    }
+  });
+
+  it("rejects endpoint, request-body, query, header, and response drift", async () => {
+    const cases: Array<{
+      expected: string;
+      mutate: (document: ContractFixture) => void;
+    }> = [
+      {
+        expected: "pricing-simulations",
+        mutate: (document) => {
+          document.paths["/api/v1/pricing-simulations"].put =
+            document.paths["/api/v1/pricing-simulations"].post;
+          delete document.paths["/api/v1/pricing-simulations"].post;
+        },
+      },
+      {
+        expected: "settlementCurrency",
+        mutate: (document) => {
+          delete document.components.schemas.SimulationRequest.properties
+            .settlementCurrency;
+        },
+      },
+      {
+        expected: "Idempotency-Key",
+        mutate: (document) => {
+          const parameter =
+            document.paths["/api/v1/settlements"].post.parameters?.[0];
+          if (parameter) parameter.required = false;
+        },
+      },
+      {
+        expected: "assignorId",
+        mutate: (document) => {
+          const parameters =
+            document.paths["/api/v1/settlement-statements"].get.parameters;
+          if (parameters) {
+            document.paths["/api/v1/settlement-statements"].get.parameters =
+              parameters.filter((parameter) => parameter.name !== "assignorId");
+          }
+        },
+      },
+      {
+        expected: "SettlementResponse",
+        mutate: (document) => {
+          document.paths["/api/v1/settlements"].post.responses["201"].content[
+            "application/json"
+          ].schema.$ref = "#/components/schemas/PreviewResponse";
         },
       },
     ];

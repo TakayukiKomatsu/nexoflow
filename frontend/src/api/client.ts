@@ -8,6 +8,22 @@ export type IsoInstant = string;
 export type Int32 = number;
 export type Int64 = number;
 
+export const API_OPERATIONS = {
+  login: { method: "POST", path: "/auth/login" },
+  currentUser: { method: "GET", path: "/users/me" },
+  simulate: { method: "POST", path: "/pricing-simulations" },
+  createReceivable: { method: "POST", path: "/receivables" },
+  createQuote: { method: "POST", path: "/pricing-quotes" },
+  previewSettlement: { method: "POST", path: "/settlement-previews" },
+  settle: { method: "POST", path: "/settlements" },
+  settlement: { method: "GET", path: "/settlements/{settlementId}" },
+  statement: { method: "GET", path: "/settlement-statements" },
+} as const;
+
+export type LoginRequest = {
+  email: string;
+  password: string;
+};
 export type AccessToken = {
   accessToken: string;
   expiresIn: Int64;
@@ -17,6 +33,14 @@ export type CurrentUser = {
   id: Uuid;
   email: string;
   roles: Session["roles"];
+};
+export type ReceivableRequest = {
+  assignorId: Uuid;
+  productType: string;
+  faceAmount: string;
+  faceCurrency: string;
+  issueDate: IsoDate;
+  dueDate: IsoDate;
 };
 export type Receivable = {
   id: Uuid;
@@ -37,6 +61,30 @@ export type PricingSimulationRequest = {
   dueDate: IsoDate;
   settlementCurrency: string;
 };
+export type QuoteRequest = {
+  receivableId: Uuid;
+  settlementCurrency: string;
+};
+export type QuoteIdsRequest = {
+  quoteIds: Uuid[];
+};
+export type SettlementPathParameters = {
+  settlementId: Uuid;
+};
+export type SettlementHeaders = {
+  "Idempotency-Key": string;
+};
+export type StatementFilters = {
+  from?: IsoInstant;
+  to?: IsoInstant;
+  assignorId?: Uuid;
+  assetCurrency?: string;
+  settlementCurrency?: string;
+  productType?: string;
+  page?: Int32;
+  size?: Int32;
+};
+
 export type PricingBreakdown = {
   faceAmount: string;
   faceCurrency: string;
@@ -132,21 +180,45 @@ export class ApiError extends Error {
     this.correlationId = correlationId;
   }
 }
+
 const API_ROOT = import.meta.env.VITE_API_ROOT ?? "/api/v1";
+type ApiOperation = (typeof API_OPERATIONS)[keyof typeof API_OPERATIONS];
+type ApiRequestInit = Omit<RequestInit, "method"> & {
+  pathParameters?: Record<string, string>;
+  query?: URLSearchParams;
+};
+
+function operationPath(
+  template: string,
+  pathParameters: Record<string, string> = {},
+): string {
+  return template.replaceAll(/\{([^}]+)\}/g, (_, name: string) => {
+    const value = pathParameters[name];
+    if (!value) throw new Error(`Missing API path parameter ${name}.`);
+    return encodeURIComponent(value);
+  });
+}
 
 async function request<T>(
-  path: string,
-  init: RequestInit = {},
+  operation: ApiOperation,
+  init: ApiRequestInit = {},
   token?: string,
 ): Promise<T> {
-  const response = await fetch(`${API_ROOT}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers,
+  const { pathParameters, query, ...requestInit } = init;
+  const path = operationPath(operation.path, pathParameters);
+  const queryString = query?.toString();
+  const response = await fetch(
+    `${API_ROOT}${path}${queryString ? `?${queryString}` : ""}`,
+    {
+      ...requestInit,
+      method: operation.method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...requestInit.headers,
+      },
     },
-  });
+  );
   if (!response.ok) {
     const body = (await response.json().catch(() => undefined)) as
       ProblemDetail | undefined;
@@ -162,13 +234,39 @@ async function request<T>(
   return response.json() as Promise<T>;
 }
 
+function optionalInteger(
+  search: URLSearchParams,
+  name: string,
+): number | undefined {
+  const value = search.get(name);
+  return value === null ? undefined : Number(value);
+}
+
+export function statementFiltersFromSearch(
+  search: URLSearchParams,
+): StatementFilters {
+  return {
+    from: search.get("from") ?? undefined,
+    to: search.get("to") ?? undefined,
+    assignorId: search.get("assignorId") ?? undefined,
+    assetCurrency: search.get("assetCurrency") ?? undefined,
+    settlementCurrency: search.get("settlementCurrency") ?? undefined,
+    productType: search.get("productType") ?? undefined,
+    page: optionalInteger(search, "page"),
+    size: optionalInteger(search, "size"),
+  };
+}
+
 export const api = {
-  async login(input: { email: string; password: string }): Promise<Session> {
-    const token = await request<AccessToken>("/auth/login", {
-      method: "POST",
+  async login(input: LoginRequest): Promise<Session> {
+    const token = await request<AccessToken>(API_OPERATIONS.login, {
       body: JSON.stringify(input),
     });
-    const me = await request<CurrentUser>("/users/me", {}, token.accessToken);
+    const me = await request<CurrentUser>(
+      API_OPERATIONS.currentUser,
+      {},
+      token.accessToken,
+    );
     return {
       accessToken: token.accessToken,
       expiresAt: Date.now() + token.expiresIn * 1000,
@@ -182,45 +280,39 @@ export const api = {
     signal: AbortSignal,
   ) {
     return request<PricingSimulation>(
-      "/pricing-simulations",
-      { method: "POST", body: JSON.stringify(input), signal },
+      API_OPERATIONS.simulate,
+      { body: JSON.stringify(input), signal },
       token,
     );
   },
-  createReceivable(
-    input: PricingSimulationRequest & { assignorId: string; issueDate: string },
-    token: string,
-  ) {
+  createReceivable(input: ReceivableRequest, token: string) {
+    const requestBody: ReceivableRequest = {
+      assignorId: input.assignorId,
+      productType: input.productType,
+      faceAmount: input.faceAmount,
+      faceCurrency: input.faceCurrency,
+      issueDate: input.issueDate,
+      dueDate: input.dueDate,
+    };
     return request<Receivable>(
-      "/receivables",
-      {
-        method: "POST",
-        body: JSON.stringify({
-          assignorId: input.assignorId,
-          productType: input.productType,
-          faceAmount: input.faceAmount,
-          faceCurrency: input.faceCurrency,
-          issueDate: input.issueDate,
-          dueDate: input.dueDate,
-        }),
-      },
+      API_OPERATIONS.createReceivable,
+      { body: JSON.stringify(requestBody) },
       token,
     );
   },
   createQuote(receivableId: string, settlementCurrency: string, token: string) {
+    const input: QuoteRequest = { receivableId, settlementCurrency };
     return request<PricingQuote>(
-      "/pricing-quotes",
-      {
-        method: "POST",
-        body: JSON.stringify({ receivableId, settlementCurrency }),
-      },
+      API_OPERATIONS.createQuote,
+      { body: JSON.stringify(input) },
       token,
     );
   },
   previewSettlement(quoteIds: string[], token: string, signal?: AbortSignal) {
+    const input: QuoteIdsRequest = { quoteIds };
     return request<SettlementPreview>(
-      "/settlement-previews",
-      { method: "POST", body: JSON.stringify({ quoteIds }), signal },
+      API_OPERATIONS.previewSettlement,
+      { body: JSON.stringify(input), signal },
       token,
     );
   },
@@ -230,29 +322,30 @@ export const api = {
     token: string,
     signal?: AbortSignal,
   ) {
+    const input: QuoteIdsRequest = { quoteIds };
+    const headers: SettlementHeaders = { "Idempotency-Key": idempotencyKey };
     return request<Settlement>(
-      "/settlements",
-      {
-        method: "POST",
-        body: JSON.stringify({ quoteIds }),
-        headers: { "Idempotency-Key": idempotencyKey },
-        signal,
-      },
+      API_OPERATIONS.settle,
+      { body: JSON.stringify(input), headers, signal },
       token,
     );
   },
   settlement(settlementId: string, token: string, signal?: AbortSignal) {
+    const pathParameters: SettlementPathParameters = { settlementId };
     return request<Settlement>(
-      `/settlements/${encodeURIComponent(settlementId)}`,
-      { signal },
+      API_OPERATIONS.settlement,
+      { pathParameters: { ...pathParameters }, signal },
       token,
     );
   },
-  statement(search: URLSearchParams, token: string, signal?: AbortSignal) {
-    const suffix = search.toString();
+  statement(filters: StatementFilters, token: string, signal?: AbortSignal) {
+    const query = new URLSearchParams();
+    for (const [name, value] of Object.entries(filters)) {
+      if (value !== undefined) query.set(name, String(value));
+    }
     return request<StatementPage>(
-      `/settlement-statements${suffix ? `?${suffix}` : ""}`,
-      { signal },
+      API_OPERATIONS.statement,
+      { query, signal },
       token,
     );
   },
