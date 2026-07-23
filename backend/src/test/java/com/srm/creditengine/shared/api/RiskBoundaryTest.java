@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.srm.creditengine.currency.SupportedCurrency;
-import com.srm.creditengine.currency.application.UnsupportedCurrencyException;
+import com.srm.creditengine.currency.domain.SupportedCurrency;
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import com.srm.creditengine.identity.application.LoginRateLimiter;
 import java.time.Clock;
 import java.time.Instant;

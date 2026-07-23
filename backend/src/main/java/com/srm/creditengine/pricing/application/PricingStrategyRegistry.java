@@ -1,5 +1,6 @@
-package com.srm.creditengine.pricing;
+package com.srm.creditengine.pricing.application;
 
+import com.srm.creditengine.pricing.domain.PricingStrategy;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 

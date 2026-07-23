@@ -21,7 +21,7 @@ import io.micrometer.core.instrument.Metrics;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import com.srm.creditengine.currency.domain.FxRateMissingException;
 import com.srm.creditengine.currency.domain.FxRateStaleException;
-import com.srm.creditengine.currency.application.UnsupportedCurrencyException;
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import com.srm.creditengine.currency.application.FxProviderUnavailableException;
 import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;

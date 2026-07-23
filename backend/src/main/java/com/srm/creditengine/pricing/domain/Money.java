@@ -1,4 +1,4 @@
-package com.srm.creditengine.pricing;
+package com.srm.creditengine.pricing.domain;
 
 import java.math.BigDecimal;
 import java.util.Objects;

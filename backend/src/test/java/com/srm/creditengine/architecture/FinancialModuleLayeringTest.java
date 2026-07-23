@@ -12,9 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
 /**
- * Red contract for Task 1. Establishes the required layering boundary for the five financial
- * modules. Failing tests (marked RED below) document what Task 2 must refactor; passing tests
- * (marked GREEN) confirm the baseline that already holds.
+ * Executable layering contract for the five financial modules.
  *
  * <p>Required boundary (task-1-brief.md interface):
  * <ol>
@@ -41,11 +39,6 @@ class FinancialModuleLayeringTest {
     }
 
     // ── Rule 1a ─────────────────────────────────────────────────────────────────────────────────
-
-    /**
-     * RED: none of the five financial modules has a {@code domain} sub-package yet.
-     * Task 2 must introduce domain value-objects / entities in each module.
-     */
     @Test
     void eachFinancialModuleHasNonEmptyDomainPackage() {
         for (String module : MODULES) {
@@ -58,10 +51,6 @@ class FinancialModuleLayeringTest {
 
     // ── Rule 1b ─────────────────────────────────────────────────────────────────────────────────
 
-    /**
-     * GREEN: all five modules already have an {@code application} sub-package.
-     * Verifies the baseline layer is populated before the refactor.
-     */
     @Test
     void eachFinancialModuleHasNonEmptyApplicationPackage() {
         for (String module : MODULES) {
@@ -74,11 +63,6 @@ class FinancialModuleLayeringTest {
 
     // ── Rule 1c ─────────────────────────────────────────────────────────────────────────────────
 
-    /**
-     * RED: none of the five financial modules has an {@code infrastructure} sub-package yet.
-     * Task 2 must create infrastructure adapters (e.g. {@code JdbcAssignorRepository}) and move
-     * all Jdbc* classes out of the application layer.
-     */
     @Test
     void eachFinancialModuleHasNonEmptyInfrastructurePackage() {
         for (String module : MODULES) {
@@ -89,22 +73,28 @@ class FinancialModuleLayeringTest {
         }
     }
 
+    @Test
+    void financialModulesDoNotHideTypesOutsideTheirDeclaredLayers() {
+        for (String module : MODULES) {
+            assertThat(classes.stream()
+                            .filter(candidate -> candidate.getPackageName()
+                                    .equals("com.srm.creditengine." + module))
+                            .map(candidate -> candidate.getName())
+                            .toList())
+                    .as("module '%s' must place every production type in api, application, domain, or infrastructure", module)
+                    .isEmpty();
+        }
+    }
+
     // ── Rule 2 ──────────────────────────────────────────────────────────────────────────────────
 
-    /**
-     * GREEN vacuously (no domain sub-packages exist yet, so no violating classes are found).
-     * {@code allowEmptyShould(true)} suppresses ArchUnit's fail-on-empty-should default so
-     * this rule documents the intent without false-failing when domain classes don't yet exist.
-     * Once Task 2 introduces domain classes this rule actively prevents Spring and JDBC
-     * from contaminating the pure domain model.
-     */
+    /** Keeps the domain model free of framework and persistence dependencies. */
     @Test
     void domainDoesNotImportSpringOrJdbc() {
         for (String module : MODULES) {
             noClasses().that().resideInAPackage(".." + module + ".domain..")
                     .should().dependOnClassesThat().resideInAnyPackage(
                             "org.springframework..", "java.sql..", "javax.sql..")
-                    .allowEmptyShould(true)
                     .check(classes);
         }
     }
@@ -121,13 +111,7 @@ class FinancialModuleLayeringTest {
 
     // ── Rule 3 ──────────────────────────────────────────────────────────────────────────────────
 
-    /**
-     * RED: {@code JdbcAssignorService}, {@code JdbcCurrencyService}, {@code JdbcReferenceRateService},
-     * {@code JdbcReceivableService}, {@code AuthoritativePricingService}, and
-     * {@code JdbcSettlementService} all reside in their module's {@code application} layer and
-     * import {@code JdbcTemplate} or {@code java.sql}.
-     * Task 2 must move these adapters to {@code infrastructure}.
-     */
+    /** Keeps raw database access out of application use cases. */
     @Test
     void applicationDoesNotImportJdbc() {
         for (String module : MODULES) {
@@ -150,11 +134,7 @@ class FinancialModuleLayeringTest {
 
     // ── Rule 4 ──────────────────────────────────────────────────────────────────────────────────
 
-    /**
-     * GREEN vacuously (no infrastructure sub-packages exist yet).
-     * Once Task 2 introduces infrastructure classes this rule prevents API controllers from
-     * bypassing the application ports to reach persistence adapters directly.
-     */
+    /** Prevents API controllers from bypassing application ports. */
     @Test
     void apiDoesNotDependOnInfrastructure() {
         for (String module : MODULES) {
@@ -166,12 +146,7 @@ class FinancialModuleLayeringTest {
 
     // ── Rule 5 ──────────────────────────────────────────────────────────────────────────────────
 
-    /**
-     * RED: Jdbc* service classes reside in {@code application}, not {@code infrastructure}.
-     * Any class within a financial module that lives outside its own {@code infrastructure}
-     * sub-package must not import JDBC types. After Task 2 moves the adapters, only the
-     * {@code infrastructure} layer will remain as the JDBC boundary.
-     */
+    /** Ensures only infrastructure adapters can depend on JDBC. */
     @Test
     void infrastructureIsOnlyJdbcLayer() {
         for (String module : MODULES) {

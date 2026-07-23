@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.srm.creditengine.currency.domain.FxRateMissingException;
 import com.srm.creditengine.currency.domain.FxRateStaleException;
-import com.srm.creditengine.currency.application.UnsupportedCurrencyException;
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import com.srm.creditengine.settlement.domain.AlreadyReversedException;
 import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;

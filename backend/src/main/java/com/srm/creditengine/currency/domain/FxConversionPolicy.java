@@ -1,6 +1,5 @@
 package com.srm.creditengine.currency.domain;
 
-import com.srm.creditengine.currency.FxConversionService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;

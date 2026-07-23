@@ -2,6 +2,7 @@ package com.srm.creditengine.currency.application;
 
 import com.srm.creditengine.currency.domain.FxRateMissingException;
 import com.srm.creditengine.currency.domain.FxRateStaleException;
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

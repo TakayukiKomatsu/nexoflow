@@ -1,6 +1,6 @@
 package com.srm.creditengine.currency.application;
 
-import com.srm.creditengine.currency.SupportedCurrency;
+import com.srm.creditengine.currency.domain.SupportedCurrency;
 import com.srm.creditengine.currency.domain.FxConversionPolicy;
 import com.srm.creditengine.currency.domain.FxObservation;
 import java.math.BigDecimal;

@@ -1,8 +1,7 @@
-package com.srm.creditengine.pricing;
+package com.srm.creditengine.pricing.domain;
 
-import com.srm.creditengine.currency.application.ReferenceRateService;
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.util.List;
 
 /**
  * Product-specific pricing seam; the engine never switches on product type.
@@ -16,7 +15,7 @@ public interface PricingStrategy {
     /**
      * Resolves the effective risk spread for this product at the pricing instant.
      */
-    ReferenceRateService.ProductSpread riskSpread(ReferenceRateService references, Instant at);
+    BigDecimal riskSpread(List<BigDecimal> effectiveSpreads);
 
 
     /**

@@ -2,12 +2,11 @@ package com.srm.creditengine.pricing.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.srm.creditengine.currency.FxConversionService;
+import com.srm.creditengine.currency.domain.FxConversionService;
 import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
-import com.srm.creditengine.pricing.ChequePricingStrategy;
-import com.srm.creditengine.pricing.InvoicePricingStrategy;
-import com.srm.creditengine.pricing.PricingStrategyRegistry;
+import com.srm.creditengine.pricing.domain.ChequePricingStrategy;
+import com.srm.creditengine.pricing.domain.InvoicePricingStrategy;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;

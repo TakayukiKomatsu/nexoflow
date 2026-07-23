@@ -9,7 +9,9 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
-import com.srm.creditengine.pricing.*;
+import com.srm.creditengine.pricing.domain.ChequePricingStrategy;
+import com.srm.creditengine.pricing.domain.InvoicePricingStrategy;
+import com.srm.creditengine.pricing.domain.PricingStrategy;
 import com.srm.creditengine.pricing.infrastructure.JdbcPricingQuoteRepository;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
@@ -56,7 +58,9 @@ class AuthoritativePricingServiceTest {
         when(strategy.code()).thenReturn("OWNED_STRATEGY");
         var selectedSpread = new ReferenceRateService.ProductSpread(
                 "MERCANTILE_INVOICE", new BigDecimal("0.015"), now);
-        when(strategy.riskSpread(references, now)).thenReturn(selectedSpread);
+        when(references.productSpreads("MERCANTILE_INVOICE", now)).thenReturn(List.of(selectedSpread));
+        when(strategy.riskSpread(List.of(new BigDecimal("0.015"))))
+                .thenReturn(new BigDecimal("0.015"));
         BigDecimal discounted = new BigDecimal("975.6097560975609756097560975610");
         when(strategy.discount(
                         new BigDecimal("1000.00"),
@@ -103,8 +107,9 @@ class AuthoritativePricingServiceTest {
         assertThat(result.spread()).isEqualByComparingTo("0.015");
         assertThat(result.strategyCode()).isEqualTo("OWNED_STRATEGY");
         verify(references).baseRates("BRL", now);
+        verify(references).productSpreads("MERCANTILE_INVOICE", now);
         verifyNoMoreInteractions(references);
-        verify(strategy).riskSpread(references, now);
+        verify(strategy).riskSpread(List.of(new BigDecimal("0.015")));
         verify(strategy).discount(
                 new BigDecimal("1000.00"),
                 new BigDecimal("0.010"),

@@ -1,4 +1,4 @@
-package com.srm.creditengine.currency;
+package com.srm.creditengine.currency.domain;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

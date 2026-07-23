@@ -1,6 +1,4 @@
-package com.srm.creditengine.currency;
-
-import com.srm.creditengine.currency.application.UnsupportedCurrencyException;
+package com.srm.creditengine.currency.domain;
 import java.util.Locale;
 import java.util.Set;
 

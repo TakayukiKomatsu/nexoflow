@@ -1,4 +1,4 @@
-package com.srm.creditengine.currency;
+package com.srm.creditengine.currency.domain;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;

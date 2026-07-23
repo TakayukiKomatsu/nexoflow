@@ -2,9 +2,8 @@ package com.srm.creditengine.pricing.application;
 
 import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
-import com.srm.creditengine.pricing.PricingStrategy;
-import com.srm.creditengine.pricing.PricingStrategyRegistry;
 import com.srm.creditengine.pricing.domain.PricingQuoteSnapshot;
+import com.srm.creditengine.pricing.domain.PricingStrategy;
 import com.srm.creditengine.receivable.application.ReceivableService;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
@@ -142,7 +141,9 @@ class AuthoritativePricingService implements PricingService {
         }
         PricingStrategy strategy = strategies.forProduct(input.productType());
         BigDecimal base = effectiveBaseRate(input.faceCurrency(), at);
-        BigDecimal spread = strategy.riskSpread(references, at).monthlySpread();
+        BigDecimal spread = strategy.riskSpread(references.productSpreads(strategy.productType(), at).stream()
+                .map(ReferenceRateService.ProductSpread::monthlySpread)
+                .toList());
         BigDecimal term = BigDecimal.valueOf(ChronoUnit.DAYS.between(pricingDate, input.dueDate()))
                 .divide(BigDecimal.valueOf(30), 10, RoundingMode.HALF_EVEN);
         BigDecimal discounted = strategy.discount(input.faceAmount(), base, spread, term);
