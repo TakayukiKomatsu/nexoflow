@@ -124,7 +124,7 @@ class ResourceErrorApiContractTest {
     }
 
     @Test
-    void duplicateAndForeignKeyViolationsUseSanitizedConflictProblems() throws Exception {
+    void duplicateDatabaseConstraintsUseSanitizedConflictProblems() throws Exception {
         UUID firstAssignor = UUID.randomUUID();
         UUID secondAssignor = UUID.randomUUID();
         String taxId = "CONFLICT" + firstAssignor.toString().substring(0, 8);
@@ -135,22 +135,77 @@ class ResourceErrorApiContractTest {
                 .andExpect(jsonPath("$.code").value("DATA_CONFLICT"))
                 .andExpect(jsonPath("$.detail").value("The request conflicts with existing data."));
 
-        mvc.perform(post("/api/v1/receivables")
+    }
+
+    @Test
+    void oversizedWritableFieldsFailValidationBeforePersistence() throws Exception {
+        mvc.perform(post("/api/v1/assignors")
                         .header("Authorization", "Bearer " + token())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "assignorId": "%s",
-                                  "productType": "UNREGISTERED_PRODUCT",
-                                  "faceAmount": "1000.0000",
-                                  "faceCurrency": "BRL",
-                                  "issueDate": "2030-01-15",
-                                  "dueDate": "2030-02-15"
+                                  "legalName": "%s",
+                                  "taxId": "VALID-TAX-ID",
+                                  "active": true
                                 }
-                                """.formatted(firstAssignor)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("DATA_CONFLICT"))
-                .andExpect(jsonPath("$.detail").value("The request conflicts with existing data."));
+                                """.formatted("x".repeat(201))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(post("/api/v1/assignors")
+                        .header("Authorization", "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "legalName": "Valid Name",
+                                  "taxId": "%s",
+                                  "active": true
+                                }
+                                """.formatted("x".repeat(33))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+
+        UUID assignorId = UUID.randomUUID();
+        createAssignor(assignorId, "BOUND" + assignorId.toString().substring(0, 8))
+                .andExpect(status().isCreated());
+        mvc.perform(post("/api/v1/receivables")
+                        .header("Authorization", "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(receivableBody(assignorId, "x".repeat(51), "BRL")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+    }
+
+    @Test
+    void receivableReferenceValuesUseDomainErrorsInsteadOfDatabaseConflicts() throws Exception {
+        UUID assignorId = UUID.randomUUID();
+        createAssignor(assignorId, "DOMAIN" + assignorId.toString().substring(0, 8))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/v1/receivables")
+                        .header("Authorization", "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(receivableBody(assignorId, "MERCANTILE_INVOICE", "EUR")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("UNSUPPORTED_CURRENCY"));
+        mvc.perform(post("/api/v1/receivables")
+                        .header("Authorization", "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(receivableBody(assignorId, "UNKNOWN_PRODUCT", "BRL")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    private static String receivableBody(UUID assignorId, String productType, String currency) {
+        return """
+                {
+                  "assignorId": "%s",
+                  "productType": "%s",
+                  "faceAmount": "1000.0000",
+                  "faceCurrency": "%s",
+                  "issueDate": "2030-01-15",
+                  "dueDate": "2030-02-15"
+                }
+                """.formatted(assignorId, productType, currency);
     }
 
     private org.springframework.test.web.servlet.ResultActions createAssignor(UUID id, String taxId)

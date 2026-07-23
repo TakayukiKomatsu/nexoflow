@@ -37,7 +37,8 @@ class AuthoritativePricingServiceTest {
                                 PricingQuoteRepository.class,
                                 ReceivableQuoteReader.class,
                                 Clock.class,
-                                FinancialTelemetry.class));
+                                FinancialTelemetry.class,
+                                PricingAuditRecorder.class));
     }
 
     @Test
@@ -239,7 +240,8 @@ class AuthoritativePricingServiceTest {
                 new JdbcPricingQuoteRepository(jdbc),
                 mock(ReceivableQuoteReader.class),
                 Clock.fixed(instant, ZoneOffset.UTC),
-                mock(FinancialTelemetry.class));
+                mock(FinancialTelemetry.class),
+                mock(PricingAuditRecorder.class));
     }
 
     private static JdbcTemplate quoteSnapshot(Instant pricedAt, Instant expiresAt) {
@@ -375,7 +377,8 @@ class AuthoritativePricingServiceTest {
                 mock(PricingQuoteRepository.class),
                 reader,
                 Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC),
-                mock(FinancialTelemetry.class));
+                mock(FinancialTelemetry.class),
+                mock(PricingAuditRecorder.class));
 
         assertThatThrownBy(() -> service.createQuote(RECEIVABLE_ID, "BRL", "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -409,7 +412,8 @@ class AuthoritativePricingServiceTest {
                 mock(PricingQuoteRepository.class),
                 mock(ReceivableQuoteReader.class),
                 clock,
-                mock(FinancialTelemetry.class));
+                mock(FinancialTelemetry.class),
+                mock(PricingAuditRecorder.class));
     }
 
     private static PricingService.Input input(

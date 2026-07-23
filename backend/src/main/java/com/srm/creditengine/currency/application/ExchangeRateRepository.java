@@ -4,9 +4,10 @@ import com.srm.creditengine.currency.domain.FxObservation;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface ExchangeRateRepository {
-    void record(FxObservation observation, String actor, Instant createdAt);
+    void record(UUID id, FxObservation observation, String actor, Instant createdAt);
 
     Optional<FxObservation> latest(String base, String quote, Instant at);
 

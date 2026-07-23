@@ -48,6 +48,16 @@ class ReferenceRateApplicationServiceTest {
         assertThatThrownBy(() -> service.recordBaseRate("BRL", BigDecimal.ONE, NOW, " "))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Actor is required");
+        assertThatThrownBy(() -> service.recordBaseRate("BRL", BigDecimal.ONE, NOW, "x".repeat(321)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Actor must not exceed 320 characters");
+        assertThatThrownBy(() -> service.recordProductSpread(
+                        "UNKNOWN_PRODUCT", BigDecimal.ONE, NOW, "admin@srm.local"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unsupported product type");
+        assertThatThrownBy(() -> service.productSpreads("UNKNOWN_PRODUCT", NOW))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unsupported product type");
 
         verifyNoInteractions(rates, audit);
     }

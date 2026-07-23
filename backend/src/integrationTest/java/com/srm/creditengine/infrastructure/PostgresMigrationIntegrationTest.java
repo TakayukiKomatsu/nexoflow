@@ -166,4 +166,27 @@ class PostgresMigrationIntegrationTest {
                 "settlement_reversals_statement_filter_idx",
                 "settlement_items_product_statement_idx");
     }
+
+    @Test
+    void everyFinancialActorSnapshotAcceptsTheIdentityEmailWidth() {
+        Integer alignedColumns = jdbc.queryForObject(
+                """
+                select count(*)
+                from information_schema.columns
+                where (table_name, column_name) in (
+                    ('assignors','created_by'),
+                    ('receivables','created_by'),
+                    ('pricing_quotes','created_by'),
+                    ('settlements','created_by'),
+                    ('idempotency_records','actor'),
+                    ('settlement_reversals','reversed_by'),
+                    ('audit_events','actor'),
+                    ('base_rate_versions','created_by'),
+                    ('product_spread_versions','created_by'))
+                  and character_maximum_length = 320
+                """,
+                Integer.class);
+
+        assertThat(alignedColumns).isEqualTo(9);
+    }
 }

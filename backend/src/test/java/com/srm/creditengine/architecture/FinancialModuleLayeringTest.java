@@ -143,6 +143,14 @@ class FinancialModuleLayeringTest {
     }
 
     @Test
+    void apiDoesNotImportJdbc() {
+        noClasses().that().resideInAPackage("..api..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "org.springframework.jdbc..", "java.sql..", "javax.sql..")
+                .check(classes);
+    }
+
+    @Test
     void apiInfrastructureBoundaryRejectsCrossModuleBypasses() {
         var fixtureClasses = new ClassFileImporter()
                 .importPackages("com.srm.creditengine.architecture.fixtures.crossmodule");

@@ -29,6 +29,7 @@ class AuthoritativePricingService implements PricingService {
     private final ReceivableQuoteReader receivables;
     private final Clock clock;
     private final FinancialTelemetry telemetry;
+    private final PricingAuditRecorder audit;
 
     AuthoritativePricingService(
             ReferenceRateService references,
@@ -37,7 +38,8 @@ class AuthoritativePricingService implements PricingService {
             PricingQuoteRepository quotes,
             ReceivableQuoteReader receivables,
             Clock clock,
-            FinancialTelemetry telemetry) {
+            FinancialTelemetry telemetry,
+            PricingAuditRecorder audit) {
         this.references = Objects.requireNonNull(references, "references");
         this.currency = Objects.requireNonNull(currency, "currency");
         this.strategies = Objects.requireNonNull(strategies, "strategies");
@@ -45,6 +47,7 @@ class AuthoritativePricingService implements PricingService {
         this.receivables = Objects.requireNonNull(receivables, "receivables");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.telemetry = Objects.requireNonNull(telemetry, "telemetry");
+        this.audit = Objects.requireNonNull(audit, "audit");
     }
 
     @Override
@@ -111,6 +114,7 @@ class AuthoritativePricingService implements PricingService {
                 actor,
                 "ACTIVE");
         quotes.save(snapshot, actor);
+        audit.recordQuoteCreated(actor, snapshot);
         telemetry.quote(receivable.productType(), settlementCurrency, "success");
         return toQuote(snapshot, clock.instant());
     }

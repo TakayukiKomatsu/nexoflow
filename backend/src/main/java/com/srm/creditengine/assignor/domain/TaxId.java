@@ -15,6 +15,9 @@ public final class TaxId {
         if (value.isBlank()) {
             throw new IllegalArgumentException("Tax ID is required");
         }
+        if (value.length() > 32) {
+            throw new IllegalArgumentException("Tax ID must not exceed 32 normalized characters");
+        }
         return value;
     }
 }

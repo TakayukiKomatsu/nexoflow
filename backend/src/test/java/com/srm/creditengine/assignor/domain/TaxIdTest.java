@@ -33,4 +33,11 @@ class TaxIdTest {
         assertThatThrownBy(() -> TaxId.normalize("...---///"))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void rejectsMoreThanThirtyTwoNormalizedCharacters() {
+        assertThatThrownBy(() -> TaxId.normalize("x".repeat(33)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Tax ID must not exceed 32 normalized characters");
+    }
 }

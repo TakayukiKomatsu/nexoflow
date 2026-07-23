@@ -7,11 +7,14 @@ import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.startsWith;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import com.srm.creditengine.currency.domain.FxObservation;
 import com.srm.creditengine.currency.infrastructure.JdbcExchangeRateRepository;
+import com.srm.creditengine.currency.infrastructure.JdbcExchangeRateAuditRecorder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -38,7 +41,7 @@ class JdbcCurrencyServiceTest {
                 NOW.minusSeconds(60), "admin@srm.local");
 
         ArgumentCaptor<Object[]> values = ArgumentCaptor.forClass(Object[].class);
-        verify(jdbc).update(any(String.class), values.capture());
+        verify(jdbc).update(startsWith("insert into exchange_rates"), values.capture());
         assertThat(values.getValue()[1]).isEqualTo("USD");
         assertThat(values.getValue()[2]).isEqualTo("BRL");
         org.assertj.core.api.Assertions.assertThat(((java.sql.Timestamp) values.getValue()[6]).toInstant())
@@ -62,6 +65,10 @@ class JdbcCurrencyServiceTest {
                         "USD", "BRL", new BigDecimal("1000000000.0000000000"), "provider", NOW, "admin@srm.local"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("A rate must have at most 9 integer and 10 fractional digits");
+        assertThatThrownBy(() -> service.recordObservation(
+                        "USD", "BRL", new BigDecimal("5.20"), "x".repeat(51), NOW, "admin@srm.local"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Rate source must not exceed 50 characters");
         verifyNoInteractions(jdbc);
     }
 
@@ -239,6 +246,7 @@ class JdbcCurrencyServiceTest {
     private static CurrencyApplicationService service(JdbcTemplate jdbc) {
         return new CurrencyApplicationService(
                 new JdbcExchangeRateRepository(jdbc),
+                new JdbcExchangeRateAuditRecorder(jdbc, new ObjectMapper()),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

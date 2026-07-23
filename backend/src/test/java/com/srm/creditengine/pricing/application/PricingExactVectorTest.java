@@ -143,7 +143,8 @@ class PricingExactVectorTest {
                 mock(PricingQuoteRepository.class),
                 mock(ReceivableQuoteReader.class),
                 Clock.fixed(PRICED_AT, ZoneOffset.UTC),
-                mock(FinancialTelemetry.class));
+                mock(FinancialTelemetry.class),
+                mock(PricingAuditRecorder.class));
     }
 
     private static CurrencyService identity() {

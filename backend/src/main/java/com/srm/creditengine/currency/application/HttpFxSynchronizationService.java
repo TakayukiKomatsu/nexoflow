@@ -17,6 +17,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
+import com.srm.creditengine.currency.domain.SupportedCurrency;
 
 /** HTTP-only provider adapter. Retry and circuit behavior is deliberately confined here. */
 @Service
@@ -72,21 +73,38 @@ class HttpFxSynchronizationService implements FxSynchronizationService {
 
     @Override
     public CurrencyService.Observation synchronize(String base, String quote, String actor) {
+        String canonicalBase = SupportedCurrency.require(base);
+        String canonicalQuote = SupportedCurrency.require(quote);
+        if (canonicalBase.equals(canonicalQuote)) {
+            throw new IllegalArgumentException("Base and quote currencies must differ");
+        }
         if (clock.instant().isBefore(circuitOpenUntil)) throw new FxProviderUnavailableException();
         for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
             var timer = telemetry.startFxAttempt();
             try {
                 requests.increment();
-                ProviderRate rate = client.get().uri("/api/v1/rates/{pair}", base + "-" + quote)
+                ProviderRate rate = client.get().uri("/api/v1/rates/{pair}", canonicalBase + "-" + canonicalQuote)
                         .accept(MediaType.APPLICATION_JSON).retrieve().body(ProviderRate.class);
                 if (rate == null || rate.rate() == null || rate.observedAt() == null) {
                     throw new RestClientException("Invalid FX response");
                 }
-                telemetry.completeFxAttempt(timer, "success");
                 String source = rate.source() == null || rate.source().isBlank() ? "HTTP_PROVIDER" : rate.source();
-                currency.recordObservation(base, quote, rate.rate(), source, rate.observedAt(), actor);
+                if (!validProviderRate(rate.rate()) || source.length() > 50) {
+                    telemetry.completeFxAttempt(timer, "permanent_failure");
+                    telemetry.fx("unavailable");
+                    throw new FxProviderUnavailableException();
+                }
+                try {
+                    currency.recordObservation(
+                            canonicalBase, canonicalQuote, rate.rate(), source, rate.observedAt(), actor);
+                } catch (IllegalArgumentException exception) {
+                    telemetry.completeFxAttempt(timer, "permanent_failure");
+                    telemetry.fx("unavailable");
+                    throw new FxProviderUnavailableException();
+                }
+                telemetry.completeFxAttempt(timer, "success");
                 telemetry.fx("success");
-                return new CurrencyService.Observation(base, quote, rate.rate(), source, rate.observedAt());
+                return new CurrencyService.Observation(canonicalBase, canonicalQuote, rate.rate(), source, rate.observedAt());
             } catch (RestClientException ex) {
                 failures.increment();
                 boolean retryable = retryable(ex);
@@ -112,6 +130,12 @@ class HttpFxSynchronizationService implements FxSynchronizationService {
         return ex instanceof RestClientResponseException response
                 && (response.getStatusCode().value() == 429
                         || response.getStatusCode().is5xxServerError());
+    }
+
+    private static boolean validProviderRate(BigDecimal rate) {
+        return rate.signum() > 0
+                && rate.scale() <= 10
+                && rate.precision() - rate.scale() <= 9;
     }
 
     private void waitBeforeRetry(int failedAttempt) {

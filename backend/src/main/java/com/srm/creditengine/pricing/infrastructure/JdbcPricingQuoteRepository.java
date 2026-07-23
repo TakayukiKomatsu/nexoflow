@@ -52,15 +52,6 @@ public class JdbcPricingQuoteRepository implements PricingQuoteRepository {
                 Timestamp.from(snapshot.fxObservedAt()),
                 snapshot.settlementAmount(),
                 actor);
-        jdbc.update(
-                "insert into audit_events (id,actor,action,target_type,target_id,occurred_at,safe_metadata) values (?,?,?,?,?,?,?::jsonb)",
-                UUID.randomUUID(),
-                actor,
-                "QUOTE_CREATED",
-                "PRICING_QUOTE",
-                snapshot.id(),
-                Timestamp.from(snapshot.pricedAt()),
-                "{}");
     }
 
     @Override

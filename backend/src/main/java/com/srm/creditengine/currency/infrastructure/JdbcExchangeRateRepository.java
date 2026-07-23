@@ -32,12 +32,12 @@ public class JdbcExchangeRateRepository implements ExchangeRateRepository {
     }
 
     @Override
-    public void record(FxObservation observation, String actor, Instant createdAt) {
+    public void record(UUID id, FxObservation observation, String actor, Instant createdAt) {
         jdbc.update(
                 "insert into exchange_rates "
                         + "(id,base_currency_code,quote_currency_code,rate,source,observed_at,created_at,created_by) "
                         + "values (?,?,?,?,?,?,?,?)",
-                UUID.randomUUID(),
+                id,
                 observation.base(),
                 observation.quote(),
                 observation.rate(),

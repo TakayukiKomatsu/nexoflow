@@ -48,5 +48,8 @@ public final class ReceivableRegistration {
         if (command.dueDate().isAfter(command.issueDate().plusYears(10))) {
             throw new IllegalArgumentException("Receivable maturity must not exceed ten years");
         }
+        if (command.actor() == null || command.actor().isBlank() || command.actor().length() > 320) {
+            throw new IllegalArgumentException("Receivable actor must not exceed 320 characters");
+        }
     }
 }

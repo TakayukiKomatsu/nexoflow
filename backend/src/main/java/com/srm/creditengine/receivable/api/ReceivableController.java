@@ -24,9 +24,9 @@ class ReceivableController {
     record Request(
             UUID id,
             @NotNull UUID assignorId,
-            @NotBlank String productType,
+            @NotBlank @Size(max = 50) String productType,
             @NotNull DecimalString faceAmount,
-            @NotBlank String faceCurrency,
+            @NotBlank @Size(max = 3) String faceCurrency,
             @NotNull LocalDate issueDate,
             @NotNull @Schema(description = "Due date no more than ten years after the issue date") LocalDate dueDate) {
         @AssertTrue(message = "faceAmount must be positive with no more than 15 integer digits and 4 fractional digits")

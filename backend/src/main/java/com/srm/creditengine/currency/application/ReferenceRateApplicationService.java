@@ -46,13 +46,14 @@ public class ReferenceRateApplicationService implements ReferenceRateService {
     public void recordProductSpread(
             String productType, BigDecimal monthlySpread, Instant effectiveAt, String actor) {
         ReferenceRatePolicy.validate(monthlySpread, effectiveAt, actor);
+        String canonicalProductType = ReferenceRatePolicy.requireProductType(productType);
         UUID id = UUID.randomUUID();
-        rates.recordProductSpread(id, productType, monthlySpread, effectiveAt, actor);
+        rates.recordProductSpread(id, canonicalProductType, monthlySpread, effectiveAt, actor);
         audit.record(actor, "PRODUCT_SPREAD_RECORDED", "PRODUCT_SPREAD_VERSION", id, clock.instant());
     }
 
     @Override
     public List<ProductSpread> productSpreads(String productType, Instant effectiveAt) {
-        return rates.productSpreads(productType, effectiveAt);
+        return rates.productSpreads(ReferenceRatePolicy.requireProductType(productType), effectiveAt);
     }
 }

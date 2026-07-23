@@ -59,6 +59,8 @@ class ReferenceRateAuditContractTest {
                 .andExpect(jsonPath("$[?(@.action == 'BASE_RATE_RECORDED' && @.actor == 'reference-admin@srm.local')]")
                         .isNotEmpty())
                 .andExpect(jsonPath("$[?(@.action == 'BASE_RATE_RECORDED' && @.targetType == 'BASE_RATE_VERSION')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$[?(@.action == 'BASE_RATE_RECORDED' && @.correlationId == 'reference-rate-audit-001')]")
                         .isNotEmpty());
     }
 
@@ -103,6 +105,7 @@ class ReferenceRateAuditContractTest {
 
         mvc.perform(post("/api/v1/exchange-rates")
                         .header("Authorization", "Bearer " + token)
+                        .header("X-Correlation-Id", "fx-rate-audit-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -118,6 +121,7 @@ class ReferenceRateAuditContractTest {
 
         mvc.perform(post("/api/v1/exchange-rates")
                         .header("Authorization", "Bearer " + token)
+                        .header("X-Correlation-Id", "fx-rate-audit-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
@@ -150,6 +154,15 @@ class ReferenceRateAuditContractTest {
                 .andExpect(jsonPath("$.unroundedConvertedAmount").value("520.0000000000"))
                 .andExpect(jsonPath("$.settlementAmount").isString())
                 .andExpect(jsonPath("$.settlementAmount").value("520.00"));
+
+        mvc.perform(get("/api/v1/audit-events")
+                        .header("Authorization", "Bearer " + token)
+                        .param("size", "100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.action == 'EXCHANGE_RATE_RECORDED' && @.correlationId == 'fx-rate-audit-001')]")
+                        .isNotEmpty())
+                .andExpect(jsonPath("$[?(@.action == 'EXCHANGE_RATE_RECORDED' && @.targetType == 'EXCHANGE_RATE')]")
+                        .isNotEmpty());
     }
 
     @Test
@@ -241,6 +254,61 @@ class ReferenceRateAuditContractTest {
                         .param("quote", "USD"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].rate").value("999999999.1234567890"));
+    }
+
+    @Test
+    void unsupportedProductSpreadIsRejectedForWritesAndReads() throws Exception {
+        String token = adminToken("unsupported-product-admin@srm.local");
+
+        mvc.perform(post("/api/v1/product-spreads")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productType": "UNKNOWN_PRODUCT",
+                                  "monthlySpread": "0.0100000000",
+                                  "effectiveAt": "2046-01-01T00:00:00Z"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(get("/api/v1/product-spreads")
+                        .header("Authorization", "Bearer " + token)
+                        .param("productType", "UNKNOWN_PRODUCT")
+                        .param("effectiveAt", "2046-01-01T00:00:00Z"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+
+    @Test
+    void oversizedRateSourceAndProductTypeFailAtHttpValidation() throws Exception {
+        String token = adminToken("text-boundary-admin@srm.local");
+        mvc.perform(post("/api/v1/exchange-rates")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "base": "USD",
+                                  "quote": "BRL",
+                                  "rate": "5.2000000000",
+                                  "source": "%s",
+                                  "observedAt": "2047-01-01T00:00:00Z"
+                                }
+                                """.formatted("x".repeat(51))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        mvc.perform(post("/api/v1/product-spreads")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "productType": "%s",
+                                  "monthlySpread": "0.0100000000",
+                                  "effectiveAt": "2047-01-01T00:00:00Z"
+                                }
+                                """.formatted("x".repeat(51))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
     }
 
     private String adminToken(String email) {

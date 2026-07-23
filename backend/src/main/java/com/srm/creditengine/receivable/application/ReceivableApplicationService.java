@@ -1,5 +1,6 @@
 package com.srm.creditengine.receivable.application;
 
+import com.srm.creditengine.currency.domain.SupportedCurrency;
 import com.srm.creditengine.receivable.domain.ReceivableRegistration;
 import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
 import java.time.Clock;
@@ -14,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 class ReceivableApplicationService implements ReceivableService {
+    private static final java.util.Set<String> PRODUCT_TYPES =
+            java.util.Set.of("MERCANTILE_INVOICE", "POST_DATED_CHEQUE");
 
     private final ReceivableRepository receivableRepository;
     private final AssignorStatusReader assignorStatusReader;
@@ -34,6 +37,13 @@ class ReceivableApplicationService implements ReceivableService {
         ReceivableRegistration.validate(new ReceivableRegistration.RegisterCommand(
                 c.id(), c.assignorId(), c.productType(), c.faceAmount(),
                 c.faceCurrency(), c.issueDate(), c.dueDate(), c.actor()));
+        String productType = c.productType() == null
+                ? ""
+                : c.productType().strip().toUpperCase(java.util.Locale.ROOT);
+        if (!PRODUCT_TYPES.contains(productType)) {
+            throw new IllegalArgumentException("Unsupported product type");
+        }
+        String faceCurrency = SupportedCurrency.require(c.faceCurrency());
         if (!assignorStatusReader.isActive(c.assignorId())) {
             throw new IllegalArgumentException("Receivable requires an active assignor");
         }
@@ -41,10 +51,10 @@ class ReceivableApplicationService implements ReceivableService {
         // Use fully-qualified name to avoid ambiguity with the ReceivableService.Receivable
         // nested record that is in scope via the implemented interface.
         receivableRepository.save(new com.srm.creditengine.receivable.domain.Receivable(
-                id, c.assignorId(), c.productType(), c.faceAmount(), c.faceCurrency(),
+                id, c.assignorId(), productType, c.faceAmount(), faceCurrency,
                 c.issueDate(), c.dueDate(), "REGISTERED", 0L, clock.instant(), c.actor()));
         return new ReceivableService.Receivable(
-                id, c.assignorId(), c.productType(), c.faceAmount(), c.faceCurrency(),
+                id, c.assignorId(), productType, c.faceAmount(), faceCurrency,
                 c.issueDate(), c.dueDate(), "REGISTERED", 0L);
     }
 
