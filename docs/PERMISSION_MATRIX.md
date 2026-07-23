@@ -7,7 +7,6 @@ Transcribed directly from the authorization filter chain in [`backend/src/main/j
 | Method | Endpoint | OPERATOR | ANALYST | ADMIN | AUDITOR | Any authenticated actor | Public |
 | --- | --- | :---: | :---: | :---: | :---: | :---: | :---: |
 | * | `/api/v1/auth/login` | | | | | | ✅ |
-| * | `/api/v1/runtime/**` | | | | | | ✅ |
 | * | `/actuator/health/**` | | | | | | ✅ |
 | GET | `/actuator/prometheus` | | | ✅ | | | |
 | * | `/v3/api-docs/**` | | | | | | ✅ |
@@ -50,7 +49,6 @@ Transcribed directly from the authorization filter chain in [`backend/src/main/j
 
 - Roles map to JWT `roles` claims via `JwtGrantedAuthoritiesConverter` with `ROLE_` prefix (`jwtAuthenticationConverter()`), so a JWT must carry `roles: ["OPERATOR"]` (etc.) to satisfy `hasRole("OPERATOR")`/`hasAnyRole(...)`.
 - `anyRequest().denyAll()` is the final matcher: any endpoint not explicitly listed above is denied to every actor, authenticated or not. New endpoints must add an explicit matcher or they are unreachable.
-- `/api/v1/runtime/**` is permitted to all callers at the Spring Security layer, but `RuntimeValidationController` (`backend/src/main/java/com/srm/creditengine/shared/api/RuntimeValidationController.java`) is itself annotated `@Profile("test")`, so it is not present outside the `test` Spring profile regardless of the matcher.
 - Health probes remain public for orchestration. `/actuator/prometheus` is separate and ADMIN-only; authenticated non-ADMIN callers receive `403`, and anonymous callers receive `401`.
 - Unauthenticated or malformed-credential requests receive `401 AUTHENTICATION_REQUIRED`; authenticated requests lacking the required role receive `403 ACCESS_DENIED` (both via `SecurityProblemWriter`, formatted as the RFC 9457 Problem Details described in `docs/RUNBOOK.md`).
 - Session management is stateless (`SessionCreationPolicy.STATELESS`) and CSRF protection is disabled, consistent with a pure bearer-JWT API with no server-side session or cookie-based auth.

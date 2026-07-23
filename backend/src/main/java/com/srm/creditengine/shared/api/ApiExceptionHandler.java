@@ -9,7 +9,9 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.http.ProblemDetail;
@@ -179,6 +181,26 @@ public class ApiExceptionHandler {
                 HttpStatus.UNSUPPORTED_MEDIA_TYPE,
                 "UNSUPPORTED_MEDIA_TYPE",
                 "The request media type is not supported.",
+                request);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ProblemDetail methodNotAllowed(
+            HttpRequestMethodNotSupportedException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "METHOD_NOT_ALLOWED",
+                "The request method is not supported for this resource.",
+                request);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    ProblemDetail notAcceptable(
+            HttpMediaTypeNotAcceptableException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.NOT_ACCEPTABLE,
+                "NOT_ACCEPTABLE",
+                "The requested response media type is not available.",
                 request);
     }
 
