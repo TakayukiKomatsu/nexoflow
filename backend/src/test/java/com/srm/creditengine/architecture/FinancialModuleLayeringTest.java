@@ -2,10 +2,12 @@ package com.srm.creditengine.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
+import com.tngtech.archunit.lang.ArchRule;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -137,11 +139,17 @@ class FinancialModuleLayeringTest {
     /** Prevents API controllers from bypassing application ports. */
     @Test
     void apiDoesNotDependOnInfrastructure() {
-        for (String module : MODULES) {
-            noClasses().that().resideInAPackage(".." + module + ".api..")
-                    .should().dependOnClassesThat().resideInAPackage(".." + module + ".infrastructure..")
-                    .check(classes);
-        }
+        apiInfrastructureBoundary().check(classes);
+    }
+
+    @Test
+    void apiInfrastructureBoundaryRejectsCrossModuleBypasses() {
+        var fixtureClasses = new ClassFileImporter()
+                .importPackages("com.srm.creditengine.architecture.fixtures.crossmodule");
+
+        assertThatThrownBy(() -> apiInfrastructureBoundary().check(fixtureClasses))
+                .isInstanceOf(AssertionError.class)
+                .hasMessageContaining("LeakingApi");
     }
 
     // ── Rule 5 ──────────────────────────────────────────────────────────────────────────────────
@@ -157,5 +165,10 @@ class FinancialModuleLayeringTest {
                             "org.springframework.jdbc..", "java.sql..", "javax.sql..")
                     .check(classes);
         }
+    }
+
+    private static ArchRule apiInfrastructureBoundary() {
+        return noClasses().that().resideInAPackage("..api..")
+                .should().dependOnClassesThat().resideInAPackage("..infrastructure..");
     }
 }
