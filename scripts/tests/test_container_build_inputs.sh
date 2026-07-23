@@ -46,9 +46,9 @@ for dockerfile in "$repo_root/backend/Dockerfile" "$repo_root/frontend/Dockerfil
   fi
 done
 
-grep -Fq 'SRM_MIGRATION_V23_LEGACY_TIME_ZONE: ${SRM_MIGRATION_V23_LEGACY_TIME_ZONE:-}' \
-  "$repo_root/compose.yaml" || {
-  echo "CONTAINER-CONFIG-004 failed: Compose must pass the optional V23 legacy time zone to the backend" >&2
+legacy_zone_passthrough='SRM_MIGRATION_V23_LEGACY_TIME_ZONE: ${SRM_MIGRATION_V23_LEGACY_TIME_ZONE:-}'
+[[ "$(grep -Fc "$legacy_zone_passthrough" "$repo_root/compose.yaml")" == 3 ]] || {
+  echo "CONTAINER-CONFIG-004 failed: every Flyway-capable Compose service must receive the optional V23 legacy time zone" >&2
   exit 1
 }
 grep -Eq '^SRM_MIGRATION_V23_LEGACY_TIME_ZONE=' "$repo_root/.env.example" || {
@@ -59,4 +59,4 @@ grep -Eq '^SRM_MIGRATION_V23_LEGACY_TIME_ZONE=' "$repo_root/.env.example" || {
 echo "CONTAINER-PIN-001 passed: every Dockerfile and Compose base image is digest-pinned"
 echo "CONTAINER-PIN-002 passed: runtime images do not perform uncontrolled apk upgrades"
 echo "CONTAINER-PIN-003 passed: runtime Dockerfiles select an explicit non-root user"
-echo "CONTAINER-CONFIG-004 passed: Compose exposes the documented V23 legacy time-zone override"
+echo "CONTAINER-CONFIG-004 passed: every Flyway-capable Compose service exposes the V23 legacy time-zone override"

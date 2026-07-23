@@ -118,6 +118,7 @@ services:
       SRM_DB_USERNAME: srm
       SRM_DB_PASSWORD: ${POSTGRES_PASSWORD:-srm-local-only}
       SRM_JWT_SECRET: ${SRM_JWT_SECRET:-srm-local-only-secret-must-have-at-least-32-bytes}
+      SRM_MIGRATION_V23_LEGACY_TIME_ZONE: ${SRM_MIGRATION_V23_LEGACY_TIME_ZONE:-}
     networks: [srm-internal]
     depends_on:
       postgres:
@@ -134,6 +135,7 @@ services:
       SRM_DB_USERNAME: srm
       SRM_DB_PASSWORD: ${POSTGRES_PASSWORD:-srm-local-only}
       SRM_JWT_SECRET: ${SRM_JWT_SECRET:-srm-local-only-secret-must-have-at-least-32-bytes}
+      SRM_MIGRATION_V23_LEGACY_TIME_ZONE: ${SRM_MIGRATION_V23_LEGACY_TIME_ZONE:-}
     networks: [srm-internal]
     depends_on:
       backend:
