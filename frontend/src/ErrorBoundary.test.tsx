@@ -1,19 +1,28 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-import { ApplicationErrorBoundary, UI_RENDER_FAILURE } from "./ErrorBoundary";
+import {
+  ApplicationErrorBoundary,
+  UI_RENDER_FAILURE,
+} from "./components/AppErrorBoundary";
 
-function BrokenModule(): never {
-  throw new Error("customer-secret-123");
+let renderFails = true;
+
+function RecoverableModule() {
+  if (renderFails) throw new Error("customer-secret-123");
+  return <p>Recovered workspace</p>;
 }
 
 it("offers an accessible recovery action when an unexpected render fails", () => {
+  renderFails = true;
   vi.spyOn(console, "error").mockImplementation(() => undefined);
-  const recover = vi.fn();
+  const recover = vi.fn(() => {
+    renderFails = false;
+  });
   const report = vi.fn();
 
   render(
     <ApplicationErrorBoundary onError={report} onReset={recover}>
-      <BrokenModule />
+      <RecoverableModule />
     </ApplicationErrorBoundary>,
   );
 
@@ -22,6 +31,7 @@ it("offers an accessible recovery action when an unexpected render fails", () =>
   );
   fireEvent.click(screen.getByRole("button", { name: "Reload application" }));
   expect(recover).toHaveBeenCalledOnce();
+  expect(screen.getByText("Recovered workspace")).toBeVisible();
   expect(report).toHaveBeenCalledExactlyOnceWith(UI_RENDER_FAILURE);
   expect(JSON.stringify(report.mock.calls)).not.toContain(
     "customer-secret-123",
