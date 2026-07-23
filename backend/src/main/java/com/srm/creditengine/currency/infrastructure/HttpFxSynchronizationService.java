@@ -1,5 +1,10 @@
-package com.srm.creditengine.currency.application;
+package com.srm.creditengine.currency.infrastructure;
 
+import com.srm.creditengine.currency.application.CurrencyService;
+import com.srm.creditengine.currency.application.FxProviderUnavailableException;
+import com.srm.creditengine.currency.application.FxSynchronizationService;
+import com.srm.creditengine.currency.domain.SupportedCurrency;
+import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.math.BigDecimal;
@@ -16,8 +21,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClientResponseException;
-import com.srm.creditengine.shared.runtime.FinancialTelemetry;
-import com.srm.creditengine.currency.domain.SupportedCurrency;
 
 /** HTTP-only provider adapter. Retry and circuit behavior is deliberately confined here. */
 @Service

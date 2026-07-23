@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.srm.creditengine.currency.application.FxSynchronizationService;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -25,7 +26,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.actuate.health.HealthIndicator;
-import org.springframework.context.ApplicationContext;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -57,7 +57,7 @@ class RuntimeMetadataContractTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private ApplicationContext applicationContext;
+    private FxSynchronizationService fxSynchronizationService;
     @Autowired
     @Qualifier("mockFxHealthIndicator")
     private HealthIndicator mockFxHealthIndicator;
@@ -306,11 +306,7 @@ class RuntimeMetadataContractTest {
         providerRequests.clear();
 
         var health = mockFxHealthIndicator.health();
-        Object synchronizationService = applicationContext.getBean("httpFxSynchronizationService");
-        var synchronize = synchronizationService.getClass()
-                .getDeclaredMethod("synchronize", String.class, String.class, String.class);
-        synchronize.setAccessible(true);
-        synchronize.invoke(synchronizationService, "BRL", "USD", "SYSTEM");
+        fxSynchronizationService.synchronize("BRL", "USD", "SYSTEM");
 
         assertThat(health.getStatus().getCode()).isEqualTo("UP");
         assertThat(health.getDetails()).isEmpty();

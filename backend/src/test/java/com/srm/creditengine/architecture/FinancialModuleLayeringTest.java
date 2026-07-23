@@ -134,6 +134,16 @@ class FinancialModuleLayeringTest {
         }
     }
 
+    @Test
+    void applicationDoesNotOwnHttpTransportAdapters() {
+        for (String module : MODULES) {
+            noClasses().that().resideInAPackage(".." + module + ".application..")
+                    .should().dependOnClassesThat().resideInAnyPackage(
+                            "org.springframework.http..", "org.springframework.web..")
+                    .check(classes);
+        }
+    }
+
     // ── Rule 4 ──────────────────────────────────────────────────────────────────────────────────
 
     /** Prevents API controllers from bypassing application ports. */
@@ -171,6 +181,15 @@ class FinancialModuleLayeringTest {
                     .and().resideOutsideOfPackage("com.srm.creditengine." + module + ".infrastructure..")
                     .should().dependOnClassesThat().resideInAnyPackage(
                             "org.springframework.jdbc..", "java.sql..", "javax.sql..")
+                    .check(classes);
+        }
+    }
+
+    @Test
+    void infrastructureDoesNotDependOnApi() {
+        for (String module : MODULES) {
+            noClasses().that().resideInAPackage(".." + module + ".infrastructure..")
+                    .should().dependOnClassesThat().resideInAPackage("..api..")
                     .check(classes);
         }
     }

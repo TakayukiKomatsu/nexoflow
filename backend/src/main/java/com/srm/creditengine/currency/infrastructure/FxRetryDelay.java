@@ -1,4 +1,4 @@
-package com.srm.creditengine.currency.application;
+package com.srm.creditengine.currency.infrastructure;
 
 import java.time.Duration;
 import java.util.function.DoubleSupplier;

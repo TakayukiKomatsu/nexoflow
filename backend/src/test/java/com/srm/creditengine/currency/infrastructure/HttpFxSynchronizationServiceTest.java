@@ -1,5 +1,7 @@
-package com.srm.creditengine.currency.application;
+package com.srm.creditengine.currency.infrastructure;
 
+import com.srm.creditengine.currency.application.CurrencyService;
+import com.srm.creditengine.currency.application.FxProviderUnavailableException;
 import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
