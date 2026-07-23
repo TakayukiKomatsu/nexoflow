@@ -10,7 +10,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
-import com.srm.creditengine.settlement.infrastructure.JdbcSettlementService;
+import com.srm.creditengine.settlement.infrastructure.JdbcAuditEventRecorder;
+import com.srm.creditengine.settlement.infrastructure.JdbcIdempotencyRepository;
+import com.srm.creditengine.settlement.infrastructure.JdbcSettlementRepository;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.Clock;
@@ -32,7 +34,7 @@ class JdbcSettlementServiceTest {
     @Test
     void previewRejectsMissingAndDuplicateQuoteIdsBeforeQuerying() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
-        JdbcSettlementService service = service(jdbc);
+        SettlementService service = service(jdbc);
 
         assertThatThrownBy(() -> service.preview(null, "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -74,7 +76,7 @@ class JdbcSettlementServiceTest {
 
     @Test
     void getAndReverseRejectMissingRequiredIdentifiersAndReason() {
-        JdbcSettlementService service = service(mock(JdbcTemplate.class));
+        SettlementService service = service(mock(JdbcTemplate.class));
 
         assertThatThrownBy(() -> service.get(null))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -120,7 +122,7 @@ class JdbcSettlementServiceTest {
     void reversalAcceptsAWellFormedReasonUntilIdempotencyValidation() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         stubReversalIdempotency(jdbc, "different-hash");
-        JdbcSettlementService service = service(jdbc);
+        SettlementService service = service(jdbc);
 
         assertThatThrownBy(() -> service.reverse(QUOTE, null, "key", "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -149,9 +151,11 @@ class JdbcSettlementServiceTest {
                 .hasMessage("Pricing quotes must have one assignor and settlement currency");
     }
 
-    private static JdbcSettlementService service(JdbcTemplate jdbc) {
-        return new JdbcSettlementService(
-                jdbc,
+    private static SettlementService service(JdbcTemplate jdbc) {
+        return new SettlementApplicationService(
+                new JdbcSettlementRepository(jdbc),
+                new JdbcIdempotencyRepository(jdbc),
+                new JdbcAuditEventRecorder(jdbc),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 mock(FinancialTelemetry.class));
     }

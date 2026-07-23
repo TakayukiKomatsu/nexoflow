@@ -3,7 +3,7 @@ package com.srm.creditengine.currency.application;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
-import com.srm.creditengine.currency.infrastructure.JdbcReferenceRateService;
+import com.srm.creditengine.currency.infrastructure.JdbcReferenceRateRepository;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -14,7 +14,7 @@ class JdbcReferenceRateServiceTest {
     @Test
     void rejectsNullAndNonPositiveReferenceRatesBeforePersisting() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
-        JdbcReferenceRateService service = new JdbcReferenceRateService(jdbc);
+        JdbcReferenceRateRepository service = new JdbcReferenceRateRepository(jdbc);
         Instant now = Instant.parse("2030-01-15T12:00:00Z");
 
         assertThatThrownBy(() -> service.recordBaseRate("BRL", null, now))

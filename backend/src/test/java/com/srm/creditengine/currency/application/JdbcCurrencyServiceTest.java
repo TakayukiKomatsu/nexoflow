@@ -9,8 +9,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
-import com.srm.creditengine.currency.infrastructure.JdbcCurrencyService;
 import com.srm.creditengine.currency.domain.FxObservation;
+import com.srm.creditengine.currency.infrastructure.JdbcExchangeRateRepository;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -31,7 +31,7 @@ class JdbcCurrencyServiceTest {
     void persistsTheClockTimestampRatherThanReadingSystemTime() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
         when(jdbc.update(any(String.class), any(Object[].class))).thenReturn(1);
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         service.recordObservation(" usd ", "brl", new BigDecimal("5.20"), "mock",
                 NOW.minusSeconds(60), "admin@srm.local");
@@ -47,7 +47,7 @@ class JdbcCurrencyServiceTest {
     @Test
     void rejectsIncompleteObservationsWithControlledValidationErrors() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         assertThatThrownBy(() -> service.recordObservation("USD", "BRL", new BigDecimal("5.20"), "",
                 NOW, "admin@srm.local"))
@@ -58,7 +58,7 @@ class JdbcCurrencyServiceTest {
     @Test
     void rejectsUnsupportedCurrenciesBeforeIdentityOrLookup() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         assertThatThrownBy(() -> service.resolveConversion(
                 "EUR", "EUR", new BigDecimal("100.00"), NOW))
@@ -75,7 +75,7 @@ class JdbcCurrencyServiceTest {
     @Test
     void canonicalizesIdentityConversionAndSettlementAmount() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         CurrencyService.Conversion result =
                 service.resolveConversion(" brl ", "BRL", new BigDecimal("100"), NOW);
@@ -93,7 +93,7 @@ class JdbcCurrencyServiceTest {
     void reportsMissingOnlyAfterCheckingDirectAndInverseRates() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
         when(latestQuery(jdbc)).thenReturn(List.of(), List.of());
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         assertThatThrownBy(() -> service.resolveConversion(
                 "BRL", "USD", new BigDecimal("100.00"), NOW))
@@ -111,7 +111,7 @@ class JdbcCurrencyServiceTest {
         FxObservation boundary = observation(
                 "BRL", "USD", "0.20", NOW.minus(Duration.ofHours(24)));
         when(latestQuery(jdbc)).thenReturn(List.of(boundary), List.of());
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         CurrencyService.Conversion result =
                 service.resolveConversion("brl", "usd", new BigDecimal("100.00"), NOW);
@@ -128,7 +128,7 @@ class JdbcCurrencyServiceTest {
         FxObservation boundary = observation(
                 "USD", "BRL", "5.00", NOW.minus(Duration.ofHours(24)));
         when(latestQuery(jdbc)).thenReturn(List.of(), List.of(boundary));
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         CurrencyService.Conversion result =
                 service.resolveConversion("BRL", "USD", new BigDecimal("100.00"), NOW);
@@ -147,7 +147,7 @@ class JdbcCurrencyServiceTest {
         FxObservation freshInverse = observation(
                 "USD", "BRL", "5.00", NOW.minusSeconds(1));
         when(latestQuery(jdbc)).thenReturn(List.of(staleDirect), List.of(freshInverse));
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         CurrencyService.Conversion result =
                 service.resolveConversion("BRL", "USD", new BigDecimal("100.00"), NOW);
@@ -164,7 +164,7 @@ class JdbcCurrencyServiceTest {
         FxObservation stale = observation(
                 "BRL", "USD", "0.20", NOW.minus(Duration.ofHours(24)).minusNanos(1));
         when(latestQuery(jdbc)).thenReturn(List.of(stale), List.of());
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         assertThatThrownBy(() -> service.resolveConversion(
                 "BRL", "USD", new BigDecimal("100.00"), NOW))
@@ -178,7 +178,7 @@ class JdbcCurrencyServiceTest {
         FxObservation staleInverse = observation(
                 "USD", "BRL", "5.00", NOW.minus(Duration.ofHours(24)).minusNanos(1));
         when(latestQuery(jdbc)).thenReturn(List.of(), List.of(staleInverse));
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         assertThatThrownBy(() -> service.resolveConversion(
                 "BRL", "USD", new BigDecimal("100.00"), NOW))
@@ -188,7 +188,7 @@ class JdbcCurrencyServiceTest {
     @Test
     void rejectsEveryRequiredObservationFieldBeforePersisting() {
         JdbcTemplate jdbc = org.mockito.Mockito.mock(JdbcTemplate.class);
-        var service = new JdbcCurrencyService(jdbc, Clock.fixed(NOW, ZoneOffset.UTC));
+        var service = service(jdbc);
 
         assertThatThrownBy(() -> service.recordObservation(
                 "BRL", "BRL", new BigDecimal("1"), "provider", NOW, "operator"))
@@ -224,6 +224,12 @@ class JdbcCurrencyServiceTest {
         return jdbc.query(
                 any(String.class), org.mockito.ArgumentMatchers.<RowMapper<FxObservation>>any(),
                 any(), any(), any());
+    }
+
+    private static CurrencyApplicationService service(JdbcTemplate jdbc) {
+        return new CurrencyApplicationService(
+                new JdbcExchangeRateRepository(jdbc),
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private static FxObservation observation(
