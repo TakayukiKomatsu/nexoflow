@@ -179,6 +179,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ProblemDetail unexpectedFailure(Exception exception, HttpServletRequest request) {
+        operationalLogger.unexpectedFailure(exception);
         return problem(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "INTERNAL_ERROR",

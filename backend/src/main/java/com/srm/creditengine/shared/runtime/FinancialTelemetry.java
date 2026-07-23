@@ -17,6 +17,7 @@ public class FinancialTelemetry {
     private static final Set<String> CURRENCIES = Set.of("BRL", "USD");
     private static final Set<String> SIMULATION_RESULTS = Set.of("SUCCESS", "REJECTED");
     private static final Set<String> QUOTE_RESULTS = Set.of("SUCCESS", "REJECTED");
+    private static final Set<String> PREVIEW_RESULTS = Set.of("SUCCESS", "REJECTED");
     private static final Set<String> SETTLEMENT_RESULTS = Set.of("SUCCESS", "CONFLICT");
     private static final Set<String> REVERSAL_RESULTS = Set.of("SUCCESS", "CONFLICT");
     private static final Set<String> REPORT_RESULTS = Set.of("SUCCESS", "REJECTED");
@@ -41,6 +42,12 @@ public class FinancialTelemetry {
                 "product", bounded(productType, PRODUCT_TYPES),
                 "currency", bounded(settlementCurrency, CURRENCIES),
                 "result", bounded(result, QUOTE_RESULTS));
+    }
+
+    public void preview(String settlementCurrency, String result) {
+        increment("srm_preview_outcomes_total",
+                "currency", bounded(settlementCurrency, CURRENCIES),
+                "result", bounded(result, PREVIEW_RESULTS));
     }
 
     public void settlement(String settlementCurrency, String result) {

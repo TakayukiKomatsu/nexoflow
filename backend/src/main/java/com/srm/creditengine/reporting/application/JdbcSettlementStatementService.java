@@ -9,13 +9,22 @@ import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 
 @Service
 class JdbcSettlementStatementService implements SettlementStatementService {
-    /** Offset pagination is bounded for the exercise API; cursor pagination is the high-scale path. */
-    static final long MAX_OFFSET = 1_000_000L;
+    /** Offset pagination is bounded to a predictable read window; deeper reads require a future cursor contract. */
+    static final long MAX_OFFSET = 10_000L;
     private final JdbcTemplate jdbc;
     private final FinancialTelemetry telemetry;
     JdbcSettlementStatementService(JdbcTemplate jdbc, FinancialTelemetry telemetry) { this.jdbc = jdbc; this.telemetry = telemetry; }
 
     @Override public Page query(Filter filter) {
+        try {
+            return queryUnchecked(filter);
+        } catch (RuntimeException exception) {
+            telemetry.report("rejected");
+            throw exception;
+        }
+    }
+
+    private Page queryUnchecked(Filter filter) {
         if (filter.from() != null && filter.to() != null && !filter.from().isBefore(filter.to())) throw new IllegalArgumentException("from must be before to");
         if (filter.page() < 0 || filter.size() < 1 || filter.size() > 100) throw new IllegalArgumentException("page and size are out of bounds");
         long offset;

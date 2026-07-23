@@ -39,9 +39,16 @@ public class SettlementApplicationService implements SettlementService {
 
     @Override
     public Preview preview(List<UUID> orderedQuoteIds, String actor) {
-        SettlementPolicy.requireOrderedUnique(orderedQuoteIds);
-        Instant now = clock.instant();
-        return toPreview(SettlementPolicy.previewOf(validatedQuotes(orderedQuoteIds, now), now));
+        try {
+            SettlementPolicy.requireOrderedUnique(orderedQuoteIds);
+            Instant now = clock.instant();
+            Preview preview = toPreview(SettlementPolicy.previewOf(validatedQuotes(orderedQuoteIds, now), now));
+            telemetry.preview(preview.settlementCurrency(), "success");
+            return preview;
+        } catch (RuntimeException exception) {
+            telemetry.preview("UNKNOWN", "rejected");
+            throw exception;
+        }
     }
 
     @Override

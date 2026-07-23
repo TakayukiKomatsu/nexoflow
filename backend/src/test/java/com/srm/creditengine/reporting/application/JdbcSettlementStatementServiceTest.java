@@ -67,6 +67,19 @@ class JdbcSettlementStatementServiceTest {
         assertThat(result.hasNext()).isTrue();
     }
 
+    @Test
+    void permitsOnlyTheDocumentedTenThousandRowOffsetWindow() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.query(any(String.class), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(List.of());
+        JdbcSettlementStatementService service = service(jdbc);
+
+        assertThat(service.query(filter(null, null, 10_000, 1)).entries()).isEmpty();
+        assertThatThrownBy(() -> service.query(filter(null, null, 10_001, 1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("page offset is out of bounds");
+    }
+
     private static JdbcSettlementStatementService service(JdbcTemplate jdbc) {
         return new JdbcSettlementStatementService(jdbc, mock(FinancialTelemetry.class));
     }

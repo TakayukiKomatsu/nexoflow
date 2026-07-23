@@ -154,4 +154,16 @@ class PostgresMigrationIntegrationTest {
                         Integer.class))
                 .isEqualTo(2);
     }
+
+    @Test
+    void statementReadModelHasIndexesForLargeVolumeFilterBranches() {
+        var indexes = jdbc.queryForList(
+                "select indexname from pg_indexes where schemaname=current_schema()",
+                String.class);
+
+        assertThat(indexes).contains(
+                "settlements_statement_filter_idx",
+                "settlement_reversals_statement_filter_idx",
+                "settlement_items_product_statement_idx");
+    }
 }

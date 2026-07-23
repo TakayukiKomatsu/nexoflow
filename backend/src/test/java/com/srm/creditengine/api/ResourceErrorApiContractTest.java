@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -29,6 +30,7 @@ class ResourceErrorApiContractTest {
     @Autowired MockMvc mvc;
     @Autowired JwtEncoder jwtEncoder;
     @Autowired Clock clock;
+    @Autowired MeterRegistry meterRegistry;
 
     @ParameterizedTest
     @MethodSource("missingResourcePaths")
@@ -61,6 +63,41 @@ class ResourceErrorApiContractTest {
                                 """))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
+
+        org.assertj.core.api.Assertions.assertThat(meterRegistry
+                        .find("srm_quote_outcomes_total")
+                        .tags("product", "UNKNOWN", "currency", "BRL", "result", "REJECTED")
+                        .counter())
+                .isNotNull()
+                .extracting(io.micrometer.core.instrument.Counter::count)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.DOUBLE)
+                .isGreaterThan(0);
+    }
+
+    @Test
+    void rejectedPreviewAndReportQueriesEmitBoundedOutcomeMetrics() throws Exception {
+        mvc.perform(post("/api/v1/settlement-previews")
+                        .header("Authorization", "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"quoteIds":["ffffffff-ffff-ffff-ffff-ffffffffffff"]}
+                                """))
+                .andExpect(status().isNotFound());
+        mvc.perform(get("/api/v1/settlement-statements")
+                        .header("Authorization", "Bearer " + token())
+                        .param("page", "-1"))
+                .andExpect(status().isBadRequest());
+
+        org.assertj.core.api.Assertions.assertThat(meterRegistry
+                        .find("srm_preview_outcomes_total")
+                        .tags("currency", "UNKNOWN", "result", "REJECTED")
+                        .counter())
+                .isNotNull();
+        org.assertj.core.api.Assertions.assertThat(meterRegistry
+                        .find("srm_statement_queries_total")
+                        .tag("result", "REJECTED")
+                        .counter())
+                .isNotNull();
     }
 
     @Test

@@ -85,4 +85,16 @@ class SafeOperationalLoggerTest {
                 .containsEntry("status_class", "2XX")
                 .containsEntry("actor_role", "ANONYMOUS");
     }
+
+    @Test
+    void unknownFailureShapeIsReducedWithoutLoggingThrowableContent() {
+        new SafeOperationalLogger().unexpectedFailure(null);
+
+        Map<String, String> fields = appender.list.getFirst().getKeyValuePairs().stream()
+                .collect(Collectors.toMap(pair -> pair.key, pair -> String.valueOf(pair.value)));
+        assertThat(fields)
+                .containsEntry("event", "UNEXPECTED_API_FAILURE")
+                .containsEntry("error_type", "UNKNOWN")
+                .containsEntry("correlation_id", "UNAVAILABLE");
+    }
 }

@@ -76,6 +76,15 @@ class AuthoritativePricingService implements PricingService {
     @Override
     @Transactional
     public Quote createQuote(UUID receivableId, String settlementCurrency, String actor) {
+        try {
+            return createQuoteUnchecked(receivableId, settlementCurrency, actor);
+        } catch (RuntimeException exception) {
+            telemetry.quote("UNKNOWN", settlementCurrency, "rejected");
+            throw exception;
+        }
+    }
+
+    private Quote createQuoteUnchecked(UUID receivableId, String settlementCurrency, String actor) {
         var receivable = requireQuoteReader()
                 .lockRegistered(receivableId)
                 .orElseThrow(DomainResourceNotFoundException::new);

@@ -14,6 +14,11 @@ import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
 import com.srm.creditengine.shared.api.DecimalString;
 import io.micrometer.core.instrument.MeterRegistry;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
+import com.srm.creditengine.shared.runtime.SafeOperationalLogger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -55,6 +60,39 @@ class ApiErrorContractTest {
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
                 .andExpect(jsonPath("$.detail").value("An unexpected error occurred."));
+    }
+
+    @Test
+    void unexpectedFailureEmitsSafeCorrelatedServerLogWithoutExceptionMessage() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(SafeOperationalLogger.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            mockMvc.perform(get("/api/v1/runtime/failure")
+                            .header("X-Correlation-Id", "safe-server-error-001")
+                            .header("Idempotency-Key", "must-not-appear"))
+                    .andExpect(status().isInternalServerError());
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+
+        ILoggingEvent failure = appender.list.stream()
+                .filter(event -> event.getFormattedMessage().equals("UNEXPECTED_API_FAILURE"))
+                .findFirst()
+                .orElseThrow();
+        java.util.Map<String, String> fields = failure.getKeyValuePairs().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        pair -> pair.key, pair -> String.valueOf(pair.value)));
+        String rendered = failure.getFormattedMessage() + failure.getKeyValuePairs();
+        org.assertj.core.api.Assertions.assertThat(fields)
+                .containsEntry("event", "UNEXPECTED_API_FAILURE")
+                .containsEntry("error_type", "IllegalStateException")
+                .containsEntry("correlation_id", "safe-server-error-001");
+        org.assertj.core.api.Assertions.assertThat(rendered)
+                .doesNotContain("database-password")
+                .doesNotContain("must-not-appear");
     }
 
     @Test

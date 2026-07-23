@@ -14,6 +14,7 @@ class FinancialTelemetryTest {
         telemetry.settlement("BRL", "conflict");
         telemetry.simulation("MERCANTILE_INVOICE", "USD", "success");
         telemetry.simulation("ADMIN", "USD_BRL", "APPROVED");
+        telemetry.preview("BRL", "rejected");
         telemetry.settlement("ADMIN", "APPROVED");
         telemetry.completeFxAttempt(telemetry.startFxAttempt(), "APPROVED");
 
@@ -26,6 +27,8 @@ class FinancialTelemetryTest {
                 .tags("product", "UNKNOWN", "currency", "UNKNOWN", "result", "UNKNOWN").counter()).isNotNull();
         assertThat(registry.find("srm_fx_provider_attempt_duration_seconds")
                 .tag("result", "UNKNOWN").timer()).isNotNull();
+        assertThat(registry.find("srm_preview_outcomes_total")
+                .tags("currency", "BRL", "result", "REJECTED").counter()).isNotNull();
     }
 
     @Test
