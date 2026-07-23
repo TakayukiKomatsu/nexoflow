@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 # TRACE-001: Every stable Scenario ID declared by the numbered SDD documents
-# must resolve to an existing executable artifact and an executable command.
+# must resolve to existing classified source artifacts and a structurally valid
+# verification command. Documented Make targets are resolved against Makefile
+# without executing their potentially expensive recipes.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-traceability="$repo_root/docs/REQUIREMENT_TRACEABILITY.md"
+traceability="${TRACEABILITY_FILE:-$repo_root/docs/REQUIREMENT_TRACEABILITY.md}"
+makefile="${TRACEABILITY_MAKEFILE:-$repo_root/Makefile}"
 sdd_dir="$repo_root/docs/sdd"
 
 [[ -s "$traceability" ]] \
   || { echo "TRACE-001 FAILED: $traceability is missing or empty" >&2; exit 1; }
+[[ -s "$makefile" ]] \
+  || { echo "TRACE-001 FAILED: $makefile is missing or empty" >&2; exit 1; }
 
 scenario_ids=()
 while IFS= read -r id; do
@@ -47,6 +52,74 @@ required_check_ids=(
 check_ids=("${all_scenario_ids[@]}" "${required_check_ids[@]}")
 
 failures=()
+make_targets=()
+
+while IFS= read -r make_line; do
+  make_line="${make_line%%#*}"
+  [[ "$make_line" == *:* ]] || continue
+  target_list="${make_line%%:*}"
+  [[ "$target_list" != *"="* ]] || continue
+  for target in $target_list; do
+    if [[ "$target" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+      make_targets+=("$target")
+    fi
+  done
+done <"$makefile"
+
+make_target_exists() {
+  local expected="$1"
+  local available
+  for available in "${make_targets[@]}"; do
+    [[ "$available" == "$expected" ]] && return 0
+  done
+  return 1
+}
+
+validate_make_invocations() {
+  local id="$1"
+  local command="$2"
+  local separated="$command"
+  separated="${separated//&&/$'\n'}"
+  separated="${separated//||/$'\n'}"
+  separated="${separated//;/$'\n'}"
+  separated="${separated//|/$'\n'}"
+  local segment
+  while IFS= read -r segment; do
+    local tokens=()
+    read -r -a tokens <<<"$segment"
+    local make_index=-1
+    local index
+    for ((index = 0; index < ${#tokens[@]}; index++)); do
+      if [[ "${tokens[$index]}" == "make" ]]; then
+        make_index="$index"
+        break
+      fi
+    done
+    [[ "$make_index" -ge 0 ]] || continue
+
+    local expects_option_value=false
+    for ((index = make_index + 1; index < ${#tokens[@]}; index++)); do
+      local token="${tokens[$index]}"
+      if [[ "$expects_option_value" == true ]]; then
+        expects_option_value=false
+        continue
+      fi
+      case "$token" in
+        -C|-f|-I|--directory|--file|--makefile|--include-dir)
+          expects_option_value=true
+          continue
+          ;;
+        -*|*=*)
+          continue
+          ;;
+      esac
+      [[ "$token" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || continue
+      if ! make_target_exists "$token"; then
+        failures+=("$id: documented Make target does not exist: $token")
+      fi
+    done
+  done <<<"$separated"
+}
 
 for id in "${check_ids[@]}"; do
   row_count="$(
@@ -79,29 +152,50 @@ for id in "${check_ids[@]}"; do
   fi
 
   status="$(printf '%s\n' "$row" | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3); print $3}')"
+  source_cell="$(printf '%s\n' "$row" | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $4); print $4}')"
+  verification_cell="$(printf '%s\n' "$row" | awk -F '|' '{gsub(/^[[:space:]]+|[[:space:]]+$/, "", $5); print $5}')"
   id_found=false
   artifact_found=false
+  reference_found=false
   while IFS= read -r reference; do
+    reference_found=true
     reference="${reference#\`}"
     reference="${reference%\`}"
     reference="${reference%%#*}"
-    if [[ -e "$repo_root/$reference" ]]; then
-      artifact_found=true
-      if grep -Eq "(^|[^[:alnum:]-])${id}([^[:alnum:]-]|$)" "$repo_root/$reference"; then
-        id_found=true
-      fi
+    if [[ ! -e "$repo_root/$reference" ]]; then
+      failures+=("$id: classified source path does not exist: $reference")
+      continue
+    fi
+    artifact_found=true
+    if grep -Eq "(^|[^[:alnum:]-])${id}([^[:alnum:]-]|$)" "$repo_root/$reference"; then
+      id_found=true
     fi
   done < <(
-    printf '%s\n' "$row" \
+    printf '%s\n' "$source_cell" \
       | grep -oE '`[^`]+\.(java|feature|sh|mjs|ts|tsx|yml|yaml|md)`' \
+      || true
   )
 
-  if [[ "$artifact_found" != true ]]; then
+  if [[ "$reference_found" != true ]]; then
+    failures+=("$id: row lacks a classified source path")
+  elif [[ "$artifact_found" != true ]]; then
     failures+=("$id: row lacks an existing feature/test/script path")
   fi
 
-  if ! printf '%s\n' "$row" \
-    | grep -Eq '`(make |npm |docker compose |(\./)?scripts/|(\./)?backend/gradlew|(\./)?gradlew)[^`]*`'; then
+  executable_command_found=false
+  while IFS= read -r command; do
+    command="${command#\`}"
+    command="${command%\`}"
+    if printf '%s\n' "$command" \
+      | grep -Eq '(^|[[:space:];&|])(make |npm |docker compose |(\./)?scripts/|(\./)?backend/gradlew|(\./)?gradlew)'; then
+      executable_command_found=true
+    fi
+    validate_make_invocations "$id" "$command"
+  done < <(
+    printf '%s\n' "$verification_cell" | grep -oE '`[^`]+`' || true
+  )
+
+  if [[ "$executable_command_found" != true ]]; then
     failures+=("$id: row lacks an executable verification command")
   fi
 
@@ -119,10 +213,36 @@ while IFS='|' read -r _ requirement status evidence verification _; do
   classified_rows=$((classified_rows + 1))
   case "$status" in
     Implemented)
-      if ! printf '%s' "$evidence" | grep -Eq '`[^`]+(/[^`]+|\.(java|feature|sh|mjs|ts|tsx|yml|yaml|md|json))`'; then
+      evidence_reference_found=false
+      while IFS= read -r reference; do
+        evidence_reference_found=true
+        reference="${reference#\`}"
+        reference="${reference%\`}"
+        reference="${reference%%#*}"
+        if [[ ! -e "$repo_root/$reference" ]]; then
+          classification_failures+=("$requirement: classified source path does not exist: $reference")
+        fi
+      done < <(
+        printf '%s\n' "$evidence" \
+          | grep -oE '`((backend|frontend|docs|scripts|\.github)/[^`]+|[^`/]+\.(java|feature|sh|mjs|ts|tsx|yml|yaml|md|json))`' \
+          || true
+      )
+      if [[ "$evidence_reference_found" != true ]]; then
         classification_failures+=("$requirement: Implemented claim lacks a concrete source/report path")
       fi
-      if ! printf '%s' "$verification" | grep -Eq '`(make |npm |docker compose |(\./)?scripts/|git )[^`]*`'; then
+      verification_command_found=false
+      while IFS= read -r command; do
+        command="${command#\`}"
+        command="${command%\`}"
+        if printf '%s\n' "$command" \
+          | grep -Eq '(^|[[:space:];&|])(make |npm |docker compose |(\./)?scripts/|git )'; then
+          verification_command_found=true
+        fi
+        validate_make_invocations "$requirement" "$command"
+      done < <(
+        printf '%s\n' "$verification" | grep -oE '`[^`]+`' || true
+      )
+      if [[ "$verification_command_found" != true ]]; then
         classification_failures+=("$requirement: Implemented claim lacks an executable command")
       fi
       ;;
@@ -162,5 +282,5 @@ if [[ "${#failures[@]}" -gt 0 ]]; then
   exit 1
 fi
 
-echo "TRACE-001 passed: all ${#scenario_ids[@]} SDD IDs, ${#executable_ids[@]} Cucumber IDs, and ${#required_check_ids[@]} supplemental IDs resolve to executable artifacts and commands"
+echo "TRACE-001 passed: all ${#scenario_ids[@]} SDD IDs, ${#executable_ids[@]} Cucumber IDs, and ${#required_check_ids[@]} supplemental IDs resolve to existing source artifacts and structurally valid commands"
 echo "DOC-CLAIM-005 passed: all $classified_rows source claims use meaningful Implemented, Proposed, or Gap evidence"

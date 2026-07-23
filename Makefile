@@ -115,6 +115,7 @@ test-frontend-api-contract-clean:
 
 validate-traceability:
 	./scripts/validate-traceability.sh
+	./scripts/tests/test_traceability_validation.sh
 
 test-crisis-evidence:
 	./scripts/test-crisis-evidence.sh
