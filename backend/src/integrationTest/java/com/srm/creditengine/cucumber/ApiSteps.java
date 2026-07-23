@@ -162,6 +162,7 @@ public class ApiSteps {
                 if (endpoint.allowedRoles().contains(role)) {
                     assertThat(status)
                             .as("%s must be authorized for %s %s", role, endpoint.method(), endpoint.path())
+                            .isBetween(200, 499)
                             .isNotIn(401, 403);
                 } else {
                     assertThat(status)
