@@ -52,7 +52,7 @@ These are documented as evolution paths rather than simulated with unnecessary c
 - Spring Security
 - Spring JDBC for transactional command and reporting paths; JPA for runtime integration/schema validation
 - PostgreSQL 16
-- Flyway SQL and Java migrations (V1–V16)
+- Flyway SQL and Java migrations (V1–V23)
 - Bean Validation
 - springdoc-openapi
 - Bounded retry and circuit-breaker behavior implemented in the FX HTTP adapter; no Resilience4j dependency
@@ -250,7 +250,9 @@ There is no `/product-types` management API in the implemented surface.
 
 - `POST /assignors`
 - `GET /assignors`
+- `GET /assignors/{id}`
 - `POST /receivables`
+- `GET /receivables`
 - `GET /receivables/{id}`
 
 ### Pricing
@@ -272,10 +274,6 @@ There is no `/product-types` management API in the implemented surface.
 
 - `GET /settlement-statements`
 
-### Audit
-
-- `GET /audit-events`
-
 Supported parameters:
 
 - `from`
@@ -286,9 +284,14 @@ Supported parameters:
 - `productType`
 - `page`
 - `size`
-- `sort`
 
-Pagination is server-side with a capped page size. Cursor pagination is documented as the high-scale evolution; offset pagination is sufficient for the exercise UI.
+Results use a fixed deterministic descending order. Pagination is server-side with a capped page size. Cursor pagination is documented as the high-scale evolution; offset pagination is sufficient for the exercise UI.
+
+### Audit
+
+- `GET /audit-events`
+
+The audit endpoint accepts only a bounded `size` parameter from 1 through 100.
 
 ### Error contract
 
@@ -338,7 +341,7 @@ Important constraints and indexes:
 - Optimistic version on receivables
 - Foreign keys for all financial relationships
 - PostgreSQL immutability triggers protect exchange-rate, quote, settlement, settlement-item, reversal, and audit history; quote lifecycle permits only `ACTIVE` → `CONSUMED` without changing snapshot values.
-- Flyway migrations V1–V16 are the schema authority; [`architecture/er-diagram.mmd`](architecture/er-diagram.mmd) mirrors those tables and the derived ledger identity.
+- Flyway migrations V1–V23 are the schema authority; [`architecture/er-diagram.mmd`](architecture/er-diagram.mmd) mirrors those tables and the derived ledger identity.
 
 ---
 
@@ -435,7 +438,7 @@ Grafana dashboards may be provisioned if time permits; metric definitions are ma
 
 ## 11. Staff-level scale evolution
 
-The implemented modular monolith remains the source of truth for the exercise. The architecture documents a **proposed** evolution toward 1 million transactions per minute; no throughput, capacity, or production-scale proof is claimed:
+The implemented modular monolith remains the source of truth for the exercise. The root README documents a quantitative **proposed** evolution toward 1 million transactions per minute (16,667/s sustained, 33,334/s at the stated 2× peak assumption), including partition/shard starting points, SLOs, ownership, and DR targets. No throughput, capacity, or production-scale proof is claimed:
 
 - Separate command ingestion from synchronous processing.
 - Partition events and transactional data by tenant/assignor and time.
@@ -455,7 +458,7 @@ Microservice boundaries would be extracted only when measured scale or team owne
 
 ## 12. Ordered delivery plan
 
-Milestones 0–6 are implemented locally with evidence in [`REQUIREMENT_TRACEABILITY.md`](REQUIREMENT_TRACEABILITY.md). Milestone 7's local operations, documentation, security, and crisis/revert evidence is implemented; remote publication and the `v1.0.0` tag remain blocked pending explicit human authorization.
+Milestones 0–6 are implemented locally with evidence in [`REQUIREMENT_TRACEABILITY.md`](REQUIREMENT_TRACEABILITY.md). Milestone 7's local operations, documentation, security, and crisis/revert evidence is implemented. A historical local annotated `v1.0.0` already points to `af898ef`; it predates the current remediation and has not been moved or reused. No remote is configured, so hosted collaboration/publication and any new release tag remain blocked pending explicit human authorization of the exact reviewed SHA and a new version.
 
 ### Milestone 0 — Specification and architecture
 
@@ -515,7 +518,7 @@ Milestones 0–6 are implemented locally with evidence in [`REQUIREMENT_TRACEABI
 - Document Git workflow and crisis simulation
 - Complete reviewer, AI-usage, and human/tooling documentation
 - Run the local release checklist
-- Publish or tag `v1.0.0` only after the Prompt 12 authorization gates; neither action has been executed
+- Preserve the historical local `v1.0.0`; publish or create a new version tag only after the Prompt 12 authorization gates and exact reviewed-SHA approval
 
 ---
 

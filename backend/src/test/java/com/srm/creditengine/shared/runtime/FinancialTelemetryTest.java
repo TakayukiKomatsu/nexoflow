@@ -14,6 +14,7 @@ class FinancialTelemetryTest {
         telemetry.settlement("BRL", "conflict");
         telemetry.simulation("MERCANTILE_INVOICE", "USD", "success");
         telemetry.simulation("ADMIN", "USD_BRL", "APPROVED");
+        telemetry.preview("BRL", "rejected");
         telemetry.settlement("ADMIN", "APPROVED");
         telemetry.completeFxAttempt(telemetry.startFxAttempt(), "APPROVED");
 
@@ -24,8 +25,10 @@ class FinancialTelemetryTest {
                 .tags("currency", "UNKNOWN", "result", "UNKNOWN").counter()).isNotNull();
         assertThat(registry.find("srm_simulation_outcomes_total")
                 .tags("product", "UNKNOWN", "currency", "UNKNOWN", "result", "UNKNOWN").counter()).isNotNull();
-        assertThat(registry.find("srm_fx_provider_attempt_duration_seconds")
+        assertThat(registry.find("srm_fx_provider_attempt_duration")
                 .tag("result", "UNKNOWN").timer()).isNotNull();
+        assertThat(registry.find("srm_preview_outcomes_total")
+                .tags("currency", "BRL", "result", "REJECTED").counter()).isNotNull();
     }
 
     @Test
@@ -37,8 +40,37 @@ class FinancialTelemetryTest {
             telemetry.completeFxAttempt(telemetry.startFxAttempt(), result);
         }
 
-        assertThat(registry.find("srm_fx_provider_attempt_duration_seconds").timers())
+        assertThat(registry.find("srm_fx_provider_attempt_duration").timers())
+                .filteredOn(timer -> timer.count() > 0)
                 .extracting(timer -> timer.getId().getTag("result"))
                 .containsExactlyInAnyOrder("SUCCESS", "TRANSIENT_FAILURE", "PERMANENT_FAILURE");
+    }
+
+    @Test
+    void mandatoryWorkflowTimersAndFailureCountersHaveStableLowCardinalityNames() {
+        var registry = new SimpleMeterRegistry();
+        var telemetry = new FinancialTelemetry(registry);
+
+        telemetry.completeQuote(telemetry.startQuote());
+        telemetry.completeSettlement(telemetry.startSettlement());
+        telemetry.completeReport(telemetry.startReport());
+        telemetry.staleRate("BRL", "USD");
+        telemetry.staleRate("customer-123", "secret-pair");
+        telemetry.fxProviderRequest();
+        telemetry.fxExternalFailure();
+
+        assertThat(registry.get("srm_quote_duration").timer().count()).isEqualTo(1);
+        assertThat(registry.get("srm_settlement_duration").timer().count()).isEqualTo(1);
+        assertThat(registry.get("srm_report_duration").timer().count()).isEqualTo(1);
+        assertThat(registry.find("srm_fx_stale_rates_total")
+                        .tags("base", "BRL", "quote", "USD")
+                        .counter())
+                .isNotNull();
+        assertThat(registry.find("srm_fx_stale_rates_total")
+                        .tags("base", "UNKNOWN", "quote", "UNKNOWN")
+                        .counter())
+                .isNotNull();
+        assertThat(registry.get("srm.fx.provider.requests").counter().count()).isEqualTo(1);
+        assertThat(registry.get("srm.fx.provider.failures").counter().count()).isEqualTo(1);
     }
 }

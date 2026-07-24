@@ -11,6 +11,41 @@ This project uses **GitHub Flow**: short-lived `feature/<topic>` branches are re
 - A pull request records scope, tests, security results, migrations, rollback notes, and residual risks. Required checks and review must pass before merge.
 - Release tags and repository publication require the explicit authorization gates in SDD 12.
 
+## Executable local collaboration evidence
+
+`make test-local-collaboration-evidence` creates a disposable clone with no
+remote, opens a short-lived `feature/local-pr-simulation` branch, records a
+review-ready PR description and local PR ref, and runs review checks. It then
+performs a real unpublished `git rebase -i --autosquash`, validates the old and
+new ranges with `git range-diff`, and fast-forwards the reviewed head into the
+clone's `main`. This proves local branch, review-description, clean-history, and
+merge mechanics; it is explicitly **not** evidence of a hosted PR, reviewer
+approval, protected-branch checks, or publication.
+
 ## Crisis exercise
 
-The isolated `simulation/crisis-revert` procedure in SDD 12 creates a harmless regression on a disposable branch, proves it fails, reverts it, and records both hashes. A defective commit is never intentionally merged to `main`.
+`make test-crisis-evidence` clones the release candidate into a disposable
+repository, renames that clone's current branch to `main`, commits a harmless
+fixture regression, proves the fixture fails, and reverts it. The script then
+runs `make verify-fast` and proves the complete reverted tree equals the release
+candidate tree. The real repository's `main` is never changed; the branch name
+is intentionally realistic only inside the throwaway clone.
+
+## Deliberate deviation: settlement lock ordering
+
+The case-brief conformance refactor (`fix/case-brief-conformance`) moved
+settlement persistence into `settlement/infrastructure/JdbcSettlementRepository`
+and, while doing so, changed the lock acquisition order from the original
+single `for update of q, r` (no explicit ordering) to locking receivables first
+in `order by r.id` on both the `settle` and `reverse` paths (commits
+`139a0fd`, `3c97ccf`). This was intentional: it closes a latent settle-vs-reverse
+deadlock window by making both paths acquire receivable row locks in the same
+global order. It is a correctness improvement, not accidental drift, and is
+covered by the real-PostgreSQL concurrency race test in `make test-runtime`.
+
+The same refactor's `SettlementPolicy.validateQuotes` also added a
+unique-receivables-per-batch check. A batch that references the same
+receivable twice now fails fast with `400 INVALID_REQUEST` (malformed request,
+caught before any database state is read) rather than the prior `409` from
+`AlreadySettledException` (a state conflict discovered against persisted rows).
+This is a more precise status code for that case, not a behavior regression.

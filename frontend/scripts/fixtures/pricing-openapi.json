@@ -1,0 +1,566 @@
+{
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LoginRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/AccessToken" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CurrentUser" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pricing-simulations": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SimulationRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PricingBreakdownResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/receivables": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/ReceivableRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ReceivableResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pricing-quotes": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/QuoteRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/QuoteResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settlement-previews": {
+      "post": {
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/QuoteIdsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PreviewResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settlements": {
+      "post": {
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/QuoteIdsRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settlements/{settlementId}": {
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "settlementId",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settlement-statements": {
+      "get": {
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": { "type": "string", "format": "date-time" }
+          },
+          {
+            "in": "query",
+            "name": "assignorId",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" }
+          },
+          {
+            "in": "query",
+            "name": "assetCurrency",
+            "required": false,
+            "schema": { "type": "string", "enum": ["BRL", "USD"] }
+          },
+          {
+            "in": "query",
+            "name": "settlementCurrency",
+            "required": false,
+            "schema": { "type": "string", "enum": ["BRL", "USD"] }
+          },
+          {
+            "in": "query",
+            "name": "productType",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": { "type": "integer", "format": "int32" }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": { "type": "integer", "format": "int32" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PageResponse" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string" }
+        }
+      },
+      "SimulationRequest": {
+        "type": "object",
+        "required": [
+          "faceAmount",
+          "faceCurrency",
+          "productType",
+          "dueDate",
+          "settlementCurrency"
+        ],
+        "properties": {
+          "faceAmount": { "type": "string" },
+          "faceCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
+          "dueDate": { "type": "string", "format": "date" },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          }
+        }
+      },
+      "ReceivableRequest": {
+        "type": "object",
+        "required": [
+          "assignorId",
+          "productType",
+          "faceAmount",
+          "faceCurrency",
+          "issueDate",
+          "dueDate"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "assignorId": { "type": "string", "format": "uuid" },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
+          "faceAmount": { "type": "string" },
+          "faceCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "issueDate": { "type": "string", "format": "date" },
+          "dueDate": { "type": "string", "format": "date" }
+        }
+      },
+      "QuoteRequest": {
+        "type": "object",
+        "required": ["receivableId", "settlementCurrency"],
+        "properties": {
+          "receivableId": { "type": "string", "format": "uuid" },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          }
+        }
+      },
+      "QuoteIdsRequest": {
+        "type": "object",
+        "required": ["quoteIds"],
+        "properties": {
+          "quoteIds": {
+            "type": "array",
+            "items": { "type": "string", "format": "uuid" }
+          }
+        }
+      },
+      "QuoteResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "receivableId",
+          "productType",
+          "dueDate",
+          "pricing",
+          "expiresAt",
+          "status",
+          "createdBy"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "receivableId": { "type": "string", "format": "uuid" },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
+          "dueDate": { "type": "string", "format": "date" },
+          "pricing": {
+            "$ref": "#/components/schemas/PricingBreakdownResponse"
+          },
+          "expiresAt": { "type": "string", "format": "date-time" },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "EXPIRED", "CONSUMED"]
+          },
+          "createdBy": { "type": "string" }
+        }
+      },
+      "PricingBreakdownResponse": {
+        "type": "object",
+        "required": [
+          "faceAmount",
+          "faceCurrency",
+          "settlementCurrency",
+          "baseRate",
+          "spread",
+          "strategyCode",
+          "dayCountConvention",
+          "termInMonths",
+          "discountedAmount",
+          "fxBaseCurrency",
+          "fxQuoteCurrency",
+          "fxRate",
+          "fxSource",
+          "fxObservedAt",
+          "settlementAmount",
+          "pricedAt"
+        ],
+        "properties": {
+          "faceAmount": { "type": "string" },
+          "faceCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
+          "baseRate": { "type": "string" },
+          "spread": { "type": "string" },
+          "strategyCode": { "type": "string" },
+          "dayCountConvention": { "type": "string" },
+          "termInMonths": { "type": "string" },
+          "discountedAmount": { "type": "string" },
+          "fxBaseCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "fxQuoteCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
+          "fxRate": { "type": "string" },
+          "fxSource": { "type": "string" },
+          "fxObservedAt": { "type": "string", "format": "date-time" },
+          "settlementAmount": { "type": "string" },
+          "pricedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "SettlementResponse": {
+        "type": "object",
+        "required": [
+          "settlementId",
+          "status",
+          "items",
+          "settlementCurrency",
+          "totalAmount",
+          "completedAt"
+        ],
+        "properties": {
+          "settlementId": { "type": "string", "format": "uuid" },
+          "status": { "type": "string", "enum": ["COMPLETED"] },
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ItemResponse" }
+          },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
+          "totalAmount": { "type": "string" },
+          "completedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PreviewResponse": {
+        "type": "object",
+        "required": [
+          "items",
+          "settlementCurrency",
+          "totalAmount",
+          "asOf",
+          "earliestExpiry"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ItemResponse" }
+          },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
+          "totalAmount": { "type": "string" },
+          "asOf": { "type": "string", "format": "date-time" },
+          "earliestExpiry": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ItemResponse": {
+        "type": "object",
+        "required": ["quoteId", "receivableId", "settlementAmount"],
+        "properties": {
+          "quoteId": { "type": "string", "format": "uuid" },
+          "receivableId": { "type": "string", "format": "uuid" },
+          "settlementAmount": { "type": "string" }
+        }
+      },
+      "EntryResponse": {
+        "type": "object",
+        "required": [
+          "entryId",
+          "entryType",
+          "signedAmount",
+          "effectiveAt",
+          "settlementId",
+          "reversalId",
+          "assignorId",
+          "assetCurrency",
+          "settlementCurrency",
+          "productType",
+          "receivableId"
+        ],
+        "properties": {
+          "entryId": { "type": "string", "format": "uuid" },
+          "entryType": {
+            "type": "string",
+            "enum": ["SETTLEMENT", "REVERSAL"]
+          },
+          "signedAmount": { "type": "string" },
+          "effectiveAt": { "type": "string", "format": "date-time" },
+          "settlementId": { "type": "string", "format": "uuid" },
+          "reversalId": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "assignorId": { "type": "string", "format": "uuid" },
+          "assetCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "settlementCurrency": {
+            "type": "string",
+            "enum": ["BRL", "USD"]
+          },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
+          "receivableId": { "type": "string", "format": "uuid" }
+        }
+      },
+      "PageResponse": {
+        "type": "object",
+        "required": ["entries", "page", "size", "hasNext"],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/EntryResponse" }
+          },
+          "page": { "type": "integer", "format": "int32" },
+          "size": { "type": "integer", "format": "int32" },
+          "hasNext": { "type": "boolean" }
+        }
+      },
+      "AccessToken": {
+        "type": "object",
+        "required": ["accessToken", "expiresIn", "tokenType"],
+        "properties": {
+          "accessToken": { "type": "string" },
+          "expiresIn": { "type": "integer", "format": "int64" },
+          "tokenType": { "type": "string" }
+        }
+      },
+      "CurrentUser": {
+        "type": "object",
+        "required": ["id", "email", "roles"],
+        "properties": {
+          "id": { "type": "string" },
+          "email": { "type": "string" },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["OPERATOR", "ANALYST", "ADMIN", "AUDITOR"]
+            }
+          }
+        }
+      },
+      "ReceivableResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "assignorId",
+          "productType",
+          "faceAmount",
+          "faceCurrency",
+          "issueDate",
+          "dueDate",
+          "status",
+          "version"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "assignorId": { "type": "string", "format": "uuid" },
+          "productType": {
+            "type": "string",
+            "enum": ["MERCANTILE_INVOICE", "POST_DATED_CHEQUE"]
+          },
+          "faceAmount": { "type": "string" },
+          "faceCurrency": { "type": "string", "enum": ["BRL", "USD"] },
+          "issueDate": { "type": "string", "format": "date" },
+          "dueDate": { "type": "string", "format": "date" },
+          "status": {
+            "type": "string",
+            "enum": ["REGISTERED", "SETTLED", "REVERSED"]
+          },
+          "version": { "type": "integer", "format": "int64" }
+        }
+      }
+    }
+  }
+}

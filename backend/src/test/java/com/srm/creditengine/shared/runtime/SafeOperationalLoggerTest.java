@@ -85,4 +85,49 @@ class SafeOperationalLoggerTest {
                 .containsEntry("status_class", "2XX")
                 .containsEntry("actor_role", "ANONYMOUS");
     }
+
+    @Test
+    void unknownFailureShapeIsReducedWithoutLoggingThrowableContent() {
+        new SafeOperationalLogger().unexpectedFailure(null);
+
+        Map<String, String> fields = appender.list.getFirst().getKeyValuePairs().stream()
+                .collect(Collectors.toMap(pair -> pair.key, pair -> String.valueOf(pair.value)));
+        assertThat(fields)
+                .containsEntry("event", "UNEXPECTED_API_FAILURE")
+                .containsEntry("error_type", "UNKNOWN")
+                .containsEntry("correlation_id", "UNAVAILABLE");
+    }
+
+    @Test
+    void financialConflictCarriesTheBoundedCorrelationIdOnTheSameEvent() {
+        MDC.put("correlationId", "financial-conflict-001");
+
+        new SafeOperationalLogger().financialConflict();
+
+        assertThat(appender.list).hasSize(1);
+        ILoggingEvent event = appender.list.getFirst();
+        assertThat(event.getFormattedMessage()).isEqualTo("FINANCIAL_CONFLICT");
+        Map<String, String> fields = event.getKeyValuePairs().stream()
+                .collect(Collectors.toMap(pair -> pair.key, pair -> String.valueOf(pair.value)));
+        assertThat(fields)
+                .containsEntry("event", "FINANCIAL_CONFLICT")
+                .containsEntry("outcome", "CONFLICT")
+                .containsEntry("correlation_id", "financial-conflict-001");
+    }
+
+    @Test
+    void financialConflictNeverEmitsAnUnsafeCorrelationValue() {
+        MDC.put("correlationId", "Bearer secret-bearing correlation");
+
+        new SafeOperationalLogger().financialConflict();
+
+        ILoggingEvent event = appender.list.getFirst();
+        Map<String, String> fields = event.getKeyValuePairs().stream()
+                .collect(Collectors.toMap(pair -> pair.key, pair -> String.valueOf(pair.value)));
+        assertThat(fields)
+                .containsEntry("event", "FINANCIAL_CONFLICT")
+                .containsEntry("correlation_id", "UNAVAILABLE");
+        assertThat(event.getFormattedMessage() + event.getKeyValuePairs())
+                .doesNotContain("secret-bearing correlation");
+    }
 }

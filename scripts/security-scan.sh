@@ -27,10 +27,21 @@ SBOM_DIR="$repo_root/build/security"
 TRIVY_CACHE_DIR="$repo_root/build/.trivy-cache"
 DIGEST_FILE="$SBOM_DIR/image-digests.txt"
 mkdir -p "$SBOM_DIR" "$TRIVY_CACHE_DIR"
+rm -f \
+  "$SBOM_DIR/gitleaks.json" \
+  "$SBOM_DIR/trivy-filesystem.json" \
+  "$SBOM_DIR/trivy-secrets.json" \
+  "$SBOM_DIR/backend-trivy.json" \
+  "$SBOM_DIR/frontend-trivy.json" \
+  "$SBOM_DIR/sbom.cdx.json" \
+  "$DIGEST_FILE"
 
 # ── Cleanup trap: remove tar exports that may contain image layer content ────
 cleanup() {
+  cleanup_status=$?
   rm -f "$SBOM_DIR/backend.tar" "$SBOM_DIR/frontend.tar"
+  trap - EXIT
+  exit "$cleanup_status"
 }
 trap cleanup EXIT
 validate_ignore_policy() {
@@ -74,6 +85,13 @@ validate_ignore_policy() {
       exit failed
     }
   ' "$repo_root/.trivyignore.yaml"
+}
+
+require_report() {
+  report_id="$1"
+  report_path="$2"
+  [[ -s "$report_path" ]] \
+    || { echo "$report_id FAILED: ${report_path#$repo_root/} was not written" >&2; exit 1; }
 }
 
 # ── --check mode: verify prerequisites without running scans ─────────────────
@@ -137,14 +155,25 @@ fi
 validate_ignore_policy
 
 echo "=== SEC-SCAN-001: gitleaks repository history and content scan ==="
-docker run --rm \
-  -v "$repo_root:/repo:ro" \
-  "${gitleaks_git_mount[@]}" \
-  -v "$SBOM_DIR:/output" \
-  "$GITLEAKS_IMAGE" \
-  detect --source /repo --redact \
-    --report-format json --report-path /output/gitleaks.json \
-  || { echo "SEC-SCAN-001 FAILED: gitleaks found secrets in repository history or files" >&2; exit 1; }
+if [[ "${#gitleaks_git_mount[@]}" -gt 0 ]]; then
+  docker run --rm \
+    -v "$repo_root:/repo:ro" \
+    "${gitleaks_git_mount[@]}" \
+    -v "$SBOM_DIR:/output" \
+    "$GITLEAKS_IMAGE" \
+    detect --source /repo --redact \
+      --report-format json --report-path /output/gitleaks.json \
+    || { echo "SEC-SCAN-001 FAILED: gitleaks found secrets in repository history or files" >&2; exit 1; }
+else
+  docker run --rm \
+    -v "$repo_root:/repo:ro" \
+    -v "$SBOM_DIR:/output" \
+    "$GITLEAKS_IMAGE" \
+    detect --source /repo --redact \
+      --report-format json --report-path /output/gitleaks.json \
+    || { echo "SEC-SCAN-001 FAILED: gitleaks found secrets in repository history or files" >&2; exit 1; }
+fi
+require_report "SEC-SCAN-001" "$SBOM_DIR/gitleaks.json"
 echo "SEC-SCAN-001 passed: no secrets detected in repository history or files"
 
 echo "=== SEC-SCAN-002A: Trivy filesystem vulnerability and misconfiguration scan ==="
@@ -165,6 +194,7 @@ docker run --rm \
     --skip-dirs /repo/frontend/node_modules \
     /repo \
   || { echo "SEC-SCAN-002A FAILED: Trivy found HIGH/CRITICAL filesystem vulnerabilities or misconfigurations" >&2; exit 1; }
+require_report "SEC-SCAN-002A" "$SBOM_DIR/trivy-filesystem.json"
 echo "SEC-SCAN-002A passed: filesystem vulnerability and configuration scan clean"
 
 echo "=== SEC-SCAN-002B: Trivy filesystem secret scan ==="
@@ -182,6 +212,7 @@ docker run --rm \
     --skip-dirs /repo/frontend/node_modules \
     /repo \
   || { echo "SEC-SCAN-002B FAILED: Trivy found a secret in the repository" >&2; exit 1; }
+require_report "SEC-SCAN-002B" "$SBOM_DIR/trivy-secrets.json"
 echo "SEC-SCAN-002B passed: filesystem secret scan clean"
 
 echo "=== SEC-SCAN-003: Build runtime images for image scanning ==="
@@ -221,8 +252,7 @@ docker run --rm \
     --output /output/backend-trivy.json \
   || { echo "SEC-SCAN-004 FAILED: backend image ($BACKEND_DIGEST) has HIGH/CRITICAL vulnerabilities" >&2; exit 1; }
 rm -f "$SBOM_DIR/backend.tar"
-[[ -s "$SBOM_DIR/backend-trivy.json" ]] \
-  || { echo "SEC-SCAN-004 FAILED: backend Trivy report was not written" >&2; exit 1; }
+require_report "SEC-SCAN-004" "$SBOM_DIR/backend-trivy.json"
 echo "SEC-SCAN-004 passed: backend runtime image clean ($BACKEND_DIGEST)"
 
 echo "=== SEC-SCAN-005: Trivy frontend runtime image scan ==="
@@ -243,8 +273,7 @@ docker run --rm \
     --output /output/frontend-trivy.json \
   || { echo "SEC-SCAN-005 FAILED: frontend image ($FRONTEND_DIGEST) has HIGH/CRITICAL vulnerabilities" >&2; exit 1; }
 rm -f "$SBOM_DIR/frontend.tar"
-[[ -s "$SBOM_DIR/frontend-trivy.json" ]] \
-  || { echo "SEC-SCAN-005 FAILED: frontend Trivy report was not written" >&2; exit 1; }
+require_report "SEC-SCAN-005" "$SBOM_DIR/frontend-trivy.json"
 echo "SEC-SCAN-005 passed: frontend runtime image clean ($FRONTEND_DIGEST)"
 
 echo "=== SEC-SCAN-006: CycloneDX/Syft SBOM generation ==="
@@ -255,8 +284,7 @@ docker run --rm \
     scan /repo \
     --output "cyclonedx-json=/output/sbom.cdx.json" \
   || { echo "SEC-SCAN-006 FAILED: SBOM generation failed" >&2; exit 1; }
-[[ -s "$SBOM_DIR/sbom.cdx.json" ]] \
-  || { echo "SEC-SCAN-006 FAILED: SBOM output is empty" >&2; exit 1; }
+require_report "SEC-SCAN-006" "$SBOM_DIR/sbom.cdx.json"
 echo "SEC-SCAN-006 passed: SBOM written to build/security/sbom.cdx.json"
 
 echo "=== SEC-SCAN-007: backend and frontend license compliance ==="

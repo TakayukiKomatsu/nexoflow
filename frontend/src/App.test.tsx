@@ -111,11 +111,15 @@ const quote = {
   pricing: pricing("966.18"),
   expiresAt: "2030-01-15T12:05:00Z",
   status: "ACTIVE",
+  createdBy: "operator@srm.local",
 };
 
 const ASSIGNOR_A = "11111111-1111-1111-1111-111111111111";
 const ASSIGNOR_B = "22222222-2222-2222-2222-222222222222";
 async function signIn() {
+  fireEvent.change(screen.getByLabelText("Email"), {
+    target: { value: "operator+ui@srm.local" },
+  });
   fireEvent.change(screen.getByLabelText("Password"), {
     target: { value: "test-password" },
   });
@@ -270,6 +274,37 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
     expect(
       screen.getByRole("heading", { name: "Operator sign in" }),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    ["non-object", "not-a-session"],
+    [
+      "missing token",
+      {
+        expiresAt: Date.now() + 60_000,
+        email: "operator@srm.local",
+        roles: ["OPERATOR"],
+      },
+    ],
+    [
+      "unknown role",
+      {
+        accessToken: "token",
+        expiresAt: Date.now() + 60_000,
+        email: "operator@srm.local",
+        roles: ["ROOT"],
+      },
+    ],
+  ])("rejects a persisted session with %s", (_case, persisted) => {
+    localStorage.setItem("srm-session", JSON.stringify(persisted));
+    stubFetch(vi.fn());
+
+    render(<App />);
+
+    expect(
+      screen.getByRole("heading", { name: "Operator sign in" }),
+    ).toBeInTheDocument();
+    expect(localStorage.getItem("srm-session")).toBeNull();
   });
 
   it.each(["ANALYST", "AUDITOR"])(
@@ -653,9 +688,11 @@ describe("UI-SIM-002 and UI-SIM-005 authoritative pricing workflow", () => {
       "Priced at",
       "Expires at",
       "Status",
+      "Created by",
     ]) {
       expect(within(breakdown!).getByText(term)).toBeVisible();
     }
+    expect(within(breakdown!).getByText("operator@srm.local")).toBeVisible();
     expect(within(breakdown!).getByText("2030-01-15T12:05:00Z")).toBeVisible();
     expect(within(breakdown!).getByText("ACTIVE")).toBeVisible();
   });

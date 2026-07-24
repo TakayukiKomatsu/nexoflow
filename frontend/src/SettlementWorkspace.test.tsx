@@ -5,11 +5,13 @@ import {
   render,
   screen,
 } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SettlementWorkspace } from "./SettlementWorkspace";
-import type { PricingQuote } from "./api/client";
+import type { PricingQuote, Session } from "./api/client";
+import { SESSION_EXPIRED_EVENT } from "./session";
 
-const session = {
+const session: Session = {
   accessToken: "token",
   expiresAt: Date.now() + 60_000,
   email: "operator@srm.local",
@@ -68,12 +70,102 @@ function deferred<T>() {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.useRealTimers();
   localStorage.clear();
   window.history.replaceState(null, "", "/");
 });
 
 describe("UI-SETTLE-004 retry-safe settlement intent", () => {
+  it("announces preview loading on the busy settlement region", async () => {
+    const pendingPreview = deferred<Response>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        if (url.includes("settlement-statements")) {
+          return json({ entries: [], page: 0, size: 50, hasNext: false });
+        }
+        if (url.includes("settlement-previews")) return pendingPreview.promise;
+        throw new Error(`Unexpected ${url}`);
+      }),
+    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Request server preview" }),
+    );
+
+    const settlement = screen
+      .getByRole("heading", { name: "Settlement intent" })
+      .closest("section");
+    expect(settlement).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.getByRole("button", { name: "Requesting server preview…" }),
+    ).toBeDisabled();
+
+    pendingPreview.resolve(await json(preview));
+    await screen.findByRole("button", { name: "Confirm settlement" });
+    expect(settlement).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("removes consumed quotes and refreshes the signed ledger after settlement", async () => {
+    let statementRequests = 0;
+    const fetchMock = vi.fn((url: string) => {
+      if (url.includes("settlement-statements")) {
+        statementRequests += 1;
+        return json({ entries: [], page: 0, size: 50, hasNext: false });
+      }
+      if (url.includes("settlement-previews")) return json(preview);
+      if (url.endsWith("/settlements")) {
+        return json({
+          ...preview,
+          settlementId: "00000000-0000-0000-0000-000000000804",
+          status: "COMPLETED",
+          completedAt: "2030-01-15T12:01:00Z",
+        });
+      }
+      throw new Error(`Unexpected ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    function SettlementHarness() {
+      const [activeQuotes, setActiveQuotes] = useState([quote]);
+      return (
+        <SettlementWorkspace
+          session={session}
+          quotes={activeQuotes}
+          onSettled={(consumedIds) =>
+            setActiveQuotes((current) =>
+              current.filter(({ id }) => !consumedIds.includes(id)),
+            )
+          }
+        />
+      );
+    }
+
+    render(<SettlementHarness />);
+    await screen.findByRole("heading", {
+      name: "Signed settlement statement",
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Request server preview" }),
+    );
+    await screen.findByRole("button", { name: "Confirm settlement" });
+    fireEvent.click(screen.getByRole("button", { name: "Confirm settlement" }));
+
+    await screen.findByRole("link", {
+      name: "00000000-0000-0000-0000-000000000804",
+    });
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Create one or more quotes before requesting settlement/i,
+      ),
+    ).toBeInTheDocument();
+    expect(statementRequests).toBe(2);
+  });
+
   it("reuses the persisted key and submits quote IDs only after a lost response", async () => {
     let settlementCalls = 0;
     const fetchMock = vi.fn((url: string) => {
@@ -94,13 +186,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
       throw new Error(`Unexpected ${url}`);
     });
     vi.stubGlobal("fetch", fetchMock);
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
       screen.getByRole("button", { name: "Request server preview" }),
@@ -137,11 +223,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const first = render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
+      <SettlementWorkspace session={session} quotes={[quote]} />,
     );
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
@@ -152,13 +234,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
     await screen.findByText(/Retry uses the same settlement intent/);
     first.unmount();
 
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
     expect(screen.getByRole("checkbox")).toBeChecked();
     expect(
       screen.getByText(/saved settlement intent was restored/i),
@@ -169,7 +245,6 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
       <SettlementWorkspace
         session={{ ...session, email: "other@srm.local" }}
         quotes={[quote]}
-        onExpired={vi.fn()}
       />,
     );
     expect(screen.getByRole("checkbox")).not.toBeChecked();
@@ -187,7 +262,6 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
       <SettlementWorkspace
         session={{ ...session, roles: ["ANALYST"] }}
         quotes={[quote]}
-        onExpired={vi.fn()}
       />,
     );
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
@@ -211,13 +285,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote, quoteB]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote, quoteB]} />);
 
     fireEvent.click(screen.getAllByRole("checkbox")[0]);
     fireEvent.click(
@@ -265,13 +333,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
       screen.getByRole("button", { name: "Request server preview" }),
@@ -308,13 +370,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
       screen.getByRole("button", { name: "Request server preview" }),
@@ -354,13 +410,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
           throw new Error(`Unexpected ${url}`);
         }),
       );
-      render(
-        <SettlementWorkspace
-          session={session}
-          quotes={[quote]}
-          onExpired={vi.fn()}
-        />,
-      );
+      render(<SettlementWorkspace session={session} quotes={[quote]} />);
       fireEvent.click(screen.getByRole("checkbox"));
       fireEvent.click(
         screen.getByRole("button", { name: "Request server preview" }),
@@ -389,13 +439,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
       screen.getByRole("button", { name: "Request server preview" }),
@@ -423,13 +467,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote, quoteB]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote, quoteB]} />);
     fireEvent.click(screen.getAllByRole("checkbox")[0]);
     fireEvent.click(
       screen.getByRole("button", { name: "Request server preview" }),
@@ -477,13 +515,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
       screen.getByRole("button", { name: "Request server preview" }),
@@ -504,6 +536,145 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
 });
 
 describe("UI-LEDGER-006 signed reversal statement", () => {
+  it("replaces URL filter state and debounces statement requests while typing", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((_url: string) =>
+      json({ entries: [], page: 0, size: 50, hasNext: false }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const pushState = vi.spyOn(window.history, "pushState");
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    render(<SettlementWorkspace session={session} quotes={[]} />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const currency = screen.getByLabelText("Ledger settlement currency");
+    fireEvent.change(currency, { target: { value: "b" } });
+    fireEvent.change(currency, { target: { value: "br" } });
+    fireEvent.change(currency, { target: { value: "brl" } });
+
+    expect(window.location.search).toContain("settlementCurrency=BRL");
+    expect(window.location.search).toContain("page=0");
+    expect(replaceState).toHaveBeenCalled();
+    expect(pushState).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(299);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toContain("settlementCurrency=BRL");
+  });
+
+  it("renders UTC instants in local datetime fields without shifting the filter", () => {
+    const previousTimeZone = process.env.TZ;
+    process.env.TZ = "America/Sao_Paulo";
+    try {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() => json({ entries: [], page: 0, size: 50, hasNext: false })),
+      );
+      window.history.replaceState(
+        null,
+        "",
+        "/?from=2030-01-01T12%3A00%3A00.000Z",
+      );
+
+      render(<SettlementWorkspace session={session} quotes={[]} />);
+
+      expect(screen.getByLabelText("From filter")).toHaveValue(
+        "2030-01-01T09:00",
+      );
+    } finally {
+      if (previousTimeZone === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTimeZone;
+    }
+  });
+
+  it("announces the statement loading state on the busy ledger region", async () => {
+    const statement = deferred<Response>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => statement.promise),
+    );
+    render(<SettlementWorkspace session={session} quotes={[]} />);
+
+    const ledger = screen
+      .getByRole("heading", { name: "Signed settlement statement" })
+      .closest("section");
+    expect(ledger).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.getByText("Loading settlement statement…"),
+    ).toBeInTheDocument();
+
+    statement.resolve(
+      await json({ entries: [], page: 0, size: 50, hasNext: false }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(ledger).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("shows an actionable empty state and clears ledger filters", async () => {
+    const fetchMock = vi.fn(() =>
+      json({ entries: [], page: 0, size: 50, hasNext: false }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    window.history.replaceState(
+      null,
+      "",
+      "/?settlementCurrency=BRL&productType=MERCANTILE_INVOICE&page=2",
+    );
+
+    render(<SettlementWorkspace session={session} quotes={[]} />);
+
+    expect(
+      await screen.findByText("No settlement entries match these filters."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear ledger filters" }),
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(window.location.search).toBe("");
+    expect(screen.getByLabelText("Ledger settlement currency")).toHaveValue("");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a failed statement request without changing its filters", async () => {
+    let requests = 0;
+    const fetchMock = vi.fn((_url: string) => {
+      requests += 1;
+      return requests === 1
+        ? problem("REPORT_FAILED", 500)
+        : json({ entries: [], page: 0, size: 25, hasNext: false });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    window.history.replaceState(null, "", "/?assetCurrency=USD&size=25");
+
+    render(<SettlementWorkspace session={session} quotes={[]} />);
+
+    await screen.findByText("REPORT_FAILED");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry statement request" }),
+    );
+    expect(
+      await screen.findByText("No settlement entries match these filters."),
+    ).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toContain("assetCurrency=USD");
+    expect(window.location.search).toContain("assetCurrency=USD");
+  });
+
   it("keeps filters in the URL and renders settlement and reversal as separate signed rows", async () => {
     const fetchMock = vi.fn((_url: string) =>
       json({
@@ -531,15 +702,14 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
-    render(
-      <SettlementWorkspace session={session} quotes={[]} onExpired={vi.fn()} />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[]} />);
     await screen.findByText("SETTLEMENT");
+    vi.useFakeTimers();
     fireEvent.change(screen.getByLabelText("Ledger settlement currency"), {
       target: { value: "brl" },
     });
     await act(async () => {
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(300);
     });
     expect(window.location.search).toContain("settlementCurrency=BRL");
     expect(screen.getByText("REVERSAL")).toBeInTheDocument();
@@ -557,9 +727,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       "",
       "/?assignorId=a1&assetCurrency=USD&from=2030-01-01T00%3A00%3A00.000Z&size=25",
     );
-    render(
-      <SettlementWorkspace session={session} quotes={[]} onExpired={vi.fn()} />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[]} />);
     expect(screen.getByLabelText("Ledger assignor ID")).toHaveValue("a1");
     expect(screen.getByLabelText("Ledger asset currency")).toHaveValue("USD");
     expect(screen.getByLabelText("Page size")).toHaveValue("25");
@@ -608,9 +776,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     window.history.replaceState(null, "", "/?productType=OLD");
-    render(
-      <SettlementWorkspace session={session} quotes={[]} onExpired={vi.fn()} />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[]} />);
     await screen.findByText("OLD");
 
     fireEvent.change(screen.getByLabelText("Ledger product"), {
@@ -634,9 +800,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     window.history.replaceState(null, "", "/?productType=OLD&page=3&size=25");
-    render(
-      <SettlementWorkspace session={session} quotes={[]} onExpired={vi.fn()} />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[]} />);
 
     fireEvent.change(screen.getByLabelText("Ledger product"), {
       target: { value: "NEW" },
@@ -704,12 +868,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     vi.stubGlobal("fetch", fetchMock);
     window.history.replaceState(null, "", "/#settlement-OLD-ID");
     render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[]}
-        onExpired={vi.fn()}
-        showLedger={false}
-      />,
+      <SettlementWorkspace session={session} quotes={[]} showLedger={false} />,
     );
 
     window.history.pushState(null, "", "/#settlement-NEW-ID");
@@ -751,7 +910,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
   ])(
     "explains preview authorization failure %i without retaining a preview",
     async (status, expectedMessage) => {
-      const onExpired = vi.fn();
+      const dispatchEvent = vi.spyOn(window, "dispatchEvent");
       vi.stubGlobal(
         "fetch",
         vi.fn((url: string) => {
@@ -762,13 +921,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
           throw new Error(`Unexpected ${url}`);
         }),
       );
-      render(
-        <SettlementWorkspace
-          session={session}
-          quotes={[quote]}
-          onExpired={onExpired}
-        />,
-      );
+      render(<SettlementWorkspace session={session} quotes={[quote]} />);
 
       fireEvent.click(screen.getByRole("checkbox"));
       fireEvent.click(
@@ -777,7 +930,11 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
 
       expect(await screen.findByText(expectedMessage)).toBeInTheDocument();
       expect(screen.queryByLabelText("Server settlement preview")).toBeNull();
-      expect(onExpired).toHaveBeenCalledTimes(status === 401 ? 1 : 0);
+      expect(
+        dispatchEvent.mock.calls.filter(
+          ([event]) => event.type === "srm:session-expired",
+        ),
+      ).toHaveLength(status === 401 ? 1 : 0);
     },
   );
 
@@ -788,13 +945,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       vi.fn(() => json({ entries: [], page: 0, size: 50, hasNext: false })),
     );
 
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
 
     expect(screen.getByRole("checkbox")).not.toBeChecked();
     expect(
@@ -814,13 +965,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote, quoteB]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote, quoteB]} />);
 
     fireEvent.click(screen.getAllByRole("checkbox")[0]);
     fireEvent.click(
@@ -858,9 +1003,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         }),
       ),
     );
-    render(
-      <SettlementWorkspace session={session} quotes={[]} onExpired={vi.fn()} />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[]} />);
     await screen.findByText("SETTLEMENT");
 
     fireEvent.change(screen.getByLabelText("Ledger product"), {
@@ -893,8 +1036,8 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     expect(window.location.search).toContain("page=2");
   });
 
-  it("expires the actor after a settlement-detail authorization failure", async () => {
-    const onExpired = vi.fn();
+  it("routes settlement-detail authorization failure through the session module", async () => {
+    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -906,21 +1049,20 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     window.history.replaceState(null, "", "/#settlement-detail-1");
 
     render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[]}
-        onExpired={onExpired}
-        showLedger={false}
-      />,
+      <SettlementWorkspace session={session} quotes={[]} showLedger={false} />,
     );
 
     expect(
       await screen.findByText("Your session has expired. Sign in again."),
     ).toBeInTheDocument();
-    expect(onExpired).toHaveBeenCalledTimes(1);
+    expect(
+      dispatchEvent.mock.calls.filter(
+        ([event]) => event.type === "srm:session-expired",
+      ),
+    ).toHaveLength(1);
   });
-  it("expires the actor after a settlement authorization failure", async () => {
-    const onExpired = vi.fn();
+  it("routes settlement authorization failure through the session module", async () => {
+    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -931,13 +1073,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={onExpired}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
 
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
@@ -947,7 +1083,11 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     fireEvent.click(screen.getByRole("button", { name: "Confirm settlement" }));
 
     await screen.findByText(/Retry uses the same settlement intent/);
-    expect(onExpired).toHaveBeenCalledTimes(1);
+    expect(
+      dispatchEvent.mock.calls.filter(
+        ([event]) => event.type === "srm:session-expired",
+      ),
+    ).toHaveLength(1);
   });
   it("silently discards an aborted preview request", async () => {
     vi.stubGlobal(
@@ -964,13 +1104,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
 
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
@@ -999,13 +1133,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[quote]} />);
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
       screen.getByRole("button", { name: "Request server preview" }),
@@ -1031,11 +1159,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
       }),
     );
     const view = render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[quote]}
-        onExpired={vi.fn()}
-      />,
+      <SettlementWorkspace session={session} quotes={[quote]} />,
     );
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(
@@ -1049,6 +1173,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
 
   it("renders detail authorization denial without expiring a valid session", async () => {
     const onExpired = vi.fn();
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -1059,12 +1184,7 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
     );
     window.history.replaceState(null, "", "/#settlement-detail-403");
     render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[]}
-        onExpired={onExpired}
-        showLedger={false}
-      />,
+      <SettlementWorkspace session={session} quotes={[]} showLedger={false} />,
     );
 
     expect(
@@ -1072,11 +1192,12 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         "Your role is not allowed to perform this action.",
       ),
     ).toBeInTheDocument();
+    window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
     expect(onExpired).not.toHaveBeenCalled();
   });
 
-  it("expires the actor when the ledger request returns unauthorized", async () => {
-    const onExpired = vi.fn();
+  it("routes ledger authorization failure through the session module", async () => {
+    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
     vi.stubGlobal(
       "fetch",
       vi.fn((url: string) => {
@@ -1085,17 +1206,15 @@ describe("UI-LEDGER-006 signed reversal statement", () => {
         throw new Error(`Unexpected ${url}`);
       }),
     );
-    render(
-      <SettlementWorkspace
-        session={session}
-        quotes={[]}
-        onExpired={onExpired}
-      />,
-    );
+    render(<SettlementWorkspace session={session} quotes={[]} />);
 
     expect(
       await screen.findByText("Your session has expired. Sign in again."),
     ).toBeInTheDocument();
-    expect(onExpired).toHaveBeenCalledTimes(1);
+    expect(
+      dispatchEvent.mock.calls.filter(
+        ([event]) => event.type === "srm:session-expired",
+      ),
+    ).toHaveLength(1);
   });
 });

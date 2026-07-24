@@ -7,7 +7,7 @@ import com.srm.creditengine.assignor.application.AssignorService;
 import com.srm.creditengine.pricing.application.PricingService;
 import com.srm.creditengine.receivable.application.ReceivableService;
 import com.srm.creditengine.reporting.application.SettlementStatementService;
-import com.srm.creditengine.settlement.application.AlreadyReversedException;
+import com.srm.creditengine.settlement.domain.AlreadyReversedException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
 import com.srm.creditengine.settlement.application.SettlementService;
 import java.math.BigDecimal;
@@ -25,7 +25,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
-@SpringBootTest(properties = "srm.clock.fixed-instant=2030-01-15T12:00:00Z")
+@SpringBootTest(properties = "srm.clock.fixed-instant=2030-01-15T12:00:00.123456789Z")
 class SettlementReversalIntegrationTest {
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")

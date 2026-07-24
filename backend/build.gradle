@@ -45,7 +45,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
 
-    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'org.postgresql:postgresql:42.7.12'
     runtimeOnly 'org.flywaydb:flyway-database-postgresql'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
@@ -99,10 +99,27 @@ tasks.register('integrationTest', Test) {
     shouldRunAfter tasks.named('test')
 }
 def riskCoverageIncludes = [
-        'com/srm/creditengine/pricing/**',
+        // Financial APIs are risk-bearing: they own wire bounds, response rounding,
+        // status codes, idempotency headers, and generated OpenAPI schema names.
+        'com/srm/creditengine/assignor/api/**',
+        'com/srm/creditengine/assignor/domain/**',
+        'com/srm/creditengine/assignor/application/**',
+        'com/srm/creditengine/assignor/infrastructure/**',
+        'com/srm/creditengine/receivable/api/**',
+        'com/srm/creditengine/receivable/domain/**',
+        'com/srm/creditengine/receivable/application/**',
+        'com/srm/creditengine/receivable/infrastructure/**',
         'com/srm/creditengine/currency/**',
+        'com/srm/creditengine/pricing/**',
+        'com/srm/creditengine/settlement/api/**',
+        'com/srm/creditengine/settlement/domain/**',
         'com/srm/creditengine/settlement/application/**',
+        'com/srm/creditengine/settlement/infrastructure/**',
+        'com/srm/creditengine/reporting/api/**',
         'com/srm/creditengine/reporting/application/**',
+        'com/srm/creditengine/audit/api/**',
+        'com/srm/creditengine/audit/application/**',
+        'com/srm/creditengine/audit/infrastructure/**',
         'com/srm/creditengine/identity/application/**',
         'com/srm/creditengine/identity/domain/**',
         'com/srm/creditengine/identity/api/**',
@@ -110,8 +127,6 @@ def riskCoverageIncludes = [
         'com/srm/creditengine/shared/api/**'
 ]
 def riskCoverageExcludes = [
-        'com/srm/creditengine/pricing/api/**',
-        'com/srm/creditengine/currency/api/**',
         'com/srm/creditengine/identity/infrastructure/DevelopmentOperatorSeeder.class'
 ]
 def riskClassDirectories = sourceSets.main.output.classesDirs.asFileTree.matching {
@@ -145,6 +160,21 @@ tasks.register('riskCoverage', org.gradle.testing.jacoco.tasks.JacocoCoverageVer
 
 tasks.named('check') {
     dependsOn tasks.named('riskCoverage')
+}
+
+tasks.register('exportOpenApi', Test) {
+    description = 'Exports the canonical runtime OpenAPI document as deterministic JSON.'
+    group = 'documentation'
+    dependsOn tasks.named('testClasses')
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform()
+    filter {
+        includeTestsMatching 'com.srm.creditengine.api.OpenApiExportTest'
+    }
+    def openApiOutput = layout.buildDirectory.file('generated/openapi/srm-openapi.json')
+    systemProperty 'srm.openapi.output', openApiOutput.get().asFile.absolutePath
+    outputs.file(openApiOutput)
 }
 
 

@@ -17,107 +17,115 @@ erDiagram
     settlements ||--o{ idempotency_records : settlement_replay
     settlement_reversals ||--o{ idempotency_records : reversal_replay
 
+    schema_metadata {
+        int id PK
+        varchar_100 schema_name UK
+        timestamptz created_at
+    }
+
     users {
         uuid id PK
-        string email UK
-        string password_hash
+        varchar_320 email UK
+        varchar_100 password_hash
         boolean enabled
     }
     user_roles {
         uuid user_id PK,FK
-        string role PK
+        varchar_30 role PK
     }
     assignors {
         uuid id PK
-        string legal_name
-        string normalized_tax_id UK
+        varchar_200 legal_name
+        varchar_32 normalized_tax_id UK
         boolean active
-        datetime created_at
-        string created_by
+        timestamptz created_at
+        varchar_320 created_by
     }
     currencies {
-        string code PK
+        varchar_3 code PK
         int decimal_scale
         boolean active
     }
     product_types {
-        string code PK
+        varchar_50 code PK
         boolean active
     }
     product_spread_versions {
         uuid id PK
-        string product_type_code FK
-        decimal monthly_spread
-        datetime effective_at
+        varchar_50 product_type_code FK
+        decimal_19_10 monthly_spread
+        timestamptz effective_at
+        varchar_320 created_by
     }
     base_rate_versions {
         uuid id PK
-        string currency_code FK
-        decimal monthly_rate
-        datetime effective_at
+        varchar_3 currency_code FK
+        decimal_19_10 monthly_rate
+        timestamptz effective_at
+        varchar_320 created_by
     }
     exchange_rates {
         uuid id PK
-        string base_currency_code FK
-        string quote_currency_code FK
-        decimal rate
-        string source
-        datetime observed_at
-        datetime created_at
-        string created_by
+        varchar_3 base_currency_code FK
+        varchar_3 quote_currency_code FK
+        decimal_19_10 rate
+        varchar_50 source
+        timestamptz observed_at
+        timestamptz created_at
+        varchar_320 created_by
     }
     runtime_fixture_records {
-        string fixture_id PK
-        string fixture_set
-        string fixture_value
-        datetime loaded_at
+        varchar_100 fixture_id PK
+        varchar_100 fixture_set
+        varchar_500 fixture_value
+        timestamptz loaded_at
     }
     receivables {
         uuid id PK
         uuid assignor_id FK
-        string product_type_code FK
-        string face_currency_code FK
-        decimal face_amount
+        varchar_50 product_type_code FK
+        varchar_3 face_currency_code FK
+        decimal_19_4 face_amount
         date issue_date
         date due_date
-        string status
+        varchar_20 status
         bigint version
-        datetime created_at
-        string created_by
+        timestamptz created_at
+        varchar_320 created_by
     }
     pricing_quotes {
         uuid id PK
         uuid receivable_id FK
-        string settlement_currency_code FK
-        decimal face_amount
-        string face_currency_code FK
-        string product_type_code FK
+        varchar_3 settlement_currency_code FK
+        decimal_19_4 face_amount
+        varchar_3 face_currency_code FK
+        varchar_50 product_type_code FK
         date due_date
-        datetime pricing_at
-        datetime expires_at
-        decimal base_rate
-        decimal spread
-        string strategy_code
-        string day_count_convention
-        decimal term_in_months
-        decimal discounted_amount
-        string fx_base_currency_code FK
-        string fx_quote_currency_code FK
-        decimal fx_rate
-        string fx_source
-        datetime fx_observed_at
-        decimal settlement_amount
-        string created_by
-        string status
+        timestamptz pricing_at
+        timestamptz expires_at
+        decimal_19_10 base_rate
+        decimal_19_10 spread
+        varchar_50 strategy_code
+        varchar_50 day_count_convention
+        decimal_19_10 term_in_months
+        decimal_19_4 discounted_amount
+        varchar_3 fx_base_currency_code FK
+        varchar_3 fx_quote_currency_code FK
+        decimal_19_10 fx_rate
+        varchar_100 fx_source
+        timestamptz fx_observed_at
+        decimal_19_4 settlement_amount
+        varchar_320 created_by
+        varchar_20 status
     }
     settlements {
         uuid id PK
         uuid assignor_id FK
-        string settlement_currency_code FK
-        decimal total_amount
-        string status
-        datetime created_at
-        string created_by
+        varchar_3 settlement_currency_code FK
+        decimal_19_4 total_amount
+        varchar_20 status
+        timestamptz created_at
+        varchar_320 created_by
     }
     settlement_items {
         uuid id PK
@@ -125,44 +133,50 @@ erDiagram
         uuid quote_id UK,FK
         uuid receivable_id UK,FK
         int item_position
-        decimal settlement_amount
-        string asset_currency_code FK
-        string product_type_code FK
+        decimal_19_4 settlement_amount
+        varchar_3 asset_currency_code FK
+        varchar_50 product_type_code FK
     }
     idempotency_records {
         uuid id PK
-        string actor
-        string operation
-        string idempotency_key
-        string request_hash
+        varchar_320 actor
+        varchar_100 operation
+        varchar_200 idempotency_key
+        char_64 request_hash
         uuid settlement_id FK
         uuid reversal_id FK
-        string status
-        datetime created_at
-        datetime completed_at
+        varchar_20 status
+        timestamptz created_at
+        timestamptz completed_at
     }
     settlement_reversals {
         uuid id PK
         uuid settlement_id UK,FK
-        string reason
-        datetime reversed_at
-        string reversed_by
+        varchar_500 reason
+        timestamptz reversed_at
+        varchar_320 reversed_by
     }
     audit_events {
         uuid id PK
-        string actor
-        string action
-        string target_type
+        varchar_320 actor
+        varchar_80 action
+        varchar_80 target_type
         uuid target_id
-        datetime occurred_at
-        string correlation_id
+        timestamptz occurred_at
+        varchar_100 correlation_id
         json safe_metadata
     }
 
-    %% PostgreSQL V12-V16 guards make financial snapshots append-only:
+    %% varchar_N and char_N encode exact SQL length bounds; timestamptz means
+    %% PostgreSQL timestamp with time zone rather than timestamp without time zone.
+    %% V23 interprets application rows in the configured legacy writer zone;
+    %% six immutable Flyway reference-rate seed IDs retain UTC provenance.
+    %% PostgreSQL V12-V16 and V23 guards protect financial state:
     %% exchange_rates and settlement_reversals reject UPDATE and DELETE.
     %% pricing_quotes rejects DELETE and permits only ACTIVE to CONSUMED while every snapshot value stays unchanged.
     %% settlements, settlement_items, and audit_events also reject mutation.
+    %% idempotency_records permits only PROCESSING to COMPLETED with immutable request identity,
+    %% rejects processing-row deletion and completed-row updates, and permits completed retention deletion.
     %% Composite uniqueness: exchange_rates(base, quote, source, observed_at);
     %% idempotency_records(actor, operation, idempotency_key); settlement_items(settlement_id, item_position).
     %% Settlement Ledger Entry is a derived SQL read model, not a stored table.

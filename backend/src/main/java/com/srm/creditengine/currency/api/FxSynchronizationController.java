@@ -1,8 +1,8 @@
 package com.srm.creditengine.currency.api;
 
-import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.FxSynchronizationService;
 import com.srm.creditengine.identity.application.ActorContext;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,7 +17,10 @@ class FxSynchronizationController {
     private final ActorContext actor;
     FxSynchronizationController(FxSynchronizationService synchronization, ActorContext actor) { this.synchronization = synchronization; this.actor = actor; }
     @PostMapping @ResponseStatus(HttpStatus.CREATED)
-    CurrencyService.Observation synchronize(@RequestParam @NotBlank String base, @RequestParam @NotBlank String quote) {
-        return synchronization.synchronize(base, quote, actor.currentActor().email());
+    CurrencyApiResponse.Observation synchronize(
+            @RequestParam @NotBlank @Schema(allowableValues = {"BRL", "USD"}) String base,
+            @RequestParam @NotBlank @Schema(allowableValues = {"BRL", "USD"}) String quote) {
+        return CurrencyApiResponse.observation(
+                synchronization.synchronize(base, quote, actor.currentActor().email()));
     }
 }

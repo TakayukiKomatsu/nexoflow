@@ -3,17 +3,22 @@ package com.srm.creditengine.pricing.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
-import com.srm.creditengine.pricing.*;
+import com.srm.creditengine.pricing.domain.ChequePricingStrategy;
+import com.srm.creditengine.pricing.domain.InvoicePricingStrategy;
+import com.srm.creditengine.pricing.domain.PricingStrategy;
+import com.srm.creditengine.pricing.infrastructure.JdbcPricingQuoteRepository;
+import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
-import com.srm.creditengine.receivable.application.ReceivableService;
+import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -21,19 +26,36 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 class AuthoritativePricingServiceTest {
     @Test
+    void exposesOnlyTheCompleteTypedProductionConstructor() {
+        assertThat(AuthoritativePricingService.class.getDeclaredConstructors())
+                .singleElement()
+                .satisfies(constructor -> assertThat(constructor.getParameterTypes())
+                        .containsExactly(
+                                ReferenceRateService.class,
+                                CurrencyService.class,
+                                PricingStrategyRegistry.class,
+                                PricingQuoteRepository.class,
+                                ReceivableQuoteReader.class,
+                                Clock.class,
+                                FinancialTelemetry.class,
+                                PricingAuditRecorder.class));
+    }
+
+    @Test
     void PRICE_001_serverSimulatesInvoiceWithoutPersistingAQuote() {
         Instant now = Instant.parse("2030-01-15T12:00:00Z");
         ReferenceRateService rates = new ReferenceRateService() {
-            public void recordBaseRate(String c, BigDecimal r, Instant e) {} public void recordProductSpread(String p, BigDecimal r, Instant e) {}
-            public List<BaseRate> baseRates(String c, Instant e) { return List.of(new BaseRate("BRL",new BigDecimal("0.010"),now)); }
-            public List<ProductSpread> productSpreads(String p, Instant e) { return List.of(new ProductSpread(p,new BigDecimal("0.015"),now)); }
+            public void recordBaseRate(String c, BigDecimal r, Instant e, String actor) {}
+            public void recordProductSpread(String p, BigDecimal r, Instant e, String actor) {}
+            public List<BaseRate> baseRates(String c, Instant e) { return List.of(new BaseRate("BRL",new BigDecimal("0.010"),now,"fixture")); }
+            public List<ProductSpread> productSpreads(String p, Instant e) { return List.of(new ProductSpread(p,new BigDecimal("0.015"),now,"fixture")); }
         };
         CurrencyService currency = new CurrencyService() {
             public void recordObservation(String a,String b,BigDecimal r,String s,Instant o,String actor) {} public List<Observation> observations(String a,String b) { return List.of(); }
             public Conversion resolveConversion(String a,String b,BigDecimal amount,Instant at) { return new Conversion(new Observation(a,b,BigDecimal.ONE,"IDENTITY",at),amount,amount.setScale(2,java.math.RoundingMode.HALF_EVEN)); }
         };
         var registry = new PricingStrategyRegistry(List.of(new InvoicePricingStrategy(), new ChequePricingStrategy()));
-        var service = new AuthoritativePricingService(rates,currency,registry,null,null,Clock.fixed(now,ZoneOffset.UTC));
+        var service = simulationService(rates, currency, registry, Clock.fixed(now, ZoneOffset.UTC));
 
         var result = service.simulate(new PricingService.Input(new BigDecimal("1000.00"),"BRL","MERCANTILE_INVOICE",LocalDate.parse("2030-02-14"),"BRL"));
 
@@ -47,13 +69,15 @@ class AuthoritativePricingServiceTest {
         ReferenceRateService references = mock(ReferenceRateService.class);
         when(references.baseRates("BRL", now))
                 .thenReturn(List.of(new ReferenceRateService.BaseRate(
-                        "BRL", new BigDecimal("0.010"), now)));
+                        "BRL", new BigDecimal("0.010"), now, "fixture")));
         PricingStrategy strategy = mock(PricingStrategy.class);
         when(strategy.productType()).thenReturn("MERCANTILE_INVOICE");
         when(strategy.code()).thenReturn("OWNED_STRATEGY");
         var selectedSpread = new ReferenceRateService.ProductSpread(
-                "MERCANTILE_INVOICE", new BigDecimal("0.015"), now);
-        when(strategy.riskSpread(references, now)).thenReturn(selectedSpread);
+                "MERCANTILE_INVOICE", new BigDecimal("0.015"), now, "fixture");
+        when(references.productSpreads("MERCANTILE_INVOICE", now)).thenReturn(List.of(selectedSpread));
+        when(strategy.riskSpread(List.of(new BigDecimal("0.015"))))
+                .thenReturn(new BigDecimal("0.015"));
         BigDecimal discounted = new BigDecimal("975.6097560975609756097560975610");
         when(strategy.discount(
                         new BigDecimal("1000.00"),
@@ -82,12 +106,10 @@ class AuthoritativePricingServiceTest {
                         amount.setScale(2, java.math.RoundingMode.HALF_EVEN));
             }
         };
-        var service = new AuthoritativePricingService(
+        var service = simulationService(
                 references,
                 currency,
                 new PricingStrategyRegistry(List.of(strategy)),
-                null,
-                null,
                 Clock.fixed(now, ZoneOffset.UTC));
 
         var result = service.simulate(new PricingService.Input(
@@ -100,8 +122,9 @@ class AuthoritativePricingServiceTest {
         assertThat(result.spread()).isEqualByComparingTo("0.015");
         assertThat(result.strategyCode()).isEqualTo("OWNED_STRATEGY");
         verify(references).baseRates("BRL", now);
+        verify(references).productSpreads("MERCANTILE_INVOICE", now);
         verifyNoMoreInteractions(references);
-        verify(strategy).riskSpread(references, now);
+        verify(strategy).riskSpread(List.of(new BigDecimal("0.015")));
         verify(strategy).discount(
                 new BigDecimal("1000.00"),
                 new BigDecimal("0.010"),
@@ -116,12 +139,10 @@ class AuthoritativePricingServiceTest {
         CurrencyService currency = mock(CurrencyService.class);
         var registry =
                 new PricingStrategyRegistry(List.of(new InvoicePricingStrategy(), new ChequePricingStrategy()));
-        var service = new AuthoritativePricingService(
+        var service = simulationService(
                 references,
                 currency,
                 registry,
-                null,
-                null,
                 Clock.fixed(now, ZoneOffset.UTC));
 
         assertThatThrownBy(() -> service.simulate(new PricingService.Input(
@@ -133,6 +154,66 @@ class AuthoritativePricingServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Unsupported product type: UNKNOWN");
         verifyNoInteractions(references, currency);
+    }
+
+    @Test
+    void rejectsDiscountedAmountsThatRoundToZeroBeforeFxOrPersistence() {
+        Instant now = Instant.parse("2030-01-15T12:00:00Z");
+        ReferenceRateService references = mock(ReferenceRateService.class);
+        when(references.baseRates("BRL", now)).thenReturn(List.of(
+                new ReferenceRateService.BaseRate("BRL", BigDecimal.ONE, now, "fixture")));
+        PricingStrategy strategy = mock(PricingStrategy.class);
+        when(strategy.productType()).thenReturn("MERCANTILE_INVOICE");
+        when(references.productSpreads("MERCANTILE_INVOICE", now)).thenReturn(List.of(
+                new ReferenceRateService.ProductSpread(
+                        "MERCANTILE_INVOICE", BigDecimal.ONE, now, "fixture")));
+        when(strategy.riskSpread(List.of(BigDecimal.ONE))).thenReturn(BigDecimal.ONE);
+        when(strategy.discount(any(), any(), any(), any())).thenReturn(new BigDecimal("0.00004"));
+        CurrencyService currency = mock(CurrencyService.class);
+        var service = simulationService(
+                references,
+                currency,
+                new PricingStrategyRegistry(List.of(strategy)),
+                Clock.fixed(now, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.simulate(input(
+                        BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", "2040-01-15", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Discounted amount must round to a positive value within 15 integer digits");
+        verifyNoInteractions(currency);
+    }
+
+    @Test
+    void rejectsSettlementAmountsThatCannotFitThePersistedMoneyDomain() {
+        Instant now = Instant.parse("2030-01-15T12:00:00Z");
+        ReferenceRateService references = mock(ReferenceRateService.class);
+        when(references.baseRates("BRL", now)).thenReturn(List.of(
+                new ReferenceRateService.BaseRate("BRL", new BigDecimal("0.01"), now, "fixture")));
+        PricingStrategy strategy = mock(PricingStrategy.class);
+        when(strategy.productType()).thenReturn("MERCANTILE_INVOICE");
+        when(references.productSpreads("MERCANTILE_INVOICE", now)).thenReturn(List.of(
+                new ReferenceRateService.ProductSpread(
+                        "MERCANTILE_INVOICE", new BigDecimal("0.01"), now, "fixture")));
+        when(strategy.riskSpread(List.of(new BigDecimal("0.01"))))
+                .thenReturn(new BigDecimal("0.01"));
+        when(strategy.discount(any(), any(), any(), any())).thenReturn(BigDecimal.ONE);
+        CurrencyService currency = mock(CurrencyService.class);
+        when(currency.resolveConversion("BRL", "USD", BigDecimal.ONE, now)).thenReturn(
+                new CurrencyService.Conversion(
+                        new CurrencyService.Observation(
+                                "BRL", "USD", BigDecimal.ONE, "fixture", now),
+                        new BigDecimal("1000000000000000.00"),
+                        new BigDecimal("1000000000000000.00")));
+        var service = simulationService(
+                references,
+                currency,
+                new PricingStrategyRegistry(List.of(strategy)),
+                Clock.fixed(now, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.simulate(input(
+                        BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", "2030-02-14", "USD")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Settlement amount must round to a positive value within 15 integer digits");
     }
     @Test
     void quoteExpiryIsActiveAtFourteenMinutesFiftyNinePointNineNineNineSecondsAndExpiredAtTheBoundary() {
@@ -153,7 +234,14 @@ class AuthoritativePricingServiceTest {
 
     private static AuthoritativePricingService serviceAt(JdbcTemplate jdbc, Instant instant) {
         return new AuthoritativePricingService(
-                null, null, null, null, jdbc, Clock.fixed(instant, ZoneOffset.UTC));
+                mock(ReferenceRateService.class),
+                mock(CurrencyService.class),
+                mock(PricingStrategyRegistry.class),
+                new JdbcPricingQuoteRepository(jdbc),
+                mock(ReceivableQuoteReader.class),
+                Clock.fixed(instant, ZoneOffset.UTC),
+                mock(FinancialTelemetry.class),
+                mock(PricingAuditRecorder.class));
     }
 
     private static JdbcTemplate quoteSnapshot(Instant pricedAt, Instant expiresAt) {
@@ -226,8 +314,11 @@ class AuthoritativePricingServiceTest {
     @Test
     void rejectsEveryInvalidSimulationInputBeforeReferenceLookups() {
         Instant now = Instant.parse("2030-01-15T12:00:00Z");
-        var service = new AuthoritativePricingService(
-                null, null, null, null, null, Clock.fixed(now, ZoneOffset.UTC));
+        var service = simulationService(
+                mock(ReferenceRateService.class),
+                mock(CurrencyService.class),
+                mock(PricingStrategyRegistry.class),
+                Clock.fixed(now, ZoneOffset.UTC));
 
         assertThatThrownBy(() -> service.simulate(input(null, "BRL", "MERCANTILE_INVOICE", "2030-02-14", "BRL")))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -245,6 +336,10 @@ class AuthoritativePricingServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Pricing input is incomplete");
         assertThatThrownBy(() -> service.simulate(input(BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", null, "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Pricing input is incomplete");
+        assertThatThrownBy(() -> service.simulate(input(
+                        BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", "2030-02-14", null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Pricing input is incomplete");
         assertThatThrownBy(() -> service.simulate(input(BigDecimal.ONE, "BRL", "MERCANTILE_INVOICE", "2030-01-15", "BRL")))
@@ -270,33 +365,59 @@ class AuthoritativePricingServiceTest {
 
     @Test
     void refusesToCreateAQuoteForNonRegisteredReceivables() {
-        JdbcTemplate jdbc = mock(JdbcTemplate.class);
-        var receivable = new ReceivableService.Receivable(
-                RECEIVABLE_ID,
-                UUID.randomUUID(),
-                "MERCANTILE_INVOICE",
-                new BigDecimal("1000.0000"),
-                "BRL",
-                LocalDate.parse("2030-01-15"),
-                LocalDate.parse("2030-02-14"),
-                "SETTLED",
-                1L);
-        when(jdbc.query(
-                        org.mockito.ArgumentMatchers.anyString(),
-                        org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<ReceivableService.Receivable>>any(),
-                        org.mockito.ArgumentMatchers.<Object>any()))
-                .thenReturn(List.of(receivable));
+        var reader = mock(ReceivableQuoteReader.class);
+        when(reader.lockRegistered(RECEIVABLE_ID))
+                .thenReturn(Optional.of(new ReceivableQuoteReader.LockedReceivable(
+                        RECEIVABLE_ID,
+                        "MERCANTILE_INVOICE",
+                        new BigDecimal("1000.0000"),
+                        "BRL",
+                        LocalDate.parse("2030-02-14"),
+                        "SETTLED")));
         var service = new AuthoritativePricingService(
-                null,
-                null,
-                null,
-                null,
-                jdbc,
-                Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC));
+                mock(ReferenceRateService.class),
+                mock(CurrencyService.class),
+                mock(PricingStrategyRegistry.class),
+                mock(PricingQuoteRepository.class),
+                reader,
+                Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC),
+                mock(FinancialTelemetry.class),
+                mock(PricingAuditRecorder.class));
 
         assertThatThrownBy(() -> service.createQuote(RECEIVABLE_ID, "BRL", "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Only REGISTERED receivables can be quoted");
+    }
+
+
+    @Test
+    void rejectsOverPreciseAmountsBeforeResolvingAnyPricingDependency() {
+        var service = simulationService(
+                mock(ReferenceRateService.class),
+                mock(CurrencyService.class),
+                mock(PricingStrategyRegistry.class),
+                Clock.fixed(Instant.parse("2030-01-15T12:00:00Z"), ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> service.simulate(input(
+                new BigDecimal("1.00001"), "BRL", "MERCANTILE_INVOICE", "2030-02-14", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Face amount must be positive with no more than four decimal places");
+    }
+
+    private static AuthoritativePricingService simulationService(
+            ReferenceRateService references,
+            CurrencyService currency,
+            PricingStrategyRegistry strategies,
+            Clock clock) {
+        return new AuthoritativePricingService(
+                references,
+                currency,
+                strategies,
+                mock(PricingQuoteRepository.class),
+                mock(ReceivableQuoteReader.class),
+                clock,
+                mock(FinancialTelemetry.class),
+                mock(PricingAuditRecorder.class));
     }
 
     private static PricingService.Input input(

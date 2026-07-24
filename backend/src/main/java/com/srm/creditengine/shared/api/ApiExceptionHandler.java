@@ -1,5 +1,7 @@
 package com.srm.creditengine.shared.api;
 
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
@@ -7,7 +9,9 @@ import java.util.Map;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.http.ProblemDetail;
@@ -17,16 +21,20 @@ import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
 import io.micrometer.core.instrument.Metrics;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
-import com.srm.creditengine.currency.application.FxRateMissingException;
-import com.srm.creditengine.currency.application.FxRateStaleException;
-import com.srm.creditengine.currency.application.UnsupportedCurrencyException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import com.srm.creditengine.currency.domain.FxRateMissingException;
+import com.srm.creditengine.currency.domain.FxRateStaleException;
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import com.srm.creditengine.currency.application.FxProviderUnavailableException;
-import com.srm.creditengine.settlement.application.AlreadySettledException;
+import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
-import com.srm.creditengine.settlement.application.AlreadyReversedException;
-import com.srm.creditengine.settlement.application.PricingQuoteExpiredException;
+import com.srm.creditengine.settlement.domain.AlreadyReversedException;
+import com.srm.creditengine.settlement.domain.PricingQuoteExpiredException;
+import com.srm.creditengine.settlement.application.ReversalIdempotencyKeyReusedException;
+import com.srm.creditengine.settlement.application.SettlementPricingQuoteExpiredException;
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import com.srm.creditengine.shared.runtime.SafeOperationalLogger;
 
@@ -80,6 +88,14 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED", exception.getMessage(), request);
     }
 
+    @ExceptionHandler(ReversalIdempotencyKeyReusedException.class)
+    ProblemDetail reversalIdempotencyKeyReused(
+            ReversalIdempotencyKeyReusedException exception, HttpServletRequest request) {
+        telemetry.reversal("conflict");
+        operationalLogger.financialConflict();
+        return problem(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED", exception.getMessage(), request);
+    }
+
     @ExceptionHandler(AlreadySettledException.class)
     ProblemDetail alreadySettled(AlreadySettledException exception, HttpServletRequest request) {
         telemetry.settlement(exception.settlementCurrency(), "conflict");
@@ -96,6 +112,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(PricingQuoteExpiredException.class)
     ProblemDetail pricingQuoteExpired(
             PricingQuoteExpiredException exception, HttpServletRequest request) {
+        return problem(HttpStatus.CONFLICT, "PRICING_QUOTE_EXPIRED", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(SettlementPricingQuoteExpiredException.class)
+    ProblemDetail settlementPricingQuoteExpired(
+            SettlementPricingQuoteExpiredException exception, HttpServletRequest request) {
+        telemetry.settlement("UNKNOWN", "conflict");
         return problem(HttpStatus.CONFLICT, "PRICING_QUOTE_EXPIRED", exception.getMessage(), request);
     }
 
@@ -127,6 +150,26 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", exception.getMessage(), request);
     }
 
+    @ExceptionHandler(DomainResourceNotFoundException.class)
+    ProblemDetail domainResourceNotFound(
+            DomainResourceNotFoundException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.NOT_FOUND,
+                "RESOURCE_NOT_FOUND",
+                "The requested domain resource was not found.",
+                request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ProblemDetail dataConflict(
+            DataIntegrityViolationException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.CONFLICT,
+                "DATA_CONFLICT",
+                "The request conflicts with existing data.",
+                request);
+    }
+
     @ExceptionHandler(NoResourceFoundException.class)
     ProblemDetail notFound(NoResourceFoundException exception, HttpServletRequest request) {
         return problem(HttpStatus.NOT_FOUND, "NOT_FOUND", "The requested resource was not found.", request);
@@ -141,10 +184,31 @@ public class ApiExceptionHandler {
                 request);
     }
 
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ProblemDetail methodNotAllowed(
+            HttpRequestMethodNotSupportedException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.METHOD_NOT_ALLOWED,
+                "METHOD_NOT_ALLOWED",
+                "The request method is not supported for this resource.",
+                request);
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+    ProblemDetail notAcceptable(
+            HttpMediaTypeNotAcceptableException exception, HttpServletRequest request) {
+        return problem(
+                HttpStatus.NOT_ACCEPTABLE,
+                "NOT_ACCEPTABLE",
+                "The requested response media type is not available.",
+                request);
+    }
+
     @ExceptionHandler({
             HandlerMethodValidationException.class,
             MethodArgumentNotValidException.class,
-            MissingServletRequestParameterException.class
+            MissingServletRequestParameterException.class,
+            MethodArgumentTypeMismatchException.class
     })
     ProblemDetail validationFailure(Exception exception, HttpServletRequest request) {
         ProblemDetail detail = problem(
@@ -156,6 +220,7 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ProblemDetail unexpectedFailure(Exception exception, HttpServletRequest request) {
+        operationalLogger.unexpectedFailure(exception);
         return problem(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "INTERNAL_ERROR",
@@ -173,6 +238,9 @@ public class ApiExceptionHandler {
     }
 
     private List<Map<String, String>> violations(Exception exception) {
+        if (exception instanceof MethodArgumentTypeMismatchException mismatch) {
+            return List.of(Map.of("field", mismatch.getName(), "message", "has an invalid value"));
+        }
         if (exception instanceof MissingServletRequestParameterException missing) {
             return List.of(Map.of("field", missing.getParameterName(), "message", "is required"));
         }

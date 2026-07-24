@@ -38,8 +38,15 @@ srm_metrics="$(printf '%s\n' "$metrics" | grep -E '^srm_' || true)"
 }
 
 for required in \
+  srm_quote_duration_seconds \
+  srm_settlement_duration_seconds \
+  srm_report_duration_seconds \
+  srm_fx_provider_attempt_duration_seconds \
+  srm_quote_outcomes_total \
   srm_simulation_outcomes_total \
   srm_settlement_outcomes_total \
+  srm_fx_stale_rates_total \
+  srm_fx_provider_failures_total \
   srm_fx_resilience_outcomes_total \
   srm_statement_queries_total; do
   printf '%s\n' "$srm_metrics" | grep -q "^${required}" || {

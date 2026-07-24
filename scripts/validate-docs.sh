@@ -47,5 +47,41 @@ if [[ "${#forbidden_hits[@]}" -gt 0 ]]; then
 fi
 echo "DOCS-003 passed: no forbidden production claims in documentation"
 
+echo "=== DOCS-004: claim classification, release truth, and usage disclosure ==="
+for required_readme_text in \
+  '## GitHub Flow rationale' \
+  '## Proposed evolution to 1M transactions/minute' \
+  '16,667 transactions/second' \
+  'RPO' \
+  'RTO' \
+  'not production-capacity evidence'; do
+  grep -Fq "$required_readme_text" "$repo_root/README.md" \
+    || { echo "DOCS-004 FAILED: root README lacks: $required_readme_text" >&2; exit 1; }
+done
+
+cucumber_scenarios="$(grep -hEc '^[[:space:]]*Scenario( Outline)?:' "$repo_root"/backend/src/integrationTest/resources/features/*.feature | awk '{ total += $1 } END { print total + 0 }')"
+[[ "$cucumber_scenarios" -eq 12 ]] \
+  || { echo "DOCS-004 FAILED: expected 12 executable Cucumber scenarios, found $cucumber_scenarios" >&2; exit 1; }
+if grep -REiq '\b(ten|10)[[:space:]]+(executable[[:space:]]+)?Cucumber scenarios' "$repo_root/README.md" "$repo_root/docs/RUNBOOK.md"; then
+  echo "DOCS-004 FAILED: reviewer docs still claim ten Cucumber scenarios" >&2
+  exit 1
+fi
+
+tag_target="$(git -C "$repo_root" rev-list -n 1 v1.0.0 2>/dev/null || true)"
+if [[ -n "$tag_target" ]]; then
+  tag_short="${tag_target:0:7}"
+  grep -Fq "existing local annotated \`v1.0.0\` tag points to \`$tag_short\`" "$repo_root/README.md" \
+    || { echo "DOCS-004 FAILED: README does not disclose the existing stale local tag target $tag_short" >&2; exit 1; }
+fi
+
+for usage_heading in \
+  '## Strategic prompts and outcomes' \
+  '## Hallucinations and rework caught by verification' \
+  '## Estimated time saved and lost'; do
+  grep -Fq "$usage_heading" "$repo_root/AI_USAGE.md" \
+    || { echo "DOCS-004 FAILED: AI_USAGE.md lacks: $usage_heading" >&2; exit 1; }
+done
+echo "DOCS-004 passed: scale/release claims and AI-use costs are explicit and current"
+
 echo ""
 echo "validate-docs: all documentation gates passed"

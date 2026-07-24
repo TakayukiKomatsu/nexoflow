@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { loadSession } from "../session";
 import { ApiError, api, type ProblemDetail } from "./client";
 
 const jsonResponse = (body: unknown, status = 200) =>
@@ -12,13 +13,14 @@ const jsonResponse = (body: unknown, status = 200) =>
 const simulationInput = {
   faceAmount: "1000.00",
   faceCurrency: "BRL",
-  productType: "INVOICE",
+  productType: "MERCANTILE_INVOICE",
   dueDate: "2030-02-15",
   settlementCurrency: "BRL",
-};
+} as const;
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  localStorage.clear();
 });
 
 describe("API client error contract", () => {
@@ -88,6 +90,63 @@ describe("API client error contract", () => {
       }),
     );
   });
+
+  it("uses a status fallback when an error response is not JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(new Response("upstream unavailable", { status: 502 })),
+      ),
+    );
+
+    await expect(api.previewSettlement(["quote-1"], "token")).rejects.toEqual(
+      expect.objectContaining({
+        status: 502,
+        message: "Request failed (502).",
+      }),
+    );
+  });
+
+  it("clears the shared session and announces expiry for any 401 response", async () => {
+    localStorage.setItem(
+      "srm-session",
+      JSON.stringify({
+        accessToken: "token",
+        expiresAt: Date.now() + 60_000,
+        email: "operator@srm.local",
+        roles: ["OPERATOR"],
+      }),
+    );
+    const expired = vi.fn();
+    window.addEventListener("srm:session-expired", expired, { once: true });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        jsonResponse(
+          {
+            status: 401,
+            code: "AUTHENTICATION_REQUIRED",
+            detail: "Authentication is required.",
+          },
+          401,
+        ),
+      ),
+    );
+
+    await expect(
+      api.previewSettlement(["quote-1"], "token"),
+    ).rejects.toBeInstanceOf(ApiError);
+
+    expect(localStorage.getItem("srm-session")).toBeNull();
+    expect(expired).toHaveBeenCalledOnce();
+  });
+});
+
+it("discards malformed persisted session JSON", () => {
+  localStorage.setItem("srm-session", "{malformed");
+
+  expect(loadSession()).toBeUndefined();
+  expect(localStorage.getItem("srm-session")).toBeNull();
 });
 
 it("returns a session after loading the authenticated actor profile", async () => {

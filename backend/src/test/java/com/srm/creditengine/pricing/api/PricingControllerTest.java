@@ -63,4 +63,14 @@ class PricingControllerTest {
                 .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
         verifyNoInteractions(pricing);
     }
+
+    @Test
+    void PRICE_005_rejectsFaceAmountWithMoreThanFifteenIntegerDigits() throws Exception {
+        mvc.perform(post("/api/v1/pricing-simulations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"faceAmount\":\"1000000000000000.0000\",\"faceCurrency\":\"BRL\",\"productType\":\"MERCANTILE_INVOICE\",\"dueDate\":\"2030-02-14\",\"settlementCurrency\":\"BRL\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_FAILED"));
+        verifyNoInteractions(pricing);
+    }
 }

@@ -1,9 +1,12 @@
 package com.srm.creditengine.reporting.application;
 
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
@@ -28,6 +31,9 @@ class JdbcSettlementStatementServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("from must be before to");
         assertThatThrownBy(() -> service.query(filter(null, null, -1, 50)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("page and size are out of bounds");
+        assertThatThrownBy(() -> service.query(filter(null, null, 0, 0)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("page and size are out of bounds");
         assertThatThrownBy(() -> service.query(filter(null, null, 0, 101)))
@@ -65,6 +71,53 @@ class JdbcSettlementStatementServiceTest {
         assertThat(result.page()).isEqualTo(1);
         assertThat(result.size()).isEqualTo(2);
         assertThat(result.hasNext()).isTrue();
+    }
+
+    @Test
+    void permitsOnlyTheDocumentedTenThousandRowOffsetWindow() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        when(jdbc.query(any(String.class), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(List.of());
+        JdbcSettlementStatementService service = service(jdbc);
+
+        assertThat(service.query(filter(null, null, 10_000, 1)).entries()).isEmpty();
+        assertThatThrownBy(() -> service.query(filter(null, null, 10_001, 1)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("page offset is out of bounds");
+    }
+
+    @Test
+    void reportTimerCompletesAfterAQuery() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        FinancialTelemetry telemetry = mock(FinancialTelemetry.class);
+        when(jdbc.query(any(String.class), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(List.of());
+        JdbcSettlementStatementService service =
+                new JdbcSettlementStatementService(jdbc, telemetry);
+
+        service.query(filter(null, null, 0, 50));
+
+        verify(telemetry).startReport();
+        verify(telemetry).completeReport(org.mockito.ArgumentMatchers.isNull());
+    }
+
+    @Test
+    void rejectsUnsupportedClosedDomainFiltersBeforeQuerying() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        JdbcSettlementStatementService service = service(jdbc);
+
+        assertThatThrownBy(() -> service.query(new SettlementStatementService.Filter(
+                        null, null, null, "EUR", null, null, 0, 50)))
+                .isInstanceOf(UnsupportedCurrencyException.class);
+        assertThatThrownBy(() -> service.query(new SettlementStatementService.Filter(
+                        null, null, null, null, "EUR", null, 0, 50)))
+                .isInstanceOf(UnsupportedCurrencyException.class);
+        assertThatThrownBy(() -> service.query(new SettlementStatementService.Filter(
+                        null, null, null, null, null, "BOGUS", 0, 50)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Unsupported product type");
+
+        verifyNoInteractions(jdbc);
     }
 
     private static JdbcSettlementStatementService service(JdbcTemplate jdbc) {

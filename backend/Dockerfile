@@ -1,12 +1,16 @@
-FROM gradle:9.6.1-jdk21 AS build
+FROM gradle:9.6.1-jdk21@sha256:9795f8c9009a7de6adea522b907c9aadc38fe7c313874112c2b696c8e70b0303 AS build
 WORKDIR /workspace
 COPY backend/gradle gradle
 COPY backend/gradlew backend/build.gradle backend/settings.gradle ./
 COPY backend/src src
 RUN gradle --no-daemon --console=plain --info bootJar
 
-FROM eclipse-temurin:21-jre-alpine
-RUN apk upgrade --no-cache && addgroup -S srm && adduser -S srm -G srm
+FROM eclipse-temurin:21-jre-alpine@sha256:3f08b13888f595cc49edabea7250ba69499ba25602b267da591720769400e08c
+RUN apk add --no-cache --upgrade \
+    libexpat=2.8.2-r0 \
+    p11-kit=0.26.2-r0 \
+    p11-kit-trust=0.26.2-r0
+RUN addgroup -S srm && adduser -S srm -G srm
 WORKDIR /app
 COPY --from=build /workspace/build/libs/*.jar /app/app.jar
 USER srm

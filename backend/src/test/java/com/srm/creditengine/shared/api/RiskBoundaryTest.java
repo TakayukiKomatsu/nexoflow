@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.srm.creditengine.currency.SupportedCurrency;
-import com.srm.creditengine.currency.application.UnsupportedCurrencyException;
+import com.srm.creditengine.currency.domain.SupportedCurrency;
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
 import com.srm.creditengine.identity.application.LoginRateLimiter;
 import java.time.Clock;
 import java.time.Instant;
@@ -41,12 +41,108 @@ class RiskBoundaryTest {
     void startsANewLoginWindowAtTheExactBoundary() {
         MutableClock clock = new MutableClock(Instant.parse("2030-01-15T12:00:00Z"));
         LoginRateLimiter limiter = new LoginRateLimiter(clock);
-        for (int attempt = 0; attempt < 5; attempt++) limiter.check("operator@srm.local");
-        assertThatThrownBy(() -> limiter.check("operator@srm.local"))
+        for (int attempt = 0; attempt < 5; attempt++) {
+            limiter.check("operator@srm.local", "192.0.2.10");
+        }
+        assertThatThrownBy(() -> limiter.check("operator@srm.local", "192.0.2.10"))
                 .isInstanceOf(LoginRateLimitedException.class);
 
         clock.advanceSeconds(60);
-        limiter.check("operator@srm.local");
+        limiter.check("operator@srm.local", "192.0.2.10");
+    }
+
+    @Test
+    void loginFailuresForOneAccountShareABudgetAcrossSourceAddresses() {
+        MutableClock clock = new MutableClock(Instant.parse("2030-01-15T12:00:00Z"));
+        LoginRateLimiter limiter = new LoginRateLimiter(clock);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            limiter.check(" Operator@SRM.Local ", "192.0.2." + (10 + attempt));
+        }
+
+        assertThatThrownBy(() -> limiter.check("operator@srm.local", "198.51.100.20"))
+                .isInstanceOf(LoginRateLimitedException.class);
+    }
+
+    @Test
+    void loginFailuresFromOneSourceShareABudgetAcrossAccounts() {
+        MutableClock clock = new MutableClock(Instant.parse("2030-01-15T12:00:00Z"));
+        LoginRateLimiter limiter = new LoginRateLimiter(clock);
+        for (int attempt = 0; attempt < 20; attempt++) {
+            limiter.check("account-" + attempt + "@srm.local", " 192.0.2.20 ");
+        }
+
+        assertThatThrownBy(() -> limiter.check("next-account@srm.local", "192.0.2.20"))
+                .isInstanceOf(LoginRateLimitedException.class);
+
+        clock.advanceSeconds(60);
+        limiter.check("recovered-account@srm.local", "192.0.2.20");
+    }
+
+    @Test
+    void capacityPressureCannotResetAHotBlockedAccount() {
+        MutableClock clock = new MutableClock(Instant.parse("2030-01-15T12:00:00Z"));
+        LoginRateLimiter limiter = new LoginRateLimiter(clock, 6);
+        for (int attempt = 0; attempt < 5; attempt++) {
+            limiter.check("target@srm.local", "192.0.2." + (10 + attempt));
+        }
+        assertThatThrownBy(() -> limiter.check("target@srm.local", "198.51.100.20"))
+                .isInstanceOf(LoginRateLimitedException.class);
+
+        for (int account = 0; account < 5; account++) {
+            limiter.check("filler-" + account + "@srm.local", "192.0.2.10");
+        }
+        assertThatThrownBy(() -> limiter.check("overflow@srm.local", "192.0.2.10"))
+                .isInstanceOf(LoginRateLimitedException.class);
+
+        assertThatThrownBy(() -> limiter.check("target@srm.local", "192.0.2.11"))
+                .isInstanceOf(LoginRateLimitedException.class);
+    }
+
+    @Test
+    void successfulLoginClearsTheAccountWithoutErasingOtherSourceFailures() {
+        MutableClock clock = new MutableClock(Instant.parse("2030-01-15T12:00:00Z"));
+        LoginRateLimiter limiter = new LoginRateLimiter(clock);
+        for (int attempt = 0; attempt < 19; attempt++) {
+            limiter.check("other-" + attempt + "@srm.local", "192.0.2.10");
+        }
+        limiter.check("operator@srm.local", "192.0.2.10");
+
+        limiter.successful(" Operator@SRM.Local ", " 192.0.2.10 ");
+
+        limiter.check("operator@srm.local", "192.0.2.10");
+        assertThatThrownBy(() -> limiter.check("next-account@srm.local", "192.0.2.10"))
+                .isInstanceOf(LoginRateLimitedException.class);
+    }
+
+    @Test
+    void loginLimiterRejectsNonPositiveCapacity() {
+        assertThatThrownBy(() -> new LoginRateLimiter(Clock.systemUTC(), 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("maxBuckets must be positive");
+    }
+
+    @Test
+    void loginLimiterCanonicalizesAbsentIdentityAndSourceValues() {
+        LoginRateLimiter limiter = new LoginRateLimiter(Clock.systemUTC());
+        for (int attempt = 0; attempt < 5; attempt++) {
+            limiter.check(null, attempt % 2 == 0 ? null : "  ");
+        }
+
+        assertThatThrownBy(() -> limiter.check(null, ""))
+                .isInstanceOf(LoginRateLimitedException.class);
+    }
+
+    @Test
+    void loginLimiterBoundsLongSourceIdentifiersBeforeBucketing() {
+        LoginRateLimiter limiter = new LoginRateLimiter(Clock.systemUTC());
+        String prefix = "X".repeat(64);
+        for (int attempt = 0; attempt < 20; attempt++) {
+            limiter.check("account-" + attempt + "@srm.local", prefix + attempt);
+        }
+
+        assertThatThrownBy(() ->
+                        limiter.check("next-account@srm.local", "x".repeat(64) + "other-suffix"))
+                .isInstanceOf(LoginRateLimitedException.class);
     }
 
     private static final class MutableClock extends Clock {

@@ -19,6 +19,7 @@ public class SafeOperationalLogger {
     private static final Pattern METHOD = Pattern.compile("[A-Z]{3,16}");
     private static final Pattern ROUTE = Pattern.compile("[/A-Za-z0-9_{}*.-]{1,160}");
     private static final Pattern CORRELATION = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._-]{0,63}");
+    private static final Pattern ERROR_TYPE = Pattern.compile("[A-Za-z0-9_$]{1,100}");
 
     public void requestCompleted(HttpServletRequest request, int status) {
         LOG.atInfo().addKeyValue("event", "HTTP_REQUEST_COMPLETED")
@@ -35,7 +36,19 @@ public class SafeOperationalLogger {
         LOG.atWarn().addKeyValue("event", "FINANCIAL_CONFLICT")
                 .addKeyValue("actor_role", role)
                 .addKeyValue("outcome", "CONFLICT")
+                .addKeyValue("correlation_id", safeCorrelationId(MDC.get("correlationId")))
                 .log("FINANCIAL_CONFLICT");
+    }
+
+    public void unexpectedFailure(Throwable failure) {
+        String simpleName = failure == null ? null : failure.getClass().getSimpleName();
+        String errorType = simpleName != null && ERROR_TYPE.matcher(simpleName).matches()
+                ? simpleName
+                : "UNKNOWN";
+        LOG.atError().addKeyValue("event", "UNEXPECTED_API_FAILURE")
+                .addKeyValue("error_type", errorType)
+                .addKeyValue("correlation_id", safeCorrelationId(MDC.get("correlationId")))
+                .log("UNEXPECTED_API_FAILURE");
     }
 
     private static String actorRole() {

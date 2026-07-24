@@ -5,11 +5,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.srm.creditengine.assignor.application.AssignorService;
+import com.srm.creditengine.audit.infrastructure.JdbcAuditEventStore;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
-import com.srm.creditengine.pricing.PricingStrategyRegistry;
+import com.srm.creditengine.pricing.infrastructure.JdbcPricingQuoteRepository;
+import com.srm.creditengine.pricing.infrastructure.JdbcPricingAuditRecorder;
+import com.srm.creditengine.pricing.infrastructure.JdbcReceivableQuoteReader;
+import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import com.srm.creditengine.receivable.application.ReceivableService;
 import java.math.BigDecimal;
 import java.time.*;
@@ -21,6 +25,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.slf4j.MDC;
 
 @AutoConfigureMockMvc(addFilters = false)
 @SpringBootTest(properties = "srm.clock.fixed-instant=2030-01-15T12:00:00Z")
@@ -58,11 +63,18 @@ class PricingQuoteSnapshotTest {
                 "operator@srm.local"));
 
         PricingService pricedService = serviceAt(PRICED_AT);
-        var created = pricedService.createQuote(receivableId, "BRL", "operator@srm.local");
+        PricingService.Quote created;
+        MDC.put("correlationId", "quote-audit-005");
+        try {
+            created = pricedService.createQuote(receivableId, "BRL", "operator@srm.local");
+        } finally {
+            MDC.remove("correlationId");
+        }
         rates.recordProductSpread(
                 "MERCANTILE_INVOICE",
                 new BigDecimal("0.020"),
-                Instant.parse("2030-01-15T12:01:00Z"));
+                Instant.parse("2030-01-15T12:01:00Z"),
+                "admin@srm.local");
 
         var immediatelyBeforeExpiry =
                 serviceAt(created.expiresAt().minusNanos(1)).getQuote(created.id());
@@ -89,6 +101,18 @@ class PricingQuoteSnapshotTest {
         assertThat(immediatelyBeforeExpiry.status()).isEqualTo("ACTIVE");
         assertThat(exactlyAtExpiry.status()).isEqualTo("EXPIRED");
         assertThat(created.expiresAt()).isEqualTo(Instant.parse("2030-01-15T12:15:00Z"));
+        var audit = jdbc.queryForMap(
+                "select actor,action,target_type,correlation_id,safe_metadata::text as safe_metadata "
+                        + "from audit_events where target_id=?",
+                created.id());
+        assertThat(audit)
+                .containsEntry("ACTOR", "operator@srm.local")
+                .containsEntry("ACTION", "QUOTE_CREATED")
+                .containsEntry("TARGET_TYPE", "PRICING_QUOTE")
+                .containsEntry("CORRELATION_ID", "quote-audit-005");
+        assertThat(String.valueOf(audit.get("SAFE_METADATA")))
+                .contains("MERCANTILE_INVOICE", "BRL")
+                .doesNotContain("1000.00");
     }
 
     private PricingService serviceAt(Instant instant) {
@@ -96,9 +120,11 @@ class PricingQuoteSnapshotTest {
                 rates,
                 currency,
                 strategies,
-                receivables,
-                jdbc,
-                Clock.fixed(instant, ZoneOffset.UTC));
+                new JdbcPricingQuoteRepository(jdbc),
+                new JdbcReceivableQuoteReader(jdbc),
+                Clock.fixed(instant, ZoneOffset.UTC),
+                new FinancialTelemetry(io.micrometer.core.instrument.Metrics.globalRegistry),
+                new JdbcPricingAuditRecorder(new JdbcAuditEventStore(jdbc), objectMapper));
     }
 
     private static List<String> financialStrings(PricingService.Breakdown breakdown) {

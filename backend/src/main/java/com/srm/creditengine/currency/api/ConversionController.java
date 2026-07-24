@@ -1,7 +1,9 @@
 package com.srm.creditengine.currency.api;
 
 import com.srm.creditengine.currency.application.CurrencyService;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Pattern;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,5 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 class ConversionController {
     private final CurrencyService currency;
     ConversionController(CurrencyService currency) { this.currency = currency; }
-    @GetMapping CurrencyService.Conversion convert(@RequestParam String base, @RequestParam String quote, @RequestParam @DecimalMin(value="0", inclusive=false) BigDecimal amount, @RequestParam Instant at) { return currency.resolveConversion(base, quote, amount, at); }
+    @GetMapping
+    CurrencyApiResponse.Conversion convert(
+            @RequestParam @Schema(allowableValues = {"BRL", "USD"}) String base,
+            @RequestParam @Schema(allowableValues = {"BRL", "USD"}) String quote,
+            @RequestParam @DecimalMin(value="0", inclusive=false) @Pattern(regexp = "\\d+(?:\\.\\d+)?") String amount,
+            @RequestParam Instant at) {
+        return CurrencyApiResponse.conversion(
+                currency.resolveConversion(base, quote, new BigDecimal(amount), at));
+    }
 }

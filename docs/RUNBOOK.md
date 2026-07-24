@@ -22,16 +22,44 @@ docker compose down -v --remove-orphans
 
 ### Native (backend + frontend processes)
 
-Prerequisites: Java 21, Node 26, and a reachable PostgreSQL instance.
+Prerequisites: Java 21, Node 26 with npm, and a reachable PostgreSQL 16 instance
+with database `srm_credit_engine` already created. Use two terminals because
+`bootRun` remains in the foreground.
 
 ```bash
 cp .env.example .env
+npm --prefix frontend ci
 set -a; source .env; set +a
 ./scripts/with-java21.sh ./backend/gradlew -p backend bootRun
+# In a second terminal:
+set -a; source .env; set +a
 npm --prefix frontend run dev
 ```
 
-Required environment variables (see `.env.example`): `SRM_DB_URL`, `SRM_DB_USERNAME`, `SRM_DB_PASSWORD`, `SRM_JWT_SECRET` (≥32 bytes). With `SPRING_PROFILES_ACTIVE=dev`, the `SRM_DEV_OPERATOR_*` and `SRM_DEV_ADMIN_*` pairs independently seed local `OPERATOR` and `ADMIN` users through `DevelopmentOperatorSeeder` (`backend/src/main/java/com/srm/creditengine/identity/infrastructure/DevelopmentOperatorSeeder.java`). A blank pair is skipped independently. The seeder never runs outside `dev`; `test` and production profiles seed no credentials.
+Required environment variables (see `.env.example`): `SRM_DB_URL`, `SRM_DB_USERNAME`, `SRM_DB_PASSWORD`, `SRM_JWT_SECRET` (≥32 random bytes). With `SPRING_PROFILES_ACTIVE=dev`, the `SRM_DEV_OPERATOR_*` and `SRM_DEV_ADMIN_*` pairs independently seed local `OPERATOR` and `ADMIN` users through `DevelopmentOperatorSeeder` (`backend/src/main/java/com/srm/creditengine/identity/infrastructure/DevelopmentOperatorSeeder.java`). A blank pair is skipped independently. The seeder never runs outside `dev`; `test` and production profiles seed no credentials. `VITE_BACKEND_ORIGIN` defaults to `http://127.0.0.1:8080` and is used only by the native Vite proxy; Compose routes `/api` through nginx.
+
+### Upgrading a V1–V22 database through V23
+
+V1–V22 stored application `Instant` values as PostgreSQL `timestamp without
+time zone`, using the legacy JVM/default zone as the wall-time encoding. Before
+the first V23 startup:
+
+1. Stop all writers, take a recoverable backup, and reserve a maintenance
+   window. V23 changes sixteen timestamp column types with heavyweight table
+   locks and may rewrite populated tables; it is not an online rolling upgrade.
+2. Identify the single IANA zone used by the legacy application writers. V23
+   selects `-Dsrm.migration.v23.legacy-time-zone=<zone>` first,
+   `SRM_MIGRATION_V23_LEGACY_TIME_ZONE=<zone>` second, and the upgrade JVM
+   default last. Set an override whenever the upgrade host's zone differs from
+   the legacy writers, for example
+   `SRM_MIGRATION_V23_LEGACY_TIME_ZONE=America/Sao_Paulo`.
+3. Do not run V23 over rows written in multiple legacy zones. Their provenance
+   is ambiguous and needs an explicit reconciliation migration. An invalid or
+   PostgreSQL-unsupported override fails migration rather than falling back.
+
+The six deterministic reference-rate rows with Flyway-owned stable IDs retain
+their authored UTC literals. After V23, all persisted instants use
+`timestamp with time zone` and no longer depend on the session zone.
 
 ## 2. Verification suite
 
@@ -39,20 +67,21 @@ Run in this order; each target maps directly to a `Makefile` recipe.
 
 | Command | What it runs or proves | Evidence |
 | --- | --- | --- |
-| `make verify-fast` | Hook contracts, backend/frontend units, frontend quality, architecture docs, and CI workflow validation | Backend/frontend test reports |
+| `make verify-fast` | Hook contracts, backend/frontend units, frontend quality, architecture docs, CI workflow validation, and the mutation-sensitive reporting-evidence contract | Backend/frontend test reports and reporting contract output |
 | `make test-runtime` | Runtime/API/migration tests plus PostgreSQL Testcontainers integrations, including settlement concurrency and rollback | `backend/build/reports/tests/` and `backend/build/reports/tests/integrationTest/` |
 | `make verify` | `verify-fast` plus credential/identifier log-redaction checks | Command result |
 | `make build` | Backend Gradle build and frontend production build | `backend/build/`, `frontend/dist/` |
 | `make verify-compose` | Clean Compose lifecycle: full-stack smoke, deterministic fixtures, PostgreSQL readiness loss/recovery, and authenticated bounded metrics inspection | Command result; stack is removed on exit |
-| `make test-api-features` | Ten executable Cucumber scenarios against Spring and PostgreSQL Testcontainers | `backend/build/reports/cucumber.json`, `backend/build/reports/cucumber.html` |
+| `make test-api-features` | Twelve executable Cucumber scenarios against Spring and PostgreSQL Testcontainers | `backend/build/reports/cucumber.json`, `backend/build/reports/cucumber.html` |
 | `make test-ui-features` | Playwright E2E-001 against a real browser, backend, and PostgreSQL | `frontend/playwright-report/`, `frontend/test-results/` |
 | `make e2e-fixed` | Deterministic fixture-backed browser path | Playwright report and Compose output |
-| `make explain-statements-representative` | PostgreSQL 16 representative 10,000-row statement query plan; not a production-scale benchmark | `docs/evidence/reporting-explain.txt` |
+| `make explain-statements-representative` | Boots the real backend/Flyway chain, seeds 10,000 representative rows, and runs selective assignor, asset-currency, settlement-currency, product-type, and combined plans from the production SQL template; not a production-scale benchmark | `docs/evidence/reporting-explain.txt` |
 | `make license-check` | Backend and frontend production dependency allowlists | `backend/build/reports/dependency-license/`, `frontend/license-report.json` |
 | `make security-scan` | Full-history/content Gitleaks; Trivy filesystem, secrets, and runtime images; immutable image digests; CycloneDX SBOM; license gate | `build/security/` |
 | `make validate-docs` | Links, required docs, Mermaid rendering, migration/ER consistency, OpenAPI reachability, and prohibited-claim checks | Command result and rendered `backend/build/mermaid/` |
 | `make validate-traceability` | Every stable SDD scenario ID resolves to an exact matrix row and executable artifact | Command result |
 | `make test-crisis-evidence` | Disposable local regression/revert proof without touching publication branches | Temporary clone output |
+| `make test-local-collaboration-evidence` | Remote-free local PR description/ref, real interactive autosquash, range-diff, review checks, and fast-forward proof | Disposable clone output |
 | `make release-check` | Aggregate of local quality, log-redaction, build, runtime, acceptance, performance-evidence, security, docs, traceability, and crisis gates | All evidence above |
 
 Docker-dependent targets exit with explicit `BLOCKED` rather than a false pass when Docker is unavailable. CodeQL is a separate pinned GitHub Actions job; it is not represented as a local scan.
@@ -102,7 +131,7 @@ Gates 1–5 have executable local or CI evidence. Cucumber covers the stable bac
 - **Secrets scan / pre-commit hook rejects a commit**: a fixture or file matched a secret pattern. A fake-secret fixture must be unmistakably non-live and explicitly allowlisted by exact path/reason; do not disable the hook.
 - **`make test-api-features` failure**: inspect `backend/build/reports/cucumber.json` or `.html` and the matching stable scenario ID in `backend/src/integrationTest/resources/features/srm_acceptance.feature`.
 - **`make test-ui-features` failure**: inspect `frontend/playwright-report/` and `frontend/test-results/`; Playwright startup or cleanup failures are failures, not skipped evidence.
-- **Representative EXPLAIN failure**: inspect `docs/evidence/reporting-explain.txt` only after a successful current run. The 10,000-row artifact demonstrates the native-SQL read model; PostgreSQL may legitimately choose sequential scans rather than an index scan, and it is not production-capacity proof.
+- **Representative EXPLAIN failure**: inspect the command output before the artifact. The gate fails if the real backend does not apply every repository Flyway migration, a current reporting index is absent, the shared SQL-template markers drift, or any assignor/asset-currency/settlement-currency/product-type case is empty or non-selective. Inspect `docs/evidence/reporting-explain.txt` only after a successful current run. PostgreSQL may legitimately choose sequential scans, and this remains query-shape—not production-capacity—proof.
 - **`make security-scan` failure**: generated reports are under `build/security/`. Every secret finding and every HIGH/CRITICAL vulnerability with a published fix fails the gate. Any accepted unfixed CVE requires a specific, owned, expiring `.trivyignore.yaml` entry; blanket `ignore-unfixed` policy is forbidden.
 - **Documentation or traceability failure**: run `make validate-docs` and `make validate-traceability` separately. Fix the source, path, scenario mapping, or diagram; do not weaken the validator.
 - **`make release-check` failure**: the aggregate stops on the first failed or blocked sub-gate. A local aggregate does not execute or authorize CodeQL, a remote push, pull request, tag, or release.

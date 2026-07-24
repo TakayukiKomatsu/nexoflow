@@ -28,6 +28,7 @@ for expected in \
   'permissions:' \
   'contents: read' \
   'make verify-fast' \
+  'make test-log-redaction' \
   'make build' \
   'make test-runtime' \
   'make verify-compose' \
@@ -36,6 +37,8 @@ for expected in \
   'make test-ui-features' \
   'make validate-docs' \
   'make validate-traceability' \
+  'make validate-frontend-authority' \
+  'make validate-frontend-api-contract' \
   'make test-crisis-evidence' \
   'make security-scan' \
   'make explain-statements-representative' \
@@ -60,13 +63,35 @@ for expected in \
   fi
 done
 
+# These security/financial-authority gates must be real single-line workflow
+# commands, not comments, step names, or documentation strings.
+for required_command in \
+  'make test-log-redaction' \
+  'make validate-frontend-authority' \
+  'make validate-frontend-api-contract'; do
+  command_count="$(grep -Ec "^[[:space:]]+run:[[:space:]]+${required_command}[[:space:]]*$" "$workflow")"
+  if [[ "$command_count" -ne 1 ]]; then
+    echo "CI must execute exactly one '${required_command}' run step (found $command_count)" >&2
+    exit 1
+  fi
+done
+
+if grep -Eq '^[[:space:]]+continue-on-error:[[:space:]]+true' "$workflow"; then
+  echo "required CI gates must not be globally weakened with continue-on-error" >&2
+  exit 1
+fi
+
 # ── Makefile must define every required target ────────────────────────────────
 for target in \
   'test-api-features:' \
   'test-ui-features:' \
   'e2e-fixed:' \
   'security-scan:' \
+  'test-log-redaction:' \
+  'test-reporting-evidence-contract:' \
   'validate-docs:' \
+  'validate-frontend-authority:' \
+  'validate-frontend-api-contract:' \
   'validate-traceability:' \
   'test-crisis-evidence:' \
   'release-check:' \
@@ -82,6 +107,12 @@ for target in \
   fi
 done
 
+verify_fast_deps="$(grep '^verify-fast:' "$makefile" | head -1)"
+if ! printf '%s' "$verify_fast_deps" | grep -qF 'test-reporting-evidence-contract'; then
+  echo "verify-fast target must include the mutation-sensitive reporting evidence contract" >&2
+  exit 1
+fi
+
 # ── release-check must aggregate all required sub-targets ─────────────────────
 release_line="$(grep -n 'release-check:' "$makefile" | head -1)"
 release_deps="$(grep '^release-check:' "$makefile" | head -1)"
@@ -95,6 +126,8 @@ for dep in \
   'explain-statements-representative' \
   'security-scan' \
   'validate-docs' \
+  'validate-frontend-authority' \
+  'validate-frontend-api-contract' \
   'validate-traceability' \
   'test-crisis-evidence'; do
   if ! printf '%s' "$release_deps" | grep -qF "$dep"; then
@@ -112,3 +145,4 @@ echo "CI-002 passed: all Task4 Make targets are defined and invoked in the CI wo
 echo "CI-003 passed: release-check aggregates all required sub-targets"
 echo "CI-004 passed: ignore-unfixed broad policy is absent — per-CVE .trivyignore.yaml entries required"
 echo "CI-005 passed: Compose verification includes authenticated observability inspection"
+echo "CI-006 passed: log-redaction and frontend authority/contract gates are executable fail-closed steps"

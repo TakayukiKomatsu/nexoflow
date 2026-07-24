@@ -162,6 +162,7 @@ public class ApiSteps {
                 if (endpoint.allowedRoles().contains(role)) {
                     assertThat(status)
                             .as("%s must be authorized for %s %s", role, endpoint.method(), endpoint.path())
+                            .isBetween(200, 499)
                             .isNotIn(401, 403);
                 } else {
                     assertThat(status)
@@ -212,7 +213,7 @@ public class ApiSteps {
     public void adminRecordsRate(String pair, String rate, String observedAt, String source) {
         String[] parts = pair.split("/");
         String body = String.format(
-                "{\"base\":\"%s\",\"quote\":\"%s\",\"rate\":%s,\"source\":\"%s\",\"observedAt\":\"%s\"}",
+                "{\"base\":\"%s\",\"quote\":\"%s\",\"rate\":\"%s\",\"source\":\"%s\",\"observedAt\":\"%s\"}",
                 parts[0], parts[1], rate, source, observedAt);
         send(HttpMethod.POST, "/api/v1/exchange-rates", body, state.adminToken);
     }

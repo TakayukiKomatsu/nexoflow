@@ -2,7 +2,7 @@ name: srm-credit-engine
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
     environment:
       POSTGRES_DB: srm_credit_engine
       POSTGRES_USER: srm
@@ -25,7 +25,7 @@ services:
       retries: 20
 
   mock-fx:
-    image: nginxinc/nginx-unprivileged:1.29-alpine
+    image: nginxinc/nginx-unprivileged:1.29-alpine@sha256:0c79d56aee561a1d81c63f00eee5fb5fe29279560cdc55e91425133104c7fbe6
     read_only: true
     tmpfs: [/tmp, /var/cache/nginx, /var/run]
     security_opt: [no-new-privileges:true]
@@ -56,6 +56,7 @@ services:
       SRM_MOCK_FX_BASE_URL: http://mock-fx:8080
       SPRING_PROFILES_ACTIVE: dev
       SRM_CLOCK_FIXED_INSTANT: "2030-01-15T12:00:00Z"
+      SRM_MIGRATION_V23_LEGACY_TIME_ZONE: ${SRM_MIGRATION_V23_LEGACY_TIME_ZONE:-}
       SRM_DEV_OPERATOR_EMAIL: ${SRM_DEV_OPERATOR_EMAIL:-operator@srm.local}
       SRM_DEV_OPERATOR_PASSWORD: ${SRM_DEV_OPERATOR_PASSWORD:-local-review-only-not-a-real-password}
       SRM_DEV_ADMIN_EMAIL: ${SRM_DEV_ADMIN_EMAIL:-admin@srm.local}
@@ -117,6 +118,7 @@ services:
       SRM_DB_USERNAME: srm
       SRM_DB_PASSWORD: ${POSTGRES_PASSWORD:-srm-local-only}
       SRM_JWT_SECRET: ${SRM_JWT_SECRET:-srm-local-only-secret-must-have-at-least-32-bytes}
+      SRM_MIGRATION_V23_LEGACY_TIME_ZONE: ${SRM_MIGRATION_V23_LEGACY_TIME_ZONE:-}
     networks: [srm-internal]
     depends_on:
       postgres:
@@ -133,6 +135,7 @@ services:
       SRM_DB_USERNAME: srm
       SRM_DB_PASSWORD: ${POSTGRES_PASSWORD:-srm-local-only}
       SRM_JWT_SECRET: ${SRM_JWT_SECRET:-srm-local-only-secret-must-have-at-least-32-bytes}
+      SRM_MIGRATION_V23_LEGACY_TIME_ZONE: ${SRM_MIGRATION_V23_LEGACY_TIME_ZONE:-}
     networks: [srm-internal]
     depends_on:
       backend:
@@ -140,7 +143,7 @@ services:
 
 
   smoke:
-    image: curlimages/curl:8.16.0
+    image: curlimages/curl:8.16.0@sha256:463eaf6072688fe96ac64fa623fe73e1dbe25d8ad6c34404a669ad3ce1f104b6
     entrypoint: ["/bin/sh", "/smoke/compose-smoke.sh"]
     read_only: true
     security_opt: [no-new-privileges:true]

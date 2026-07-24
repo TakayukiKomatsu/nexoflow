@@ -1,5 +1,8 @@
 package com.srm.creditengine.settlement.application;
 
+import com.srm.creditengine.settlement.domain.AlreadySettledException;
+import com.srm.creditengine.settlement.domain.PricingQuoteExpiredException;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.startsWith;
@@ -7,6 +10,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.srm.creditengine.shared.runtime.FinancialTelemetry;
+import com.srm.creditengine.audit.infrastructure.JdbcAuditEventStore;
+import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
+import com.srm.creditengine.settlement.infrastructure.JdbcAuditEventRecorder;
+import com.srm.creditengine.settlement.infrastructure.JdbcIdempotencyRepository;
+import com.srm.creditengine.settlement.infrastructure.JdbcSettlementRepository;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.time.Clock;
@@ -28,7 +36,7 @@ class JdbcSettlementServiceTest {
     @Test
     void previewRejectsMissingAndDuplicateQuoteIdsBeforeQuerying() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
-        JdbcSettlementService service = service(jdbc);
+        SettlementService service = service(jdbc);
 
         assertThatThrownBy(() -> service.preview(null, "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -42,6 +50,18 @@ class JdbcSettlementServiceTest {
         assertThatThrownBy(() -> service.preview(java.util.Arrays.asList((UUID) null), "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Pricing quote IDs must be ordered and unique");
+        assertThatThrownBy(() -> service.preview(quoteIds(101), "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("At most 100 pricing quotes may be settled together");
+    }
+
+    @Test
+    void previewAcceptsTheExactBatchLimitBeforeLookingUpQuotes() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        stubQuotes(jdbc, List.of());
+
+        assertThatThrownBy(() -> service(jdbc).preview(quoteIds(100), "operator"))
+                .isInstanceOf(DomainResourceNotFoundException.class);
     }
 
     @Test
@@ -56,8 +76,8 @@ class JdbcSettlementServiceTest {
         JdbcTemplate missingJdbc = mock(JdbcTemplate.class);
         stubQuotes(missingJdbc, List.of());
         assertThatThrownBy(() -> service(missingJdbc).preview(List.of(QUOTE), "operator"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("One or more pricing quotes were not found");
+                .isInstanceOf(DomainResourceNotFoundException.class)
+                .hasMessage("The requested domain resource was not found.");
 
         UUID secondQuote = UUID.fromString("00000000-0000-0000-0000-000000000202");
         assertMixedBatchFailure(List.of(
@@ -69,8 +89,23 @@ class JdbcSettlementServiceTest {
     }
 
     @Test
+    void previewRejectsAnAggregateThatCannotFitThePersistedMoneyDomain() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UUID secondQuote = UUID.fromString("00000000-0000-0000-0000-000000000202");
+        stubQuotes(jdbc, List.of(
+                row(QUOTE, "ACTIVE", "REGISTERED", ASSIGNOR, "BRL", NOW.plusSeconds(60),
+                        new BigDecimal("999999999999999.0000")),
+                row(secondQuote, "ACTIVE", "REGISTERED", ASSIGNOR, "BRL", NOW.plusSeconds(60),
+                        new BigDecimal("999999999999999.0000"))));
+
+        assertThatThrownBy(() -> service(jdbc).preview(List.of(QUOTE, secondQuote), "operator"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Settlement total must be positive and fit within 15 integer digits");
+    }
+
+    @Test
     void getAndReverseRejectMissingRequiredIdentifiersAndReason() {
-        JdbcSettlementService service = service(mock(JdbcTemplate.class));
+        SettlementService service = service(mock(JdbcTemplate.class));
 
         assertThatThrownBy(() -> service.get(null))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -116,7 +151,7 @@ class JdbcSettlementServiceTest {
     void reversalAcceptsAWellFormedReasonUntilIdempotencyValidation() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         stubReversalIdempotency(jdbc, "different-hash");
-        JdbcSettlementService service = service(jdbc);
+        SettlementService service = service(jdbc);
 
         assertThatThrownBy(() -> service.reverse(QUOTE, null, "key", "operator"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -145,22 +180,30 @@ class JdbcSettlementServiceTest {
                 .hasMessage("Pricing quotes must have one assignor and settlement currency");
     }
 
-    private static JdbcSettlementService service(JdbcTemplate jdbc) {
-        return new JdbcSettlementService(
-                jdbc,
+    private static SettlementService service(JdbcTemplate jdbc) {
+        return new SettlementApplicationService(
+                new JdbcSettlementRepository(jdbc),
+                new JdbcIdempotencyRepository(jdbc),
+                new JdbcAuditEventRecorder(new JdbcAuditEventStore(jdbc)),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 mock(FinancialTelemetry.class));
     }
 
+    private static List<UUID> quoteIds(int count) {
+        return java.util.stream.IntStream.rangeClosed(1, count)
+                .mapToObj(index -> new UUID(0, index))
+                .toList();
+    }
+
     private static void stubIdempotency(JdbcTemplate jdbc, String hash) {
-        when(jdbc.query(startsWith("select id,request_hash,settlement_id,status"), any(RowMapper.class), any(Object[].class)))
+        when(jdbc.query(startsWith("select id,request_hash,settlement_id,reversal_id,status"), any(RowMapper.class), any(Object[].class)))
                 .thenAnswer(invocation -> map(
                         invocation.getArgument(1),
                         idempotencyResultSet(hash)));
     }
 
     private static void stubReversalIdempotency(JdbcTemplate jdbc, String hash) {
-        when(jdbc.query(startsWith("select id,request_hash,reversal_id,status"), any(RowMapper.class), any(Object[].class)))
+        when(jdbc.query(startsWith("select id,request_hash,settlement_id,reversal_id,status"), any(RowMapper.class), any(Object[].class)))
                 .thenAnswer(invocation -> map(
                         invocation.getArgument(1),
                         idempotencyResultSet(hash)));
@@ -175,7 +218,8 @@ class JdbcSettlementServiceTest {
         when(rs.getObject(1, UUID.class)).thenReturn(UUID.randomUUID());
         when(rs.getString(2)).thenReturn(hash);
         when(rs.getObject(3, UUID.class)).thenReturn(null);
-        when(rs.getString(4)).thenReturn("PROCESSING");
+        when(rs.getObject(4, UUID.class)).thenReturn(null);
+        when(rs.getString(5)).thenReturn("PROCESSING");
         return rs;
     }
 
@@ -225,16 +269,27 @@ class JdbcSettlementServiceTest {
     }
 
     private static QuoteRow row(UUID id, String quoteStatus, String receivableStatus, UUID assignor, String currency, Instant expiresAt) {
-        return new QuoteRow(id, UUID.fromString("00000000-0000-0000-0000-0000000003" + id.toString().substring(id.toString().length() - 2)), quoteStatus, receivableStatus, assignor, currency, expiresAt);
+        return row(id, quoteStatus, receivableStatus, assignor, currency, expiresAt, new BigDecimal("100.00"));
     }
 
-    private record QuoteRow(UUID id, UUID receivableId, String quoteStatus, String receivableStatus, UUID assignorId, String currency, Instant expiresAt) {
+    private static QuoteRow row(
+            UUID id,
+            String quoteStatus,
+            String receivableStatus,
+            UUID assignor,
+            String currency,
+            Instant expiresAt,
+            BigDecimal amount) {
+        return new QuoteRow(id, UUID.fromString("00000000-0000-0000-0000-0000000003" + id.toString().substring(id.toString().length() - 2)), quoteStatus, receivableStatus, assignor, currency, expiresAt, amount);
+    }
+
+    private record QuoteRow(UUID id, UUID receivableId, String quoteStatus, String receivableStatus, UUID assignorId, String currency, Instant expiresAt, BigDecimal amount) {
         ResultSet resultSet() throws Exception {
             ResultSet rs = mock(ResultSet.class);
             when(rs.getObject(1, UUID.class)).thenReturn(id);
             when(rs.getObject(2, UUID.class)).thenReturn(receivableId);
             when(rs.getString(3)).thenReturn(currency);
-            when(rs.getBigDecimal(4)).thenReturn(new BigDecimal("100.00"));
+            when(rs.getBigDecimal(4)).thenReturn(amount);
             when(rs.getTimestamp(5)).thenReturn(java.sql.Timestamp.from(expiresAt));
             when(rs.getString(6)).thenReturn(quoteStatus);
             when(rs.getObject(7, UUID.class)).thenReturn(assignorId);

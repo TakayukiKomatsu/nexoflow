@@ -27,7 +27,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
-@SpringBootTest(properties = "srm.clock.fixed-instant=2030-01-15T12:00:00Z")
+@SpringBootTest(properties = "srm.clock.fixed-instant=2030-01-15T12:00:00.123456789Z")
 class PricingQuotePostgresIntegrationTest {
     @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
@@ -47,6 +47,31 @@ class PricingQuotePostgresIntegrationTest {
     @Autowired ReceivableService receivables;
     @Autowired PricingService pricing;
     @Autowired JdbcTemplate jdbc;
+
+    @Test
+    void quoteCreationReturnsTheCanonicalPersistedResponse() {
+        UUID assignorId = UUID.randomUUID();
+        assignors.create(new AssignorService.CreateCommand(
+                assignorId,
+                "Canonical Quote Ltd",
+                "PGCANON" + assignorId.toString().substring(0, 8),
+                true,
+                "operator@srm.local"));
+        UUID receivableId = UUID.randomUUID();
+        receivables.register(new ReceivableService.RegisterCommand(
+                receivableId,
+                assignorId,
+                "MERCANTILE_INVOICE",
+                new BigDecimal("1000.00"),
+                "BRL",
+                LocalDate.parse("2030-01-01"),
+                LocalDate.parse("2030-02-14"),
+                "operator@srm.local"));
+
+        var created = pricing.createQuote(receivableId, "BRL", "operator@srm.local");
+
+        assertThat(created).isEqualTo(pricing.getQuote(created.id()));
+    }
 
     @Test
     void quoteRejectsEverySnapshotMutationAndDeleteButAllowsConsumption() {

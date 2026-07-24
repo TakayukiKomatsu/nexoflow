@@ -6,31 +6,51 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.srm.creditengine.currency.application.FxRateMissingException;
-import com.srm.creditengine.currency.application.FxRateStaleException;
-import com.srm.creditengine.currency.application.UnsupportedCurrencyException;
-import com.srm.creditengine.settlement.application.AlreadyReversedException;
-import com.srm.creditengine.settlement.application.AlreadySettledException;
+import com.srm.creditengine.currency.domain.FxRateMissingException;
+import com.srm.creditengine.currency.domain.FxRateStaleException;
+import com.srm.creditengine.currency.domain.UnsupportedCurrencyException;
+import com.srm.creditengine.settlement.domain.AlreadyReversedException;
+import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
+import com.srm.creditengine.settlement.application.ReversalIdempotencyKeyReusedException;
+import com.srm.creditengine.settlement.application.SettlementPricingQuoteExpiredException;
 import com.srm.creditengine.shared.api.DecimalString;
 import io.micrometer.core.instrument.MeterRegistry;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import jakarta.validation.constraints.NotBlank;
+import java.util.Map;
+import org.slf4j.LoggerFactory;
+import com.srm.creditengine.shared.runtime.SafeOperationalLogger;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(ApiErrorContractTest.CurrencyFailureController.class)
+@Import({
+        ApiErrorContractTest.CurrencyFailureController.class,
+        ApiErrorContractTest.RuntimeTestController.class,
+        ApiErrorContractTest.RuntimeTestSecurity.class
+})
 class ApiErrorContractTest {
     @Autowired
     private MockMvc mockMvc;
@@ -58,6 +78,39 @@ class ApiErrorContractTest {
     }
 
     @Test
+    void unexpectedFailureEmitsSafeCorrelatedServerLogWithoutExceptionMessage() throws Exception {
+        Logger logger = (Logger) LoggerFactory.getLogger(SafeOperationalLogger.class);
+        var appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            mockMvc.perform(get("/api/v1/runtime/failure")
+                            .header("X-Correlation-Id", "safe-server-error-001")
+                            .header("Idempotency-Key", "must-not-appear"))
+                    .andExpect(status().isInternalServerError());
+        } finally {
+            logger.detachAppender(appender);
+            appender.stop();
+        }
+
+        ILoggingEvent failure = appender.list.stream()
+                .filter(event -> event.getFormattedMessage().equals("UNEXPECTED_API_FAILURE"))
+                .findFirst()
+                .orElseThrow();
+        java.util.Map<String, String> fields = failure.getKeyValuePairs().stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        pair -> pair.key, pair -> String.valueOf(pair.value)));
+        String rendered = failure.getFormattedMessage() + failure.getKeyValuePairs();
+        org.assertj.core.api.Assertions.assertThat(fields)
+                .containsEntry("event", "UNEXPECTED_API_FAILURE")
+                .containsEntry("error_type", "IllegalStateException")
+                .containsEntry("correlation_id", "safe-server-error-001");
+        org.assertj.core.api.Assertions.assertThat(rendered)
+                .doesNotContain("database-password")
+                .doesNotContain("must-not-appear");
+    }
+
+    @Test
     void unknownApiPathUsesNotFoundProblem() throws Exception {
         mockMvc.perform(get("/api/v1/runtime/missing"))
                 .andExpect(status().isNotFound())
@@ -71,6 +124,34 @@ class ApiErrorContractTest {
                         .content("not-json"))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.code").value("UNSUPPORTED_MEDIA_TYPE"));
+    }
+
+    @Test
+    void unsupportedMethodUsesSemanticProblemAndPreservesCorrelationId() throws Exception {
+        mockMvc.perform(get("/api/v1/runtime/echo")
+                        .header("X-Correlation-Id", "method-not-allowed-001"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(405))
+                .andExpect(jsonPath("$.code").value("METHOD_NOT_ALLOWED"))
+                .andExpect(jsonPath("$.correlationId").value("method-not-allowed-001"))
+                .andExpect(jsonPath("$.detail")
+                        .value("The request method is not supported for this resource."));
+    }
+
+    @Test
+    void unacceptableResponseMediaTypeUsesSemanticProblemAndPreservesCorrelationId() throws Exception {
+        mockMvc.perform(get("/api/v1/runtime/validation")
+                        .queryParam("value", "accepted")
+                        .accept(MediaType.APPLICATION_XML)
+                        .header("X-Correlation-Id", "not-acceptable-001"))
+                .andExpect(status().isNotAcceptable())
+                .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(406))
+                .andExpect(jsonPath("$.code").value("NOT_ACCEPTABLE"))
+                .andExpect(jsonPath("$.correlationId").value("not-acceptable-001"))
+                .andExpect(jsonPath("$.detail")
+                        .value("The requested response media type is not available."));
     }
 
     @Test
@@ -111,6 +192,52 @@ class ApiErrorContractTest {
     @Test
     void reusedIdempotencyKeyRemainsADistinctConflict() throws Exception {
         assertConflict("/api/v1/runtime/currency-errors/idempotency-reused", "IDEMPOTENCY_KEY_REUSED");
+    }
+
+    @Test
+    void reversalIdempotencyReuseRecordsOnlyAReversalConflict() throws Exception {
+        double reversalBefore = counter(
+                "srm_reversal_outcomes_total", "result", "CONFLICT");
+        double settlementBefore = counter(
+                "srm_settlement_outcomes_total",
+                "currency", "UNKNOWN",
+                "result", "CONFLICT");
+
+        assertConflict(
+                "/api/v1/runtime/currency-errors/reversal-idempotency-reused",
+                "IDEMPOTENCY_KEY_REUSED");
+
+        org.assertj.core.api.Assertions.assertThat(counter(
+                        "srm_reversal_outcomes_total", "result", "CONFLICT"))
+                .isEqualTo(reversalBefore + 1);
+        org.assertj.core.api.Assertions.assertThat(counter(
+                        "srm_settlement_outcomes_total",
+                        "currency", "UNKNOWN",
+                        "result", "CONFLICT"))
+                .isEqualTo(settlementBefore);
+    }
+
+    @Test
+    void settlementQuoteExpiryRecordsASettlementConflict() throws Exception {
+        double before = counter(
+                "srm_settlement_outcomes_total",
+                "currency", "UNKNOWN",
+                "result", "CONFLICT");
+
+        assertConflict(
+                "/api/v1/runtime/currency-errors/settlement-quote-expired",
+                "PRICING_QUOTE_EXPIRED");
+
+        org.assertj.core.api.Assertions.assertThat(counter(
+                        "srm_settlement_outcomes_total",
+                        "currency", "UNKNOWN",
+                        "result", "CONFLICT"))
+                .isEqualTo(before + 1);
+    }
+
+    private double counter(String name, String... tags) {
+        var counter = meterRegistry.find(name).tags(tags).counter();
+        return counter == null ? 0 : counter.count();
     }
 
     @Test
@@ -188,6 +315,38 @@ class ApiErrorContractTest {
     }
 
     @RestController
+    @Validated
+    @RequestMapping("/api/v1/runtime")
+    static class RuntimeTestController {
+        @GetMapping(value = "/validation", produces = MediaType.APPLICATION_JSON_VALUE)
+        Map<String, String> validate(@RequestParam @NotBlank String value) {
+            return Map.of("value", value);
+        }
+
+        @GetMapping("/failure")
+        Map<String, String> fail() {
+            throw new IllegalStateException("database-password=must-not-leak");
+        }
+
+        @PostMapping(value = "/echo", consumes = MediaType.APPLICATION_JSON_VALUE)
+        Map<String, String> echo(@RequestBody Map<String, String> body) {
+            return body;
+        }
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class RuntimeTestSecurity {
+        @Bean
+        @Order(0)
+        SecurityFilterChain runtimeTestSecurityFilterChain(HttpSecurity http) throws Exception {
+            return http.securityMatcher("/api/v1/runtime/**")
+                    .csrf(csrf -> csrf.disable())
+                    .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                    .build();
+        }
+    }
+
+    @RestController
     @RequestMapping("/api/v1/runtime/currency-errors")
     static class CurrencyFailureController {
         @GetMapping("/unsupported")
@@ -208,6 +367,16 @@ class ApiErrorContractTest {
         @GetMapping("/idempotency-reused")
         void idempotencyReused() {
             throw new IdempotencyKeyReusedException();
+        }
+
+        @GetMapping("/reversal-idempotency-reused")
+        void reversalIdempotencyReused() {
+            throw new ReversalIdempotencyKeyReusedException();
+        }
+
+        @GetMapping("/settlement-quote-expired")
+        void settlementQuoteExpired() {
+            throw new SettlementPricingQuoteExpiredException();
         }
 
         @GetMapping("/already-settled")

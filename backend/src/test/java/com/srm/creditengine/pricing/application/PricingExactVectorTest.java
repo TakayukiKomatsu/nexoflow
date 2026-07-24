@@ -1,13 +1,15 @@
 package com.srm.creditengine.pricing.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
-import com.srm.creditengine.currency.FxConversionService;
+import com.srm.creditengine.currency.domain.FxConversionService;
 import com.srm.creditengine.currency.application.CurrencyService;
 import com.srm.creditengine.currency.application.ReferenceRateService;
-import com.srm.creditengine.pricing.ChequePricingStrategy;
-import com.srm.creditengine.pricing.InvoicePricingStrategy;
-import com.srm.creditengine.pricing.PricingStrategyRegistry;
+import com.srm.creditengine.pricing.domain.ChequePricingStrategy;
+import com.srm.creditengine.pricing.domain.InvoicePricingStrategy;
+import com.srm.creditengine.shared.runtime.FinancialTelemetry;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -72,6 +74,36 @@ class PricingExactVectorTest {
         assertThat(result.settlementAmount()).isEqualByComparingTo("10.00");
     }
 
+    @Test
+    void acceptedRateCeilingUsesTheIndependentThreeToTheThreeHalvesVector() {
+        var result = service("1.0000000000", Map.of("MERCANTILE_INVOICE", "1.0000000000"), identity())
+                .simulate(input("1000.00", "BRL", "MERCANTILE_INVOICE", "2030-03-01", "BRL"));
+
+        assertThat(result.termInMonths()).isEqualByComparingTo("1.5000000000");
+        assertThat(result.discountedAmount()).isEqualByComparingTo("192.4501");
+        assertThat(result.settlementAmount()).isEqualByComparingTo("192.45");
+    }
+
+    @Test
+    void rejectsAProspectivePricingTermBeyondTenYears() {
+        var pricing = service("0.010", Map.of("MERCANTILE_INVOICE", "0.015"), identity());
+
+        assertThatThrownBy(() -> pricing.simulate(
+                        input("1000.00", "BRL", "MERCANTILE_INVOICE", "2040-01-16", "BRL")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Pricing term must not exceed ten years");
+    }
+
+    @Test
+    void acceptsTheExactTenYearBoundaryWithAnIndependentLongTermVector() {
+        var result = service("0.010", Map.of("MERCANTILE_INVOICE", "0.015"), identity())
+                .simulate(input("1000.00", "BRL", "MERCANTILE_INVOICE", "2040-01-15", "BRL"));
+
+        assertThat(result.termInMonths()).isEqualByComparingTo("121.7333333333");
+        assertThat(result.discountedAmount()).isEqualByComparingTo("49.4935");
+        assertThat(result.settlementAmount()).isEqualByComparingTo("49.49");
+    }
+
     private static PricingService.Input input(
             String faceAmount, String faceCurrency, String productType, String dueDate, String settlementCurrency) {
         return new PricingService.Input(
@@ -82,29 +114,37 @@ class PricingExactVectorTest {
             String baseRate, Map<String, String> spreads, CurrencyService currency) {
         ReferenceRateService references = new ReferenceRateService() {
             @Override
-            public void recordBaseRate(String currency, BigDecimal rate, Instant effectiveAt) {}
+            public void recordBaseRate(
+                    String currency, BigDecimal rate, Instant effectiveAt, String actor) {}
 
             @Override
-            public void recordProductSpread(String productType, BigDecimal spread, Instant effectiveAt) {}
+            public void recordProductSpread(
+                    String productType, BigDecimal spread, Instant effectiveAt, String actor) {}
 
             @Override
             public List<BaseRate> baseRates(String currency, Instant effectiveAt) {
-                return List.of(new BaseRate(currency, new BigDecimal(baseRate), PRICED_AT));
+                return List.of(new BaseRate(
+                        currency, new BigDecimal(baseRate), PRICED_AT, "fixture"));
             }
 
             @Override
             public List<ProductSpread> productSpreads(String productType, Instant effectiveAt) {
                 return List.of(new ProductSpread(
-                        productType, new BigDecimal(spreads.get(productType)), PRICED_AT));
+                        productType,
+                        new BigDecimal(spreads.get(productType)),
+                        PRICED_AT,
+                        "fixture"));
             }
         };
         return new AuthoritativePricingService(
                 references,
                 currency,
                 new PricingStrategyRegistry(List.of(new InvoicePricingStrategy(), new ChequePricingStrategy())),
-                null,
-                null,
-                Clock.fixed(PRICED_AT, ZoneOffset.UTC));
+                mock(PricingQuoteRepository.class),
+                mock(ReceivableQuoteReader.class),
+                Clock.fixed(PRICED_AT, ZoneOffset.UTC),
+                mock(FinancialTelemetry.class),
+                mock(PricingAuditRecorder.class));
     }
 
     private static CurrencyService identity() {
