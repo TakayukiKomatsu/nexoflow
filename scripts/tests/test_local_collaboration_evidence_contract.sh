@@ -55,4 +55,16 @@ if grep -Eq 'https?://|github\.com|gitlab\.com' "$review_record"; then
   exit 1
 fi
 
+final_rebase_record="$repo_root/docs/evidence/final-remediation-rebase.md"
+test -s "$final_rebase_record" \
+  || { echo "final remediation rebase record is missing" >&2; exit 1; }
+grep -Fq 'Historical merge commits retained: `f7e0cf5`, `1b3f8a8`' "$final_rebase_record" \
+  || { echo "final rebase record omits historical merges" >&2; exit 1; }
+grep -Eq 'Pre-rebase head: `[0-9a-f]{40}`' "$final_rebase_record" \
+  || { echo "final rebase record lacks pre-rebase SHA" >&2; exit 1; }
+grep -Eq 'Post-rebase head: `[0-9a-f]{40}`' "$final_rebase_record" \
+  || { echo "final rebase record lacks post-rebase SHA" >&2; exit 1; }
+grep -Fq 'Range-diff: verified' "$final_rebase_record" \
+  || { echo "final rebase record lacks range-diff proof" >&2; exit 1; }
+
 echo "COLLAB-CONTRACT-001 passed: local PR and autosquash/rebase proof is executable and remote-free"

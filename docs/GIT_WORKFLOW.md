@@ -22,6 +22,19 @@ clone's `main`. This proves local branch, review-description, clean-history, and
 merge mechanics; it is explicitly **not** evidence of a hosted PR, reviewer
 approval, protected-branch checks, or publication.
 
+## Current branch status and history shape
+
+`fix/assignment-completion` is an unpublished branch that will be autosquashed with
+`git rebase -i --autosquash` before its first push; rebase evidence is captured in
+`docs/evidence/final-remediation-rebase.md`. This repository demonstrates disciplined
+unpublished-branch rebasing; it does not claim that every historical integration was
+linear.
+
+Historical merge commits `f7e0cf5` and `1b3f8a8` are retained as part of the real
+project history and have not been rewritten. `v1.0.0` is a historical local tag at
+`af898ef`; no current release tag exists. Hosted pull-request, CI, and release
+evidence remains absent until Task 6.
+
 ## Crisis exercise
 
 `make test-crisis-evidence` clones the release candidate into a disposable

@@ -8,7 +8,7 @@ SRM Credit Engine is a modular-monolith exercise for pricing and settling BRL/US
 
 **Executable evidence:** twelve Cucumber scenarios cover authorization, FX resilience, pricing, quote immutability, settlement concurrency/rollback, reversal/ledger behavior, and observability (`make test-api-features`, report: `backend/build/reports/cucumber.json`). Playwright E2E-001 drives the financial operator path through a real browser, backend, and PostgreSQL (`make test-ui-features`, report: `frontend/playwright-report/index.html`). `make explain-statements-representative` captures a PostgreSQL 16 plan for a representative 10,000-row Settlement dataset at `docs/evidence/reporting-explain.txt`; this is not production-scale or 1M-transactions/minute proof. `make release-check` aggregates the local release gates.
 
-**Deliberate limitations:** local signed JWT/BCrypt rather than external OIDC, deterministic mock rather than real market FX data, no refresh tokens, no FX triangulation, no product-type or user-management API, and no Kubernetes/Terraform/microservice runtime. No remote is configured, so hosted pull requests, publication, protected-branch checks, and a remote release remain unverified and authorization-gated. An existing local annotated `v1.0.0` tag points to `af898ef`; it predates the current remediation and is historical local evidence, not proof that this HEAD was reviewed, published, or released. It has not been moved or reused; any authorized future release must select a new version and exact reviewed SHA.
+**Deliberate limitations:** local signed JWT/BCrypt rather than external OIDC, deterministic mock rather than real market FX data, no refresh tokens, no FX triangulation, no product-type or user-management API, and no Kubernetes/Terraform/microservice runtime. No remote is configured, so hosted pull requests, publication, protected-branch checks, and a remote release remain unverified and authorization-gated. An existing local annotated `v1.0.0` tag points to `af898ef`; it predates the current remediation and is historical local evidence, not proof that this HEAD was reviewed, published, or released. It has not been moved or reused; any authorized future release must select a new version and exact reviewed SHA. Branch `fix/assignment-completion` will be autosquashed before its first push; this demonstrates disciplined unpublished-branch rebasing and does not claim the repository's entire history is linear. Historical merge commits `f7e0cf5` and `1b3f8a8` are retained. Hosted pull-request, CI, and release evidence remains absent until Task 6.
 
 ## Run locally
 
@@ -63,6 +63,11 @@ force-pushed. `make test-local-collaboration-evidence` proves the branch,
 PR-description, interactive autosquash, `range-diff`, and fast-forward mechanics
 inside a remote-free disposable clone. It does not claim a hosted PR or review.
 The detailed policy and crisis procedure are in the [Git workflow](docs/GIT_WORKFLOW.md).
+`fix/assignment-completion` will be autosquashed with `git rebase -i --autosquash` before
+its first push, demonstrating disciplined unpublished-branch rebasing; the repository does
+not claim its entire history is linear. Historical merge commits `f7e0cf5` and `1b3f8a8`
+are retained; `v1.0.0` is a historical local tag at `af898ef` and no current release tag
+exists. Hosted pull-request, CI, and release evidence remains absent until Task 6.
 
 ## Proposed evolution to 1M transactions/minute
 
@@ -150,4 +155,5 @@ shows this evolution without claiming it exists.
 - [Playwright critical path](frontend/e2e/operator-critical-path.spec.ts) and generated `frontend/playwright-report/`
 - [Representative PostgreSQL plan](docs/evidence/reporting-explain.txt)
 - Generated security evidence under `build/security/`: Gitleaks, Trivy filesystem/secret/runtime-image reports, immutable image digests, and CycloneDX SBOM
+- [Final remediation rebase evidence](docs/evidence/final-remediation-rebase.md)
 - [AI usage record](AI_USAGE.md) and [human/tooling controls](HT_USAGE.md)

@@ -1,6 +1,6 @@
 # Requirement traceability
 
-Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restricted to **Implemented**, **Proposed**, or **Gap**. An Implemented row requires an executable current command and a concrete source/report path; a generated artifact is not a pass without its current command result.
+Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restricted to **Implemented**, **Proposed**, **Pending hosted evidence**, or **Gap**. An Implemented row requires an executable current command and a concrete source/report path; a generated artifact is not a pass without its current command result.
 
 ## Source requirement matrix
 
@@ -18,7 +18,7 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | ADRs, ER, runbook, crisis proof, usage disclosure | **Implemented** | Full decision records, SQL/Java migration inventory mirrored by ER, state/sequence diagrams, runbook, permission matrix, AI/tooling records, and exact-tree crisis proof; `docs/architecture/schema-inventory.md`, `docs/architecture/settlement-sequence.mmd`, `docs/RUNBOOK.md`, `AI_USAGE.md`, `HT_USAGE.md` | `make validate-docs` |
 | Evolution to 1M transactions/minute, EDA, partitioning | **Proposed** | Quantitative design proposal in `README.md` and `docs/architecture/scale-evolution.mmd`; explicitly not implemented and no production throughput/capacity proof | `make validate-docs` |
 | External OIDC, real market FX, Kubernetes/Terraform, microservices | **Gap** | Deliberately outside the exercise; local JWT/BCrypt and deterministic mock FX remain the implemented adapters | `make validate-docs` |
-| Remote collaboration, publication, tag, release | **Gap** | No remote is configured, so hosted PR/check/review/publication and a new release remain blocked under SDD 12. Historical local `v1.0.0` at `af898ef` predates current HEAD and is not remote release evidence | `make test-local-collaboration-evidence` |
+| Remote collaboration, publication, tag, release | **Pending hosted evidence** | No remote is configured, so hosted PR/check/review/publication and a new release remain blocked under SDD 12. Historical local `v1.0.0` at `af898ef` predates current HEAD and is not remote release evidence | `make test-local-collaboration-evidence` |
 
 ## Stable SDD scenario mapping
 
@@ -45,7 +45,7 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | UI-LEDGER-006 | **Implemented** | `frontend/src/SettlementWorkspace.test.tsx`; `frontend/e2e/operator-critical-path.spec.ts` uses the browser's URL-backed currency filter, `page=0` query, and back/forward restoration, then reads ledger rows after an API reversal | `make test-unit`; `make test-ui-features` |
 | OBS-003 | **Implemented** | `backend/src/integrationTest/resources/features/srm_acceptance.feature` | `make test-api-features`; `backend/build/reports/cucumber.json` |
 | E2E-001 | **Implemented** | `frontend/e2e/operator-critical-path.spec.ts` | `make test-ui-features`; `frontend/playwright-report/index.html` |
-| REL-004 | **Gap** | `docs/sdd/12_sdd_authorized-collaboration-crisis-publication-and-release-evidence.md` | `make test-crisis-evidence`; local evidence only, publication remains blocked |
+| REL-004 | **Pending hosted evidence** | `docs/sdd/12_sdd_authorized-collaboration-crisis-publication-and-release-evidence.md` | `make test-crisis-evidence`; local evidence only, publication remains blocked |
 | CRISIS-002 | **Implemented** | `scripts/test-crisis-evidence.sh` | `make test-crisis-evidence`; disposable branch/hash/recovery output |
 | COLLAB-LOCAL-001 | **Implemented** | `scripts/test-local-collaboration-evidence.sh` | `make test-local-collaboration-evidence`; disposable PR-description/ref/review/fast-forward proof |
 | REBASE-LOCAL-002 | **Implemented** | `scripts/test-local-collaboration-evidence.sh` | `make test-local-collaboration-evidence`; actual unpublished autosquash and range-diff proof |

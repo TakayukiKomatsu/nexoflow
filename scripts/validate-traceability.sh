@@ -321,9 +321,9 @@ while IFS='|' read -r _ requirement status evidence verification _; do
         classification_failures+=("$requirement: Proposed claim lacks an explicit design-only qualification")
       fi
       ;;
-    Gap)
+    Pendinghostedevidence|Gap)
       if ! printf '%s' "$evidence" | grep -Eiq '(blocked|outside|not implemented|no remote|remain)'; then
-        classification_failures+=("$requirement: Gap claim lacks a concrete limitation or blocker")
+        classification_failures+=("$requirement: $status claim lacks a concrete limitation or blocker")
       fi
       ;;
     *) classification_failures+=("$requirement: invalid status '$status'") ;;
@@ -353,4 +353,4 @@ if [[ "${#failures[@]}" -gt 0 ]]; then
 fi
 
 echo "TRACE-001 passed: all ${#scenario_ids[@]} SDD IDs, ${#executable_ids[@]} Cucumber IDs, and ${#required_check_ids[@]} supplemental IDs resolve to existing source artifacts and structurally valid commands"
-echo "DOC-CLAIM-005 passed: all $classified_rows source claims use meaningful Implemented, Proposed, or Gap evidence"
+echo "DOC-CLAIM-005 passed: all $classified_rows source claims use meaningful Implemented, Proposed, Pending hosted evidence, or Gap evidence"

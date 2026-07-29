@@ -129,4 +129,22 @@ fi
 grep -Fq "does-not-exist" "$fixture_dir/missing-npm-script.out" \
   || { echo "npm-script failure did not identify the bad command" >&2; exit 1; }
 
-echo "TRACE-VALIDATOR-001 passed: classified paths, Make targets, local scripts, and npm scripts resolve"
+invalid_status_fixture="$fixture_dir/invalid-status.md"
+awk '
+  {
+    if (index($0, "| Remote collaboration, publication, tag, release |") > 0) {
+      sub(/\*\*Pending hosted evidence\*\*/, "**Pending hosted evidence plus**")
+    }
+    print
+  }
+' "$traceability" >"$invalid_status_fixture"
+
+if TRACEABILITY_FILE="$invalid_status_fixture" "$validator" \
+  >"$fixture_dir/invalid-status.out" 2>&1; then
+  echo "traceability validator accepted a near-miss source requirement status" >&2
+  exit 1
+fi
+grep -Fq "invalid status 'Pendinghostedevidenceplus'" "$fixture_dir/invalid-status.out" \
+  || { echo "invalid-status failure did not identify the normalized near-miss status" >&2; exit 1; }
+
+echo "TRACE-VALIDATOR-001 passed: classified paths and commands resolve, exact source statuses pass, and near-miss statuses fail"
