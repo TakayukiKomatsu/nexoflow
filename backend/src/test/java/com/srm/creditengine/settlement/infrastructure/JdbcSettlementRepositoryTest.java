@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.startsWith;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -15,6 +16,7 @@ import com.srm.creditengine.settlement.application.SettlementRepository;
 import com.srm.creditengine.settlement.domain.AlreadyReversedException;
 import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.domain.LockedQuote;
+import com.srm.creditengine.settlement.domain.LockedReceivable;
 import com.srm.creditengine.settlement.domain.LockedSettlement;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -104,6 +106,8 @@ class JdbcSettlementRepositoryTest {
         UUID settlementId = UUID.randomUUID();
         UUID lowerReceivable = UUID.fromString("00000000-0000-4000-8000-000000000041");
         UUID higherReceivable = UUID.fromString("ffffffff-ffff-4fff-8fff-ffffffffffe1");
+        var lower = new LockedReceivable(lowerReceivable, 3L);
+        var higher = new LockedReceivable(higherReceivable, 7L);
         when(jdbc.query(
                         startsWith("select id from settlements"),
                         any(RowMapper.class),
@@ -115,17 +119,17 @@ class JdbcSettlementRepositoryTest {
                         any(Object[].class)))
                 .thenReturn(0);
         when(jdbc.query(
-                        startsWith("select r.id from receivables r"),
+                        startsWith("select r.id,r.version from receivables r"),
                         any(RowMapper.class),
                         any(Object[].class)))
-                .thenReturn(List.of(lowerReceivable, higherReceivable));
+                .thenReturn(List.of(lower, higher));
         var repository = new JdbcSettlementRepository(jdbc);
 
         LockedSettlement locked = repository.lockSettlement(settlementId);
 
-        assertThat(locked.receivableIds()).containsExactly(lowerReceivable, higherReceivable);
+        assertThat(locked.receivables()).containsExactly(lower, higher);
         verify(jdbc).query(
-                argThat(sql -> sql.startsWith("select r.id from receivables r")
+                argThat(sql -> sql.startsWith("select r.id,r.version from receivables r")
                         && sql.contains("join settlement_items")
                         && sql.contains("order by r.id")
                         && sql.endsWith("for update of r")),
@@ -148,7 +152,7 @@ class JdbcSettlementRepositoryTest {
                         any(Object[].class)))
                 .thenReturn(0);
         when(jdbc.query(
-                        startsWith("select r.id from receivables r"),
+                        startsWith("select r.id,r.version from receivables r"),
                         any(RowMapper.class),
                         any(Object[].class)))
                 .thenReturn(List.of());
@@ -167,7 +171,31 @@ class JdbcSettlementRepositoryTest {
         var repository = new JdbcSettlementRepository(jdbc);
 
         assertThatThrownBy(() -> repository.reverse(
-                new LockedSettlement(UUID.randomUUID(), List.of(UUID.randomUUID())), "reason", Instant.now(), "operator"))
+                new LockedSettlement(UUID.randomUUID(), List.of(new LockedReceivable(UUID.randomUUID(), 4L))), "reason", Instant.now(), "operator"))
+                .isInstanceOf(AlreadyReversedException.class);
+    }
+
+    @Test
+    void reversalComparesEveryLockedReceivableVersion() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        UUID settlementId = UUID.randomUUID();
+        UUID receivableId = UUID.randomUUID();
+        var locked = new LockedReceivable(receivableId, 7L);
+        when(jdbc.update(startsWith("insert into settlement_reversals"), any(Object[].class)))
+                .thenReturn(1);
+        when(jdbc.update(
+                eq("update receivables set status='REVERSED', version=version+1 "
+                        + "where id=? and status='SETTLED' and version=?"),
+                eq(receivableId),
+                eq(7L)))
+                .thenReturn(0);
+        var repository = new JdbcSettlementRepository(jdbc);
+
+        assertThatThrownBy(() -> repository.reverse(
+                new LockedSettlement(settlementId, List.of(locked)),
+                "reason",
+                Instant.parse("2030-01-15T12:00:00Z"),
+                "operator@srm.local"))
                 .isInstanceOf(AlreadyReversedException.class);
     }
 

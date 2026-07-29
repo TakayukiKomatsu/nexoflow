@@ -5,6 +5,7 @@ import com.srm.creditengine.settlement.application.SettlementService;
 import com.srm.creditengine.settlement.domain.AlreadyReversedException;
 import com.srm.creditengine.settlement.domain.AlreadySettledException;
 import com.srm.creditengine.settlement.domain.LockedQuote;
+import com.srm.creditengine.settlement.domain.LockedReceivable;
 import com.srm.creditengine.settlement.domain.LockedSettlement;
 import com.srm.creditengine.settlement.domain.SettlementDraft;
 import com.srm.creditengine.shared.domain.DomainResourceNotFoundException;
@@ -92,15 +93,15 @@ public class JdbcSettlementRepository implements SettlementRepository {
         if (jdbc.queryForObject("select count(*) from settlement_reversals where settlement_id=?", Integer.class, lockedId) > 0) {
             throw new AlreadyReversedException();
         }
-        List<UUID> receivableIds = jdbc.query(
-                "select r.id from receivables r join settlement_items si on si.receivable_id=r.id "
+        List<LockedReceivable> receivables = jdbc.query(
+                "select r.id,r.version from receivables r join settlement_items si on si.receivable_id=r.id "
                         + "where si.settlement_id=? order by r.id for update of r",
-                (rs, row) -> rs.getObject(1, UUID.class),
+                (rs, row) -> new LockedReceivable(rs.getObject(1, UUID.class), rs.getLong(2)),
                 lockedId);
-        if (receivableIds.isEmpty()) {
+        if (receivables.isEmpty()) {
             throw new IllegalArgumentException("Settlement has no items");
         }
-        return new LockedSettlement(lockedId, receivableIds);
+        return new LockedSettlement(lockedId, receivables);
     }
 
     @Override
@@ -108,8 +109,13 @@ public class JdbcSettlementRepository implements SettlementRepository {
         UUID reversalId = UUID.randomUUID();
         jdbc.update("insert into settlement_reversals (id,settlement_id,reason,reversed_at,reversed_by) values (?,?,?,?,?)",
                 reversalId, settlement.settlementId(), reason, Timestamp.from(at), actor);
-        for (UUID receivableId : settlement.receivableIds()) {
-            if (jdbc.update("update receivables set status='REVERSED', version=version+1 where id=? and status='SETTLED'", receivableId) != 1) {
+        for (LockedReceivable receivable : settlement.receivables()) {
+            int updated = jdbc.update(
+                    "update receivables set status='REVERSED', version=version+1 "
+                            + "where id=? and status='SETTLED' and version=?",
+                    receivable.id(),
+                    receivable.version());
+            if (updated != 1) {
                 throw new AlreadyReversedException();
             }
         }
