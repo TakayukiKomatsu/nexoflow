@@ -63,6 +63,7 @@ Source: [`README_case_dev_srm.md`](./README_case_dev_srm.md). Status is restrict
 | API-CONTRACT-001 | **Implemented** | `frontend/scripts/validate-pricing-quote-contract.mjs` | `make validate-frontend-api-contract`; frontend quote/OpenAPI boundary guard |
 | DOC-OPENAPI-006 | **Implemented** | `scripts/validate-api-docs.mjs`; `docs/architecture/api-endpoints.md` | `make validate-docs`; freshly exported canonical OpenAPI-operation-to-inventory comparison plus executable contract |
 | FIN-GIT-003 | **Implemented** | `scripts/tests/test_pre_commit_secret_hook.sh` | `make test-hooks`; generic credential assignment rejection and explicit-placeholder acceptance |
+| Historical audit reconciliation | **Implemented** | `docs/evidence/historical/2026-07-22-audit-discrepancies.md`; resolved findings are retained as historical evidence and guarded from returning as active claims | `make validate-architecture-docs` |
 
 ## Supplementary SDD 04–10 proof matrix
 

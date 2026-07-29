@@ -93,4 +93,17 @@ for diagram in "$repo_root"/docs/architecture/*.mmd; do
   fi
 done
 
+# Historical audit reconciliation contract
+historical_audit="$repo_root/docs/evidence/historical/2026-07-22-audit-discrepancies.md"
+test ! -e "$repo_root/docs/AUDIT_DISCREPANCIES.md" \
+  || { echo "active stale audit must be archived" >&2; exit 1; }
+test -s "$historical_audit" \
+  || { echo "historical audit evidence is missing" >&2; exit 1; }
+grep -Fq 'Status: Historical — findings resolved' "$historical_audit" \
+  || { echo "historical audit lacks resolved status" >&2; exit 1; }
+grep -Fq 'FinancialModuleLayeringTest.java' "$historical_audit" \
+  || { echo "historical audit lacks layering remediation evidence" >&2; exit 1; }
+grep -Fq 'AuditEventQuery' "$historical_audit" \
+  || { echo "historical audit lacks audit-layer remediation evidence" >&2; exit 1; }
+
 echo "ARCH-DOCS-001 passed: foundation artifacts, local links, Mermaid renders, and migration-to-ER tables are consistent"
