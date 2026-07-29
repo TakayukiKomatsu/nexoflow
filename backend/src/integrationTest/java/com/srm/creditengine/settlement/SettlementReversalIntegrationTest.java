@@ -8,8 +8,11 @@ import com.srm.creditengine.pricing.application.PricingService;
 import com.srm.creditengine.receivable.application.ReceivableService;
 import com.srm.creditengine.reporting.application.SettlementStatementService;
 import com.srm.creditengine.settlement.domain.AlreadyReversedException;
+import com.srm.creditengine.settlement.domain.LockedReceivable;
+import com.srm.creditengine.settlement.domain.LockedSettlement;
 import com.srm.creditengine.settlement.application.IdempotencyKeyReusedException;
 import com.srm.creditengine.settlement.application.SettlementService;
+import com.srm.creditengine.settlement.application.SettlementRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -47,6 +51,8 @@ class SettlementReversalIntegrationTest {
     @Autowired ReceivableService receivables;
     @Autowired JdbcTemplate jdbc;
     @Autowired SettlementStatementService statements;
+    @Autowired SettlementRepository settlementRepository;
+    @Autowired TransactionTemplate transactions;
 
     @Test
     void wholeReversalIsIdempotentTerminalAtomicAndProducesOneNegativeMovementPerItem() {
@@ -165,6 +171,50 @@ class SettlementReversalIntegrationTest {
                 .isEqualTo(1);
         assertThat(idempotencyCount(reversalKey)).isEqualTo(1);
         assertThat(idempotencyCount(differentKey)).isZero();
+    }
+
+    @Test
+    void reversalVersionConflictRollsBackTheInsertedReversalAndEarlierItemUpdates() {
+        UUID assignorId = UUID.randomUUID();
+        assignors.create(new AssignorService.CreateCommand(
+                assignorId,
+                "Version Conflict Co",
+                "VCON" + assignorId.toString().substring(0, 8),
+                true,
+                "operator@srm.local"));
+        List<UUID> receivableIds = List.of(UUID.randomUUID(), UUID.randomUUID());
+        List<UUID> quoteIds = receivableIds.stream()
+                .map(receivableId -> createQuote(assignorId, receivableId))
+                .toList();
+        var settlement = settlements.settle(
+                quoteIds,
+                "version-conflict-settle-" + assignorId,
+                "operator@srm.local");
+
+        assertThatThrownBy(() -> transactions.executeWithoutResult(status -> {
+            LockedSettlement locked = settlementRepository.lockSettlement(settlement.settlementId());
+            List<LockedReceivable> stale = List.of(
+                    locked.receivables().get(0),
+                    new LockedReceivable(
+                            locked.receivables().get(1).id(),
+                            locked.receivables().get(1).version() - 1));
+            settlementRepository.reverse(
+                    new LockedSettlement(locked.settlementId(), stale),
+                    "stale version proof",
+                    java.time.Instant.parse("2030-01-15T12:00:00.123456789Z"),
+                    "operator@srm.local");
+        })).isInstanceOf(AlreadyReversedException.class);
+
+        assertThat(receivableStatuses(receivableIds)).containsExactly("SETTLED", "SETTLED");
+        assertThat(jdbc.queryForObject(
+                "select count(*) from settlement_reversals where settlement_id=?",
+                Integer.class,
+                settlement.settlementId())).isZero();
+        assertThat(jdbc.queryForList(
+                "select version from receivables where id in (?, ?) order by id",
+                Long.class,
+                receivableIds.get(0),
+                receivableIds.get(1))).containsOnly(1L);
     }
 
     private List<String> receivableStatuses(List<UUID> receivableIds) {
