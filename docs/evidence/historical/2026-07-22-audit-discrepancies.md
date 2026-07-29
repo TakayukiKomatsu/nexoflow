@@ -28,7 +28,7 @@ Findings from validating `backend/` and `frontend/` against `docs/SRM_REQUIREMEN
 
 - `reverse()` (`JdbcSettlementService.java:89`) omits the `version=?` guard that `settle()` uses (:55), relying on `status='SETTLED'` alone — correct but inconsistent with the stated optimistic-locking discipline. **Resolved:** `JdbcSettlementService.java` was refactored into `JdbcSettlementRepository.java`; `reverse()` now includes `version=?` in the SQL update (`where id=? and status='SETTLED' and version=?`), consistent with `settle()`. Verified by `backend/src/integrationTest/java/com/srm/creditengine/settlement/SettlementReversalImmutabilityIntegrationTest.java` and commit `test(settlement): prove reversal version rollback`.
 - Feature file contains `FX-003` and `PRICE-002` scenarios absent from the traceability matrix (undocumented extra coverage). **Resolved:** Both are now mapped in `docs/REQUIREMENT_TRACEABILITY.md` (Stable SDD scenario mapping rows FX-003 and PRICE-002).
-- `AuthoritativePricingService.java:173-174` are minified multi-statement one-liners in the financial core — hard to review/maintain. **Retained limitation:** No reformatting was applied in this remediation pass; the style gap persists.
+- `AuthoritativePricingService.java:173-174` are minified multi-statement one-liners in the financial core — hard to review/maintain. **Resolved:** Current `AuthoritativePricingService.java` lines 170–176 are normally formatted, with each constructor argument on its own line. No minified one-liners remain.
 
 ## Frontend
 
@@ -38,7 +38,7 @@ Findings from validating `backend/` and `frontend/` against `docs/SRM_REQUIREMEN
 
 2. **Authoritative-pricing guard has an unscanned file.** `validate-authoritative-pricing.mjs:24` scans only `src/App.tsx` and `src/api/client.ts`. `src/SettlementWorkspace.tsx` (689 lines, renders `totalAmount`/`settlementAmount`) is not scanned. Code is clean today, but a regression there would pass the gate undetected.
 
-**Retained limitation:** `validate-authoritative-pricing.mjs` was not extended in this pass. The gap remains; `SettlementWorkspace.tsx` is currently clean.
+**Resolved:** `frontend/scripts/validate-authoritative-pricing.mjs` was rewritten to use a recursive `productionSourceFiles()` function (lines 67–79) that walks the entire `frontend/src/` tree, excluding test files and type definitions. The `package.json` script invokes the validator with no explicit `--source-root`, causing it to default to `frontend/src/` (line 35). `SettlementWorkspace.tsx` is therefore included in every run; a financial-field violation there will fail the gate.
 
 3. **Accessibility coverage is partial.** `a11y.test.tsx` covers only login and the simulation screen (5 axe assertions + 2 keyboard tests). No axe run over the settlement workspace, settlement detail, or ledger table.
 
@@ -50,4 +50,4 @@ Findings from validating `backend/` and `frontend/` against `docs/SRM_REQUIREMEN
 
 **Notes, not defects:**
 - No UI reversal control — deliberate and documented (`e2e/operator-critical-path.spec.ts:243`), consistent with `CONTEXT.md` treating reversal as terminal/admin-only.
-- `main.tsx` (10 lines) has no error boundary; an unhandled render throw would blank the page. Low risk since all async paths are caught.
+- `main.tsx` (10 lines) has no error boundary; an unhandled render throw would blank the page. Low risk since all async paths are caught. **Resolved:** `frontend/src/main.tsx` now wraps `<App />` in `<ApplicationErrorBoundary>` (imported from `frontend/src/components/AppErrorBoundary.tsx`), catching unhandled render throws before they blank the page. Tested by `frontend/src/ErrorBoundary.test.tsx`.
