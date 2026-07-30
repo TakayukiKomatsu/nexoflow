@@ -84,10 +84,11 @@ database backup identifier, and rollback decision.
 4. Check `/actuator/health/liveness`, then
    `/actuator/health/readiness`. Readiness must report `UP` with PostgreSQL
    reachable before any traffic resumes.
-5. Confirm the expected Flyway version, inspect settlement and reversal ledger
-   records for the affected correlation IDs, and run a read-only reporting
-   query for the affected assignor or receivable. Do not use settlement,
-   reversal, fixture, or reset endpoints as health checks.
+5. Confirm the expected Flyway version, find the relevant `audit_events` by
+   correlation ID, follow each event's `target_id` to the settlement or
+   reversal ledger, and run a read-only reporting query for the affected
+   assignor or receivable. Do not use settlement, reversal, fixture, or reset
+   endpoints as health checks.
 6. Re-enable writers gradually, monitor error codes and bounded metrics, and
    retain the incident timeline, backup/restore evidence, deployed digest, and
    validation results.
