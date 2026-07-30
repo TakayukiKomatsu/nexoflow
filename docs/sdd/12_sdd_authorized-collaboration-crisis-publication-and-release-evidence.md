@@ -26,7 +26,7 @@ This contract applies to Prompts 01–12 and is not optional.
 
 - Every business/API feature is specified in Gherkin and executed with Cucumber-JUnit against Spring and PostgreSQL Testcontainers. The critical browser feature is executed with Playwright BDD or an equally direct feature-to-test adapter.
 - Every feature and scenario has a stable ID (for example `PRICE-001`) visible in the test report. Every step names a real role/actor, fixed fixture, concrete request/action, and exact observable response, row/state change, event, log, or metric. Tautologies and prose-only assertions are forbidden.
-- Infrastructure/documentation contracts use executable shell, schema, OpenAPI, Mermaid, and link tests rather than artificial Gherkin; externally observable infrastructure behavior may use Gherkin.
+- Infrastructure/documentation contracts use executable shell, `docs/architecture/schema-inventory.md`, OpenAPI, `README.md` textual architecture, and local-link tests rather than artificial Gherkin; externally observable infrastructure behavior may use Gherkin.
 - For each coherent behavior: **RED** — add the smallest meaningful test and capture the expected failure; **GREEN** — implement only enough and run the focused plus relevant regression suites; **REFACTOR** — improve design while green. Record RED/GREEN commands and concise output.
 - Use unit tests for financial/domain boundaries, Cucumber/API tests for contracts, Testcontainers for migrations/transactions/authorization, deterministic barrier-based PostgreSQL concurrency tests, component tests for UI state, and Playwright for the critical path. No sleeps in concurrency/E2E synchronization.
 - Exact financial values travel as decimal strings. Java authoritative code uses `BigDecimal`, never `float`/`double`; JavaScript never calculates authoritative financial outcomes. Use `NUMERIC(19,4)` for stored money, `NUMERIC(19,10)` for rates/intermediates where specified, `HALF_EVEN` at currency boundaries, and an injectable `Clock` for all time-dependent behavior.
@@ -87,11 +87,11 @@ Feature: REL authorized release provenance
     And the tree at R1 equals R0 for the simulation target
 ```
 
-**Test mapping:** `REL-004` → authorization checklist dry-run test and command audit; `CRISIS-002` → dedicated harmless fixture/test plus Git tree/hash assertions. Remote gate → independently accessible URL/SHA/check API verification. Tag gate → local and remote object/SHA verification.
+**Test mapping:** `REL-004` → authorization checklist dry-run test and command audit; `CRISIS-002` → **Gap**, with operational rollback documented but no disposable Git mutation proof retained. Remote gate → independently accessible URL/SHA/check API verification. Tag gate → local and remote object/SHA verification.
 
-**Verification:** Focused: locally run `git status --short`, `git diff --cached --quiet`, `make test-local-collaboration-evidence`, and `make test-crisis-evidence`. The local collaboration script captures an actual autosquash `range-diff`. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: `gh pr checks <url>`, `git show --no-patch <new-version>`, `git ls-remote --tags origin <new-version>`, and URL access checks.
+**Verification:** Focused: locally run `git status --short`, `git diff --cached --quiet`, and `make verify-fast`; inspect `docs/evidence/final-remediation-rebase.md` for the recorded autosquash hashes and range-diff. No disposable Git-history simulation is part of the release gate. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: hosted PR check APIs, `git show --no-patch <new-version>`, `git ls-remote --tags origin <new-version>`, and URL access checks.
 
-**Evidence:** Old/new rebase hashes/range-diff; crisis defect/revert hashes and failing/passing output; final clean status/empty index; actual PR/repository/release URLs and check/review conclusions when authorized; exact reviewed merge SHA; annotated/local/remote tag resolution. External evidence belongs in PR/release/final report, avoiding a circular post-tag commit.
+**Evidence:** Old/new rebase hashes/range-diff; documented incident rollback and recovery checks; final clean status/empty index; actual PR/repository/release URLs and check/review conclusions when authorized; exact reviewed merge SHA; annotated/local/remote tag resolution. External evidence belongs in PR/release/final report, avoiding a circular post-tag commit.
 
 **Commit outcome:** Use prior feature commits; before review add `docs(release): prepare authorized release evidence and notes`. Merge/tag/publication are authorized remote evidence, not source commits.
 

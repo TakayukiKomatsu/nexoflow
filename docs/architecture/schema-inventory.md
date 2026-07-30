@@ -1,12 +1,169 @@
 # Schema and DDL inventory
 
-Flyway is the sole schema authority. The Mermaid [ER diagram](er-diagram.mmd)
-shows every table and column with its final storage type: `varchar_N` and
+Flyway is the sole schema authority. The final table-column inventory below
+records every table and column with its final storage token: `varchar_N` and
 `char_N` retain declared length bounds, `text` remains unbounded, and
-`timestamptz` is distinct from timestamp without time zone. This inventory makes
-constraints, indexes, and PostgreSQL-only Java migration guards reviewable;
+`timestamptz` is distinct from timestamp without time zone. Constraints,
+indexes, and PostgreSQL-only Java migration guards remain reviewable;
 `scripts/validate-schema-docs.mjs` interprets SQL plus supported Java-generated
-DDL in migration order and checks the resulting schema against the diagram.
+DDL in migration order and checks the resulting schema against this inventory.
+
+## Final table columns
+
+Storage tokens encode exact database types; `PK`, `UK`, and `FK` mark inline
+constraints. Composite and later-added constraints are listed in
+[Structural constraint signatures](#structural-constraint-signatures).
+
+```text
+    schema_metadata {
+        int id PK
+        varchar_100 schema_name UK
+        timestamptz created_at
+    }
+    users {
+        uuid id PK
+        varchar_320 email UK
+        varchar_100 password_hash
+        boolean enabled
+    }
+    user_roles {
+        uuid user_id PK,FK
+        varchar_30 role PK
+    }
+    assignors {
+        uuid id PK
+        varchar_200 legal_name
+        varchar_32 normalized_tax_id UK
+        boolean active
+        timestamptz created_at
+        varchar_320 created_by
+    }
+    currencies {
+        varchar_3 code PK
+        int decimal_scale
+        boolean active
+    }
+    product_types {
+        varchar_50 code PK
+        boolean active
+    }
+    product_spread_versions {
+        uuid id PK
+        varchar_50 product_type_code FK
+        decimal_19_10 monthly_spread
+        timestamptz effective_at
+        varchar_320 created_by
+    }
+    base_rate_versions {
+        uuid id PK
+        varchar_3 currency_code FK
+        decimal_19_10 monthly_rate
+        timestamptz effective_at
+        varchar_320 created_by
+    }
+    exchange_rates {
+        uuid id PK
+        varchar_3 base_currency_code FK
+        varchar_3 quote_currency_code FK
+        decimal_19_10 rate
+        varchar_50 source
+        timestamptz observed_at
+        timestamptz created_at
+        varchar_320 created_by
+    }
+    runtime_fixture_records {
+        varchar_100 fixture_id PK
+        varchar_100 fixture_set
+        varchar_500 fixture_value
+        timestamptz loaded_at
+    }
+    receivables {
+        uuid id PK
+        uuid assignor_id FK
+        varchar_50 product_type_code FK
+        varchar_3 face_currency_code FK
+        decimal_19_4 face_amount
+        date issue_date
+        date due_date
+        varchar_20 status
+        bigint version
+        timestamptz created_at
+        varchar_320 created_by
+    }
+    pricing_quotes {
+        uuid id PK
+        uuid receivable_id FK
+        varchar_3 settlement_currency_code FK
+        decimal_19_4 face_amount
+        varchar_3 face_currency_code FK
+        varchar_50 product_type_code FK
+        date due_date
+        timestamptz pricing_at
+        timestamptz expires_at
+        decimal_19_10 base_rate
+        decimal_19_10 spread
+        varchar_50 strategy_code
+        varchar_50 day_count_convention
+        decimal_19_10 term_in_months
+        decimal_19_4 discounted_amount
+        varchar_3 fx_base_currency_code FK
+        varchar_3 fx_quote_currency_code FK
+        decimal_19_10 fx_rate
+        varchar_100 fx_source
+        timestamptz fx_observed_at
+        decimal_19_4 settlement_amount
+        varchar_320 created_by
+        varchar_20 status
+    }
+    settlements {
+        uuid id PK
+        uuid assignor_id FK
+        varchar_3 settlement_currency_code FK
+        decimal_19_4 total_amount
+        varchar_20 status
+        timestamptz created_at
+        varchar_320 created_by
+    }
+    settlement_items {
+        uuid id PK
+        uuid settlement_id FK
+        uuid quote_id UK,FK
+        uuid receivable_id UK,FK
+        int item_position
+        decimal_19_4 settlement_amount
+        varchar_3 asset_currency_code FK
+        varchar_50 product_type_code FK
+    }
+    idempotency_records {
+        uuid id PK
+        varchar_320 actor
+        varchar_100 operation
+        varchar_200 idempotency_key
+        char_64 request_hash
+        uuid settlement_id FK
+        uuid reversal_id FK
+        varchar_20 status
+        timestamptz created_at
+        timestamptz completed_at
+    }
+    settlement_reversals {
+        uuid id PK
+        uuid settlement_id UK,FK
+        varchar_500 reason
+        timestamptz reversed_at
+        varchar_320 reversed_by
+    }
+    audit_events {
+        uuid id PK
+        varchar_320 actor
+        varchar_80 action
+        varchar_80 target_type
+        uuid target_id
+        timestamptz occurred_at
+        varchar_100 correlation_id
+        json safe_metadata
+    }
+```
 
 ## SQL DDL and seed migrations
 
@@ -51,9 +208,9 @@ rejects deletion while a record is `PROCESSING`, keeps completed records
 update-immutable, and permits completed-row deletion only for explicit retention.
 
 The validator recognizes V22's generated alter-column loop and V23's explicit
-PostgreSQL type changes. Consequently, the ER widths and timezone semantics
-describe the final migrated schema, not only the original `CREATE TABLE`
-declarations.
+PostgreSQL type changes. Consequently, the documented widths and timezone
+semantics describe the final migrated schema, not only the original
+`CREATE TABLE` declarations.
 
 ## Named constraints, indexes, and triggers
 

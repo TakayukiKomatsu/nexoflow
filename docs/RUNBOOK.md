@@ -61,6 +61,42 @@ The six deterministic reference-rate rows with Flyway-owned stable IDs retain
 their authored UTC literals. After V23, all persisted instants use
 `timestamp with time zone` and no longer depend on the session zone.
 
+### Incident rollback and restore
+
+This repository does not control production traffic, deployments, or backup
+infrastructure. Before a release, the operator must map the following steps to
+the hosting platform, name the incident owner, and record the image digest,
+database backup identifier, and rollback decision.
+
+1. Stop new writes at the ingress or deployment layer. Preserve backend,
+   PostgreSQL, and correlation-ID logs before replacing any runtime.
+2. Confirm that the latest pre-release PostgreSQL backup has been restored into
+   an isolated database and checked before treating it as recoverable.
+3. Choose one recovery path:
+   - For an application-only defect, deploy the last known-good immutable image
+     against the current compatible schema.
+   - If V23 started and its schema must be rolled back, keep writers stopped and
+     restore the verified pre-V23 backup. Never hand-edit Flyway history or run
+     an improvised reverse migration.
+   - For suspected data corruption, restore into an isolated database first;
+     do not overwrite the affected database until the incident owner has
+     preserved evidence and approved the restore point.
+4. Check `/actuator/health/liveness`, then
+   `/actuator/health/readiness`. Readiness must report `UP` with PostgreSQL
+   reachable before any traffic resumes.
+5. Confirm the expected Flyway version, find the relevant `audit_events` by
+   correlation ID, follow each event's `target_id` to the settlement or
+   reversal ledger, and run a read-only reporting query for the affected
+   assignor or receivable. Do not use settlement, reversal, fixture, or reset
+   endpoints as health checks.
+6. Re-enable writers gradually, monitor error codes and bounded metrics, and
+   retain the incident timeline, backup/restore evidence, deployed digest, and
+   validation results.
+
+`docker compose down -v` is only the local reset command described in
+[Seeding and resetting fixtures](#5-seeding-and-resetting-fixtures); it is not
+a production rollback mechanism.
+
 ## 2. Verification suite
 
 Run in this order; each target maps directly to a `Makefile` recipe.
@@ -78,11 +114,9 @@ Run in this order; each target maps directly to a `Makefile` recipe.
 | `make explain-statements-representative` | Boots the real backend/Flyway chain, seeds 10,000 representative rows, and runs selective assignor, asset-currency, settlement-currency, product-type, and combined plans from the production SQL template; not a production-scale benchmark | `docs/evidence/reporting-explain.txt` |
 | `make license-check` | Backend and frontend production dependency allowlists | `backend/build/reports/dependency-license/`, `frontend/license-report.json` |
 | `make security-scan` | Full-history/content Gitleaks; Trivy filesystem, secrets, and runtime images; immutable image digests; CycloneDX SBOM; license gate | `build/security/` |
-| `make validate-docs` | Links, required docs, Mermaid rendering, migration/ER consistency, OpenAPI reachability, and prohibited-claim checks | Command result and rendered `backend/build/mermaid/` |
+| `make validate-docs` | Links, required README architecture text, migration/schema consistency, OpenAPI reachability, and prohibited-claim checks | Command result |
 | `make validate-traceability` | Every stable SDD scenario ID resolves to an exact matrix row and executable artifact | Command result |
-| `make test-crisis-evidence` | Disposable local regression/revert proof without touching publication branches | Temporary clone output |
-| `make test-local-collaboration-evidence` | Remote-free local PR description/ref, real interactive autosquash, range-diff, review checks, and fast-forward proof | Disposable clone output |
-| `make release-check` | Aggregate of local quality, log-redaction, build, runtime, acceptance, performance-evidence, security, docs, traceability, and crisis gates | All evidence above |
+| `make release-check` | Aggregate of local quality, log-redaction, build, runtime, acceptance, performance-evidence, security, docs, and traceability gates | All evidence above |
 
 Docker-dependent targets exit with explicit `BLOCKED` rather than a false pass when Docker is unavailable. CodeQL is a separate pinned GitHub Actions job; it is not represented as a local scan.
 
@@ -133,7 +167,7 @@ Gates 1–5 have executable local or CI evidence. Cucumber covers the stable bac
 - **`make test-ui-features` failure**: inspect `frontend/playwright-report/` and `frontend/test-results/`; Playwright startup or cleanup failures are failures, not skipped evidence.
 - **Representative EXPLAIN failure**: inspect the command output before the artifact. The gate fails if the real backend does not apply every repository Flyway migration, a current reporting index is absent, the shared SQL-template markers drift, or any assignor/asset-currency/settlement-currency/product-type case is empty or non-selective. Inspect `docs/evidence/reporting-explain.txt` only after a successful current run. PostgreSQL may legitimately choose sequential scans, and this remains query-shape—not production-capacity—proof.
 - **`make security-scan` failure**: generated reports are under `build/security/`. Every secret finding and every HIGH/CRITICAL vulnerability with a published fix fails the gate. Any accepted unfixed CVE requires a specific, owned, expiring `.trivyignore.yaml` entry; blanket `ignore-unfixed` policy is forbidden.
-- **Documentation or traceability failure**: run `make validate-docs` and `make validate-traceability` separately. Fix the source, path, scenario mapping, or diagram; do not weaken the validator.
+- **Documentation or traceability failure**: run `make validate-docs` and `make validate-traceability` separately. Fix the source, path, scenario mapping, architecture text, or schema inventory; do not weaken the validator.
 - **`make release-check` failure**: the aggregate stops on the first failed or blocked sub-gate. A local aggregate does not execute or authorize CodeQL, a remote push, pull request, tag, or release.
 
 ## 5. Seeding and resetting fixtures

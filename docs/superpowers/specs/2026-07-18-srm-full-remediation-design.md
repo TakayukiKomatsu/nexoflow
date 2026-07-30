@@ -99,7 +99,7 @@ Clean cutover is required. No compatibility aliases, duplicate endpoints, deprec
 - Runtime log-redaction evidence is absent.
 - Local and CI release/security command parity is incomplete.
 - Trivy does not cover built runtime images and uses an overly broad unfixed-finding policy.
-- README, runbook, diagrams, and traceability contain stale or contradictory status claims.
+- README, runbook, architecture documentation, and traceability contain stale or contradictory status claims.
 
 ## 4. Team topology and ownership
 
@@ -138,7 +138,7 @@ Owns runtime health/logging configuration, Compose and scripts, CI security poli
 
 ### Documentation owner
 
-Runs only after behavior and evidence stabilize. Reconciles README, runbook, permission matrix, diagrams, AI usage, and requirement traceability with observed truth.
+Runs only after behavior and evidence stabilize. Reconciles README architecture, runbook, permission matrix, schema inventory, AI usage, and requirement traceability with observed truth.
 
 ## 5. Execution waves
 
@@ -278,7 +278,7 @@ Completion requires fresh successful evidence for:
 - Runtime log redaction and bounded metric cardinality.
 - Representative reporting query plan.
 - CodeQL, Trivy filesystem/config/image, secret scan, dependency audit, SBOM, and license policy.
-- Documentation links, Mermaid, schema, OpenAPI, traceability, exact-money reproduction, and claim classification.
+- Documentation links, README architecture, schema, OpenAPI, traceability, exact-money reproduction, and claim classification.
 - Full `release-check` local/CI command parity.
 
 A blocked prerequisite is reported as blocked and resolved where locally controllable; it is never relabeled as passed.

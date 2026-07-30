@@ -2,12 +2,19 @@
 .omc/
 .pi-subagents/
 
+# Tool and IDE metadata
+.codegraph/
+backend/.classpath
+backend/.project
+backend/.settings/
+
 # Build and dependency outputs (created by later implementation prompts)
 **/.gradle/
 **/build/
 **/target/
 **/dist/
 **/node_modules/
+backend/bin/
 
 # Local configuration and test artifacts
 .env

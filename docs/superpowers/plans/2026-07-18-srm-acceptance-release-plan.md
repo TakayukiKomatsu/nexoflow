@@ -6,7 +6,7 @@
 
 **Architecture:** Exercise stabilized application contracts through a real Spring HTTP server, PostgreSQL Testcontainers, and the Compose browser path. Generate deterministic evidence with explicit environment metadata; then make `release-check` aggregate every local gate used by CI.
 
-**Tech Stack:** Cucumber JVM 7.34.3, JUnit Platform Suite 5.14.2, Spring Boot Testcontainers, PostgreSQL 16, Playwright Test, Docker Compose, Trivy, Gitleaks, Syft/CycloneDX, Mermaid CLI, Bash, GitHub Actions.
+**Tech Stack:** Cucumber JVM 7.34.3, JUnit Platform Suite 5.14.2, Spring Boot Testcontainers, PostgreSQL 16, Playwright Test, Docker Compose, Trivy, Gitleaks, Syft/CycloneDX, Bash, GitHub Actions.
 
 ## Global Constraints
 
@@ -357,7 +357,7 @@ Update `scripts/inspect-observability.sh` to log in with the local ADMIN reviewe
 
 - [ ] **Step 3: Implement documentation and traceability validators**
 
-`validate-docs.sh` runs Markdown link checks used by the project, Mermaid rendering, migration-to-ER checks, OpenAPI/schema checks, and forbidden claim scans. `validate-traceability.sh` parses every SDD scenario ID and fails when it lacks a feature/test/script path and command in `docs/REQUIREMENT_TRACEABILITY.md`.
+`validate-docs.sh` runs Markdown link checks, required README architecture checks, migration-to-schema-inventory checks, OpenAPI/schema checks, and forbidden claim scans. `validate-traceability.sh` parses every SDD scenario ID and fails when it lacks a feature/test/script path and command in `docs/REQUIREMENT_TRACEABILITY.md`.
 
 - [ ] **Step 3A: Implement the disposable crisis/revert proof**
 
@@ -434,8 +434,8 @@ git commit -m "build(release): align local and CI evidence gates"
 - Modify: `docs/PERMISSION_MATRIX.md`
 - Modify: `docs/REQUIREMENT_TRACEABILITY.md`
 - Modify: `docs/SRM_REQUIREMENTS_PLAN.md`
-- Modify: `docs/architecture/er-diagram.mmd`
-- Modify: `docs/architecture/c4-container.mmd`
+- Modify: `docs/architecture/schema-inventory.md`
+- Modify: `README.md`
 - Modify: `HT_USAGE.md`
 - Modify: `AI_USAGE.md` if present
 
@@ -449,7 +449,7 @@ For each requirement classify `Implemented`, `Proposed`, or `Gap`, and attach it
 
 - [ ] **Step 2: Reconcile architecture artifacts**
 
-Add complete Quote snapshot fields, immutable FX/Reversal annotations, and unique signed ledger movement identity to the ER diagram. Mark runtime components implemented rather than planned only when Compose and Playwright evidence exists. Mermaid files must render.
+Add complete Quote snapshot fields, immutable FX/Reversal annotations, and unique signed ledger movement identity to the schema inventory. Mark runtime components implemented rather than planned only when Compose and Playwright evidence exists. README architecture descriptions must match executable boundaries.
 
 - [ ] **Step 3: Record honest AI/tool usage**
 
@@ -462,7 +462,7 @@ make validate-docs
 make validate-traceability
 ```
 
-Expected: PASS with zero broken links, Mermaid failures, schema drift, or unclassified requirements.
+Expected: PASS with zero broken links, schema drift, OpenAPI drift, or unclassified requirements.
 
 - [ ] **Step 5: Commit documentation truth**
 

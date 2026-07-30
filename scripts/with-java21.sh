@@ -1,10 +1,19 @@
-#!/usr/bin/env zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
-set +u
-source "$HOME/.sdkman/bin/sdkman-init.sh"
-sdk env >/dev/null
-set -u
+if [[ "$(uname -s)" == "Darwin" &&
+      -s "$HOME/.sdkman/bin/sdkman-init.sh" &&
+      "${SRM_JAVA21_ZSH:-0}" != "1" ]]; then
+  export SRM_JAVA21_ZSH=1
+  exec zsh "$0" "$@"
+fi
+
+if [[ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]]; then
+  set +u
+  source "$HOME/.sdkman/bin/sdkman-init.sh"
+  sdk env >/dev/null
+  set -u
+fi
 
 if [[ "$(uname -s)" == "Darwin" && -S "${HOME}/.colima/default/docker.sock" ]]; then
   export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"

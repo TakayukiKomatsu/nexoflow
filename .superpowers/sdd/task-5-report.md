@@ -41,8 +41,8 @@ Output:
 
 ```text
 ./scripts/validate-docs.sh
-=== DOCS-001: architecture docs, Markdown links, Mermaid, and ER checks ===
-ARCH-DOCS-001 passed: foundation artifacts, local links, Mermaid renders, and migration-to-ER tables are consistent
+=== DOCS-001: architecture docs, Markdown links, schema, and API checks ===
+ARCH-DOCS-001 passed: foundation artifacts, local links, schema inventory, and API documentation are consistent
 === DOCS-002: executable OpenAPI contract ===
 Using java version 21.0.8-tem in this shell.
 > Task :compileJava UP-TO-DATE

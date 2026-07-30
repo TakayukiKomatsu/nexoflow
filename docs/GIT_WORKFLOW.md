@@ -1,6 +1,6 @@
 # Git workflow
 
-This project uses **GitHub Flow**: short-lived `feature/<topic>` branches are rebased only while unpublished, reviewed through pull requests, and merged into protected `main` after required checks pass. This fits a small delivery team because it keeps one releasable integration branch without the long-lived coordination overhead of Git Flow.
+This project's intended **GitHub Flow** uses short-lived `feature/<topic>` branches, rebases them only while unpublished, and requires pull-request review and required checks before integration into `main`. This fits a small delivery team because it keeps one releasable integration branch without the long-lived coordination overhead of Git Flow. The initial publication described below deviated from the PR-before-main rule.
 
 ## Rules
 
@@ -11,38 +11,41 @@ This project uses **GitHub Flow**: short-lived `feature/<topic>` branches are re
 - A pull request records scope, tests, security results, migrations, rollback notes, and residual risks. Required checks and review must pass before merge.
 - Release tags and repository publication require the explicit authorization gates in SDD 12.
 
-## Executable local collaboration evidence
+## Hosted publication status and history shape
 
-`make test-local-collaboration-evidence` creates a disposable clone with no
-remote, opens a short-lived `feature/local-pr-simulation` branch, records a
-review-ready PR description and local PR ref, and runs review checks. It then
-performs a real unpublished `git rebase -i --autosquash`, validates the old and
-new ranges with `git range-diff`, and fast-forwards the reviewed head into the
-clone's `main`. This proves local branch, review-description, clean-history, and
-merge mechanics; it is explicitly **not** evidence of a hosted PR, reviewer
-approval, protected-branch checks, or publication.
+The assignment remediation was autosquashed and integrated before publication;
+rebase evidence is captured in
+`docs/evidence/final-remediation-rebase.md`. This demonstrates disciplined
+unpublished-branch rebasing; it does not claim that every historical integration
+was linear.
 
-## Current branch status and history shape
+The public [Nexoflow repository](https://github.com/TakayukiKomatsu/nexoflow)
+exists. Its initial publication was a direct push to `main` at
+[`3a01ab7`](https://github.com/TakayukiKomatsu/nexoflow/commit/3a01ab7c97aa9730fb29f4d58e3b84fb8a478cfe).
+That direct-main publication deviated from the intended PR-before-main rule. This
+cleanup returns the repository to a reviewable pull-request flow.
 
-`fix/assignment-completion` is an unpublished branch that will be autosquashed with
-`git rebase -i --autosquash` before its first push; rebase evidence is captured in
-`docs/evidence/final-remediation-rebase.md`. This repository demonstrates disciplined
-unpublished-branch rebasing; it does not claim that every historical integration was
-linear.
+Hosted CI [run `30502414061`](https://github.com/TakayukiKomatsu/nexoflow/actions/runs/30502414061)
+completed with failure. Verify encountered missing Git identity in a disposable
+collaboration simulation; License compliance and security scan separately failed
+because Ubuntu lacked the `zsh` required by `scripts/with-java21.sh`. The wrapper
+is now portable, and the brittle local Git-history simulation has been removed
+from the quality gate. Hosted
+[cleanup pull request #1](https://github.com/TakayukiKomatsu/nexoflow/pull/1)
+is open, but no hosted green run, reviewer approval, merge, new release tag, or
+public release has been observed. Historical merge commits `f7e0cf5` and
+`1b3f8a8` remain part of the unrevised project history. `v1.0.0` at `af898ef`
+remains historical and is not evidence of a new hosted release. The
+release-related status remains **Pending hosted evidence**.
 
-Historical merge commits `f7e0cf5` and `1b3f8a8` are retained as part of the real
-project history and have not been rewritten. `v1.0.0` is a historical local tag at
-`af898ef`; no current release tag exists. Hosted pull-request, CI, and release
-evidence remains absent until Task 6.
+## Incident rollback
 
-## Crisis exercise
-
-`make test-crisis-evidence` clones the release candidate into a disposable
-repository, renames that clone's current branch to `main`, commits a harmless
-fixture regression, proves the fixture fails, and reverts it. The script then
-runs `make verify-fast` and proves the complete reverted tree equals the release
-candidate tree. The real repository's `main` is never changed; the branch name
-is intentionally realistic only inside the throwaway clone.
+Application and database rollback follows the decision sequence and safety
+boundaries in [`RUNBOOK.md`](RUNBOOK.md#incident-rollback-and-restore),
+including write isolation, verified backup prerequisites, migration-compatible
+recovery paths, health checks, and post-recovery validation. CI does not create
+or rewrite Git history to simulate an incident; hosted checks verify the
+shipped system and documentation rather than a disposable repository.
 
 ## Deliberate deviation: settlement lock ordering
 

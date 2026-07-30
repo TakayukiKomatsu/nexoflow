@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# DOCS-001: Validate documentation consistency — Markdown local links, Mermaid
-# diagrams, migration-to-ER coverage, OpenAPI configuration, and forbidden claims.
+# DOCS-001: Validate documentation consistency — Markdown local links, schema
+# inventory, OpenAPI configuration, and forbidden claims.
 # Delegates structural checks to test_architecture_docs.sh, then adds doc-quality gates.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "=== DOCS-001: architecture docs, Markdown links, Mermaid, and ER checks ==="
+echo "=== DOCS-001: architecture docs, Markdown links, schema, and API checks ==="
 "$repo_root/scripts/tests/test_architecture_docs.sh" \
   || { echo "DOCS-001 FAILED: architecture document check did not pass" >&2; exit 1; }
 

@@ -24,7 +24,7 @@ This document separates human authority and deterministic engineering tools from
 | PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)` | Representative statement-query plan and row-count evidence |
 | Gitleaks, Trivy, Syft/CycloneDX, dependency-license checkers | Full-history/content secret detection, filesystem/runtime-image CVEs and misconfiguration, immutable image digests, SBOM, production-license allowlists |
 | GitHub Actions and CodeQL | Pinned CI orchestration, least-privilege permissions, and remote static analysis when the workflow runs |
-| Mermaid CLI and repository validators | Diagram parsing, migration-to-ER coverage, links, OpenAPI reachability, traceability, CI-contract, and prohibited-claim checks |
+| Repository validators | README architecture, migration-to-schema coverage, links, OpenAPI reachability, traceability, CI-contract, and prohibited-claim checks |
 | Git hooks | Conventional commit-message policy; fast staged canary/private-key/credential-assignment guard with explicit placeholder rules; pre-push unit verification. Full-history/content Gitleaks and Trivy remain the authoritative secret gates |
 
 ## Evidence map
@@ -37,11 +37,9 @@ This document separates human authority and deterministic engineering tools from
 | Full reviewer runtime | `make verify-compose` | Full-stack smoke, authenticated metrics, fixtures, readiness recovery; stack removed on exit |
 | Reporting plan | `make explain-statements-representative` | `docs/evidence/reporting-explain.txt` |
 | Security/SBOM/licenses | `make security-scan` | Generated `build/security/` reports, image digests, and `sbom.cdx.json` |
-| Documentation | `make validate-docs` | Link, Mermaid, schema, OpenAPI, and claim-validation results |
+| Documentation | `make validate-docs` | Link, schema, OpenAPI, and claim-validation results |
 | Scenario mapping | `make validate-traceability` | Exact SDD ID → source/command validation |
-| Crisis/revert | `make test-crisis-evidence` | Disposable local branch/hash/recovery output |
-| Local PR/rebase | `make test-local-collaboration-evidence` | Disposable remote-free PR description/ref, actual interactive autosquash, range-diff, and fast-forward output |
-| Aggregate local gate | `make release-check` | All local build, runtime, acceptance, security, docs, and crisis evidence above |
+| Aggregate local gate | `make release-check` | All local build, runtime, acceptance, security, and documentation evidence above |
 
 Generated artifacts can be stale. A reviewer should pair each artifact with the current command result and inspect failures rather than accepting file presence.
 

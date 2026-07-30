@@ -26,7 +26,7 @@ This contract applies to Prompts 01–12 and is not optional.
 
 - Every business/API feature is specified in Gherkin and executed with Cucumber-JUnit against Spring and PostgreSQL Testcontainers. The critical browser feature is executed with Playwright BDD or an equally direct feature-to-test adapter.
 - Every feature and scenario has a stable ID (for example `PRICE-001`) visible in the test report. Every step names a real role/actor, fixed fixture, concrete request/action, and exact observable response, row/state change, event, log, or metric. Tautologies and prose-only assertions are forbidden.
-- Infrastructure/documentation contracts use executable shell, schema, OpenAPI, Mermaid, and link tests rather than artificial Gherkin; externally observable infrastructure behavior may use Gherkin.
+- Infrastructure/documentation contracts use executable shell, `docs/architecture/schema-inventory.md`, OpenAPI, `README.md` textual architecture, and local-link tests rather than artificial Gherkin; externally observable infrastructure behavior may use Gherkin.
 - For each coherent behavior: **RED** — add the smallest meaningful test and capture the expected failure; **GREEN** — implement only enough and run the focused plus relevant regression suites; **REFACTOR** — improve design while green. Record RED/GREEN commands and concise output.
 - Use unit tests for financial/domain boundaries, Cucumber/API tests for contracts, Testcontainers for migrations/transactions/authorization, deterministic barrier-based PostgreSQL concurrency tests, component tests for UI state, and Playwright for the critical path. No sleeps in concurrency/E2E synchronization.
 - Exact financial values travel as decimal strings. Java authoritative code uses `BigDecimal`, never `float`/`double`; JavaScript never calculates authoritative financial outcomes. Use `NUMERIC(19,4)` for stored money, `NUMERIC(19,10)` for rates/intermediates where specified, `HALF_EVEN` at currency boundaries, and an injectable `Clock` for all time-dependent behavior.
@@ -62,7 +62,7 @@ An increment is accepted only with: stable scenario report IDs; RED and GREEN ou
 - Add fast pre-commit format/lint/staged-secret checks, commit-msg validation, and pre-push unit tests. Each hook must have a directly invocable CI script.
 - Add least-privilege CI with pinned actions: backend/frontend lint, typecheck, unit/integration gates, migration/Compose validation, Gitleaks and dependency scans. Missing suites fail rather than silently skip. Reserve documented CodeQL/Trivy jobs for completion in Prompt 10.
 - Create PR template, ownership/reviewer placeholder only when accurate, and requirement→feature traceability skeleton.
-- Create `docs/CONTEXT.md` as the canonical SRM domain glossary; it must define Assignor, Receivable, Product Type, Pricing Simulation, Pricing Quote, Settlement Preview, Settlement, Settlement Reversal, Settlement Ledger Entry, Asset Currency, Settlement Currency, Base Rate, Risk Spread, Pricing Term, and Exchange-Rate Pair without implementation details. Create early ADRs for modular monolith, PostgreSQL, JPA writes/SQL reads, decimals/rounding, local JWT→OIDC, immutable quote snapshots, and atomic idempotency. Add Mermaid ER source for every planned table and FK/unique/version constraint.
+- Create `docs/CONTEXT.md` as the canonical SRM domain glossary; it must define Assignor, Receivable, Product Type, Pricing Simulation, Pricing Quote, Settlement Preview, Settlement, Settlement Reversal, Settlement Ledger Entry, Asset Currency, Settlement Currency, Base Rate, Risk Spread, Pricing Term, and Exchange-Rate Pair without implementation details. Create early ADRs for modular monolith, PostgreSQL, JPA writes/SQL reads, decimals/rounding, local JWT→OIDC, immutable quote snapshots, and atomic idempotency. Add the planned tables and every FK/unique/version constraint to `docs/architecture/schema-inventory.md`, and document module and runtime boundaries textually in `README.md`.
 
 **Non-goals:** Business endpoints, financial calculations, database migrations, remote PRs, publication, and tags.
 
@@ -92,10 +92,10 @@ Feature: REPO-GIT governed local history
     And output does not print the complete canary value
 ```
 
-**Test mapping:** `FIN-GIT-001/002` → shell acceptance tests in a disposable repository. ADR/ER links → link checker, Mermaid renderer, and ER-schema consistency script. CI YAML → action/workflow linter. Architecture boundaries → ArchUnit negative fixture test.
+**Test mapping:** `FIN-GIT-001/002` → shell acceptance tests in a disposable repository. README/ADR/schema-inventory links → local-link checker and migration-to-schema-inventory consistency script. CI YAML → action/workflow linter. Architecture boundaries → ArchUnit negative fixture test.
 
 **Verification:** Focused: `make test-hooks && make validate-architecture-docs`. Regression: `make verify-fast && make validate-workflows`; also run `docker compose config` once Compose skeleton exists.
 
-**Evidence:** Hook exit/output excerpts, rendered Mermaid artifact, ADR/link/schema report, workflow permission/pinning report, changed files, and required global handoff.
+**Evidence:** Hook exit/output excerpts, README textual architecture check, ADR/local-link/schema-inventory report, workflow permission/pinning report, changed files, and required global handoff.
 
-**Commit outcomes:** Separate green commits: `chore(repo): establish governed engineering foundation`; `docs(architecture): record initial decisions and ER model`; `ci: add early quality and security gates`.
+**Commit outcomes:** Separate green commits: `chore(repo): establish governed engineering foundation`; `docs(architecture): record initial decisions and schema inventory`; `ci: add early quality and security gates`.

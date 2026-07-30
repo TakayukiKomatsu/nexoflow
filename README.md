@@ -8,7 +8,9 @@ SRM Credit Engine is a modular-monolith exercise for pricing and settling BRL/US
 
 **Executable evidence:** twelve Cucumber scenarios cover authorization, FX resilience, pricing, quote immutability, settlement concurrency/rollback, reversal/ledger behavior, and observability (`make test-api-features`, report: `backend/build/reports/cucumber.json`). Playwright E2E-001 drives the financial operator path through a real browser, backend, and PostgreSQL (`make test-ui-features`, report: `frontend/playwright-report/index.html`). `make explain-statements-representative` captures a PostgreSQL 16 plan for a representative 10,000-row Settlement dataset at `docs/evidence/reporting-explain.txt`; this is not production-scale or 1M-transactions/minute proof. `make release-check` aggregates the local release gates.
 
-**Deliberate limitations:** local signed JWT/BCrypt rather than external OIDC, deterministic mock rather than real market FX data, no refresh tokens, no FX triangulation, no product-type or user-management API, and no Kubernetes/Terraform/microservice runtime. No remote is configured, so hosted pull requests, publication, protected-branch checks, and a remote release remain unverified and authorization-gated. An existing local annotated `v1.0.0` tag points to `af898ef`; it predates the current remediation and is historical local evidence, not proof that this HEAD was reviewed, published, or released. It has not been moved or reused; any authorized future release must select a new version and exact reviewed SHA. Branch `fix/assignment-completion` will be autosquashed before its first push; this demonstrates disciplined unpublished-branch rebasing and does not claim the repository's entire history is linear. Historical merge commits `f7e0cf5` and `1b3f8a8` are retained. Hosted pull-request, CI, and release evidence remains absent until Task 6.
+**Deliberate limitations:** local signed JWT/BCrypt rather than external OIDC, deterministic mock rather than real market FX data, no refresh tokens, no FX triangulation, no product-type or user-management API, and no Kubernetes/Terraform/microservice runtime.
+
+**Hosted publication state:** the public [Nexoflow repository](https://github.com/TakayukiKomatsu/nexoflow) exists. The assignment remediation was autosquashed and integrated before publication, and the initial publication was a direct push to `main` at [`3a01ab7`](https://github.com/TakayukiKomatsu/nexoflow/commit/3a01ab7c97aa9730fb29f4d58e3b84fb8a478cfe). Hosted CI [run `30502414061`](https://github.com/TakayukiKomatsu/nexoflow/actions/runs/30502414061) completed with failure: the Ubuntu runner could not execute the Java wrapper because it required `zsh`, causing the Verify, License compliance, and security-scan jobs to fail before the full gate ran. This cleanup branch makes that wrapper portable, but no hosted green run has been observed yet. No hosted pull request, reviewer approval, new release tag, or public release exists. `v1.0.0` at `af898ef` remains historical evidence; it has not been moved or reused and does not prove that the published SHA was reviewed or released.
 
 ## Run locally
 
@@ -33,7 +35,7 @@ make verify-fast       # local unit, hook, frontend-quality, architecture, and C
 make release-check     # complete local acceptance and release aggregate; requires Docker
 ```
 
-Focused evidence commands are documented in the [reviewer runbook](docs/RUNBOOK.md). `make release-check` builds both applications, exercises PostgreSQL/Testcontainers and Compose, runs Cucumber and Playwright, captures representative SQL evidence, executes security/license/SBOM gates, validates documentation/traceability, and proves the disposable crisis/revert workflow.
+Focused evidence commands are documented in the [reviewer runbook](docs/RUNBOOK.md). `make release-check` builds both applications, exercises PostgreSQL/Testcontainers and Compose, runs Cucumber and Playwright, captures representative SQL evidence, executes security/license/SBOM gates, and validates documentation and traceability.
 
 ## Reviewer Compose runtime
 
@@ -53,21 +55,32 @@ Install local hooks once with `make install-hooks`. The pre-push hook runs the s
 
 ## GitHub Flow rationale
 
-This repository uses GitHub Flow: one releasable `main` plus short-lived
+This repository's intended GitHub Flow uses one releasable `main` plus short-lived
 `feature/<topic>` or `fix/<topic>` branches. It fits a small, time-boxed delivery
 better than Git Flow because there are no long-lived release/develop branches to
-synchronize, while pull-request review and required checks still protect the
-integration branch. Commits use Conventional Commits; unpublished fixups are
-autosquashed before first push, and reviewed/shared branches are never rebased or
-force-pushed. `make test-local-collaboration-evidence` proves the branch,
-PR-description, interactive autosquash, `range-diff`, and fast-forward mechanics
-inside a remote-free disposable clone. It does not claim a hosted PR or review.
-The detailed policy and crisis procedure are in the [Git workflow](docs/GIT_WORKFLOW.md).
-`fix/assignment-completion` will be autosquashed with `git rebase -i --autosquash` before
-its first push, demonstrating disciplined unpublished-branch rebasing; the repository does
-not claim its entire history is linear. Historical merge commits `f7e0cf5` and `1b3f8a8`
-are retained; `v1.0.0` is a historical local tag at `af898ef` and no current release tag
-exists. Hosted pull-request, CI, and release evidence remains absent until Task 6.
+synchronize. The policy requires pull-request review and required checks before
+integration into `main`; reviewed/shared branches are never rebased or force-pushed.
+
+The assignment remediation was autosquashed and integrated before publication,
+but the initial hosted publication was a direct push to `main` at
+[`3a01ab7`](https://github.com/TakayukiKomatsu/nexoflow/commit/3a01ab7c97aa9730fb29f4d58e3b84fb8a478cfe).
+That direct-main publication deviated from the intended PR-before-main rule; this
+cleanup returns the repository to a reviewable pull-request flow.
+
+The public [Nexoflow repository](https://github.com/TakayukiKomatsu/nexoflow)
+and hosted [cleanup pull request #1](https://github.com/TakayukiKomatsu/nexoflow/pull/1)
+exist. Initial hosted CI
+[run `30502414061`](https://github.com/TakayukiKomatsu/nexoflow/actions/runs/30502414061)
+failed for two distinct reasons: Verify encountered missing Git identity in a
+disposable collaboration simulation, while License compliance and security scan
+could not execute the Java wrapper because Ubuntu lacked `zsh`. The wrapper is now
+portable, and the brittle local Git-history simulation has been removed from the
+quality gate. No hosted green run, reviewer approval, merged PR, new release tag,
+or public release has been observed yet. Historical merge commits `f7e0cf5` and
+`1b3f8a8` remain. The existing local annotated `v1.0.0` tag points to `af898ef`;
+it is unchanged historical evidence.
+The detailed policy and crisis procedure are in the
+[Git workflow](docs/GIT_WORKFLOW.md).
 
 ## Proposed evolution to 1M transactions/minute
 
@@ -138,18 +151,60 @@ measured contention or scaling benefit. Sustained >70% resource use, unacceptabl
 release coupling, or a regulatory isolation boundary are valid triggers. Before
 extraction, require versioned contracts, outbox/inbox semantics, backfill and
 reconciliation, failure-mode tests, dashboards/runbooks, and an incremental
-rollback plan. The [proposed scale diagram](docs/architecture/scale-evolution.mmd)
-shows this evolution without claiming it exists.
+rollback plan. The flow above is the complete proposed scale design; no
+distributed topology is implemented in this repository.
 
-## Architecture and delivery evidence
+## Architecture
+
+### Runtime boundaries
+
+- Operators and administrators use the React + TypeScript SPA exposed by nginx.
+- nginx reverse-proxies `/api/v1` JSON requests to the Spring Boot modular
+  backend; the browser never connects directly to PostgreSQL or the FX service.
+- The backend owns financial commands and reporting. Flyway plus JDBC/JPA use
+  PostgreSQL 16 as the authoritative write store; SQL projections provide the
+  settlement statement read path.
+- The deterministic HTTP FX service is an internal reviewer fixture, not a real
+  market-data provider. H2 is test-only.
+
+The backend is deployed as one modular monolith. Identity, reference data, FX,
+assignor/receivable, pricing, settlement, reporting, and audit capabilities own
+their APIs, application services, domain policies, and adapters. Cross-module
+access goes through explicit interfaces; architecture tests reject financial
+module cycles and API/infrastructure layering violations.
+
+### Settlement state and atomic flow
+
+1. A persisted Pricing Quote is `ACTIVE` for 15 minutes. Settlement consumes it
+   as `CONSUMED`; an expired quote is rejected and consumed snapshots remain
+   immutable.
+2. A Receivable moves `REGISTERED → SETTLED` through an optimistic-version
+   update plus unique settlement item. Whole-Settlement reversal appends a
+   compensating record and moves it `SETTLED → REVERSED`, which is terminal.
+3. `POST /settlement-previews` reads ordered active quotes and receivables and
+   returns a non-persisted validation/total.
+4. `POST /settlements` starts one PostgreSQL transaction, inserts a
+   `PROCESSING` idempotency record keyed by actor, operation, key, and request
+   hash, revalidates quote expiry/status and receivable versions, transitions
+   quotes and receivables, then inserts the Settlement, items, and audit event.
+5. Success marks the idempotency record `COMPLETED` and commits all rows.
+   Conflicts, expiry, or injected failures roll back every row, including
+   `PROCESSING`. The same key and hash replays the stored result; a different
+   hash returns `409`.
+6. Settlement and reversal rows are immutable. The signed statement ledger is a
+   derived SQL read model: Settlement entries are positive, reversal entries
+   are negative, and ordering is `effective_at DESC, entry_id DESC`.
+
+Detailed storage types and constraints remain in the
+[schema inventory](docs/architecture/schema-inventory.md); HTTP operations
+remain in the [API endpoint inventory](docs/architecture/api-endpoints.md).
+
+### Delivery evidence
 
 - [Reviewer runbook](docs/RUNBOOK.md) and [permission matrix](docs/PERMISSION_MATRIX.md)
 - [Requirement traceability](docs/REQUIREMENT_TRACEABILITY.md)
 - [Domain glossary](docs/CONTEXT.md) and [Git workflow](docs/GIT_WORKFLOW.md)
-- [ER diagram](docs/architecture/er-diagram.mmd)
 - [DDL/schema inventory](docs/architecture/schema-inventory.md) and [API endpoint inventory](docs/architecture/api-endpoints.md)
-- [C4 context](docs/architecture/c4-context.mmd) and [C4 container](docs/architecture/c4-container.mmd)
-- [Settlement state](docs/architecture/settlement-state.mmd) and [atomic/idempotent sequence](docs/architecture/settlement-sequence.mmd)
 - [Architecture decisions](docs/adr)
 - [Cucumber scenarios](backend/src/integrationTest/resources/features/srm_acceptance.feature) and generated `backend/build/reports/cucumber.json`
 - [Playwright critical path](frontend/e2e/operator-critical-path.spec.ts) and generated `frontend/playwright-report/`

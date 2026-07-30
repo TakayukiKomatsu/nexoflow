@@ -12,10 +12,6 @@ const javaDir = path.resolve(
   process.env.SRM_SCHEMA_JAVA_DIR
     ?? path.join(repoRoot, 'backend/src/main/java/db/migration'),
 );
-const erPath = path.resolve(
-  process.env.SRM_SCHEMA_ER_DOCUMENT
-    ?? path.join(repoRoot, 'docs/architecture/er-diagram.mmd'),
-);
 const inventoryPath = path.resolve(
   process.env.SRM_SCHEMA_INVENTORY_DOCUMENT
     ?? path.join(repoRoot, 'docs/architecture/schema-inventory.md'),
@@ -197,7 +193,6 @@ const migrationText = migrationFiles.map((file) => {
     ...javaLoopGeneratedAlterColumnStatements(source),
   ].join('\n');
 }).join('\n').toLowerCase();
-const erText = fs.readFileSync(erPath, 'utf8');
 const inventoryText = fs.readFileSync(inventoryPath, 'utf8');
 
 function splitTopLevel(definition) {
@@ -235,42 +230,42 @@ function sqlColumnType(definition) {
   if (numeric) {
     return {
       inventory: `numeric(${numeric[1]},${numeric[2]})`,
-      er: `decimal_${numeric[1]}_${numeric[2]}`,
+      document: `decimal_${numeric[1]}_${numeric[2]}`,
       financial: true,
     };
   }
-  if (/^double\s+precision\b/.test(type)) return { inventory: 'double precision', er: 'double_precision' };
-  if (/^bigint\b/.test(type)) return { inventory: 'bigint', er: 'bigint' };
-  if (/^(?:integer|int)\b/.test(type)) return { inventory: 'integer', er: 'int' };
-  if (/^uuid\b/.test(type)) return { inventory: 'uuid', er: 'uuid' };
-  if (/^boolean\b/.test(type)) return { inventory: 'boolean', er: 'boolean' };
+  if (/^double\s+precision\b/.test(type)) return { inventory: 'double precision', document: 'double_precision' };
+  if (/^bigint\b/.test(type)) return { inventory: 'bigint', document: 'bigint' };
+  if (/^(?:integer|int)\b/.test(type)) return { inventory: 'integer', document: 'int' };
+  if (/^uuid\b/.test(type)) return { inventory: 'uuid', document: 'uuid' };
+  if (/^boolean\b/.test(type)) return { inventory: 'boolean', document: 'boolean' };
   const timestamp = type.match(
     /^(timestamp|timestamptz)(?:\s*\(\s*(\d+)\s*\))?(?:\s+(with|without)\s+time\s+zone)?(?=\s|$)/,
   );
   if (timestamp) {
     const timezone = timestamp[1] === 'timestamptz' || timestamp[3] === 'with';
     return timezone
-      ? { inventory: 'timestamp with time zone', er: 'timestamptz' }
-      : { inventory: 'timestamp without time zone', er: 'timestamp' };
+      ? { inventory: 'timestamp with time zone', document: 'timestamptz' }
+      : { inventory: 'timestamp without time zone', document: 'timestamp' };
   }
-  if (/^date\b/.test(type)) return { inventory: 'date', er: 'date' };
+  if (/^date\b/.test(type)) return { inventory: 'date', document: 'date' };
   const varchar = type.match(
     /^(?:varchar|character\s+varying)(?:\s*\(\s*(\d+)\s*\))?(?=\s|$)/,
   );
   if (varchar) {
     return varchar[1]
-      ? { inventory: `varchar(${varchar[1]})`, er: `varchar_${varchar[1]}` }
-      : { inventory: 'varchar', er: 'varchar' };
+      ? { inventory: `varchar(${varchar[1]})`, document: `varchar_${varchar[1]}` }
+      : { inventory: 'varchar', document: 'varchar' };
   }
   const character = type.match(
     /^(?:char|character)(?:\s*\(\s*(\d+)\s*\))?(?=\s|$)/,
   );
   if (character) {
     const length = character[1] ?? '1';
-    return { inventory: `char(${length})`, er: `char_${length}` };
+    return { inventory: `char(${length})`, document: `char_${length}` };
   }
-  if (/^text\b/.test(type)) return { inventory: 'text', er: 'text' };
-  if (/^(?:json|jsonb)\b/.test(type)) return { inventory: 'json', er: 'json' };
+  if (/^text\b/.test(type)) return { inventory: 'text', document: 'text' };
+  if (/^(?:json|jsonb)\b/.test(type)) return { inventory: 'json', document: 'json' };
   return null;
 }
 
@@ -403,44 +398,44 @@ for (const [table, columns] of schema) {
   }
 }
 
-const erSchema = new Map();
-const erBlockPattern = /^ {4}([a-z_][a-z0-9_]*) \{\n([\s\S]*?)^ {4}\}/gm;
-for (const match of erText.matchAll(erBlockPattern)) {
+const documentedSchema = new Map();
+const documentedBlockPattern = /^ {4}([a-z_][a-z0-9_]*) \{\n([\s\S]*?)^ {4}\}/gm;
+for (const match of inventoryText.matchAll(documentedBlockPattern)) {
   const attributes = new Map();
   for (const line of match[2].split('\n').map((value) => value.trim()).filter(Boolean)) {
     const [type, column, ...markers] = line.split(/\s+/);
     attributes.set(column, { type, markers: markers.join(' ') });
   }
-  erSchema.set(match[1], attributes);
+  documentedSchema.set(match[1], attributes);
 }
 
 const failures = [];
 for (const [table, columns] of schema) {
-  const documented = erSchema.get(table);
+  const documented = documentedSchema.get(table);
   if (!documented) {
-    failures.push(`migration table missing from ER: ${table}`);
+    failures.push(`migration table missing from schema inventory: ${table}`);
     continue;
   }
   for (const [column, definition] of columns) {
-    if (!documented.has(column)) failures.push(`migration column missing from ER: ${table}.${column}`);
+    if (!documented.has(column)) failures.push(`migration column missing from schema inventory: ${table}.${column}`);
     const attribute = documented.get(column);
     const markers = attribute?.markers ?? '';
     const migrationType = sqlColumnType(definition);
-    if (attribute && migrationType && attribute.type !== migrationType.er) {
+    if (attribute && migrationType && attribute.type !== migrationType.document) {
       failures.push(
-        `ER type mismatch: ${table}.${column} migration ${migrationType.er}, ER ${attribute.type}`,
+        `schema inventory type mismatch: ${table}.${column} migration ${migrationType.document}, inventory ${attribute.type}`,
       );
     }
-    if (/\bprimary\s+key\b/.test(definition) && !markers.includes('PK')) failures.push(`ER lacks PK marker: ${table}.${column}`);
-    if (/\bunique\b/.test(definition) && !markers.includes('UK')) failures.push(`ER lacks UK marker: ${table}.${column}`);
-    if (/\breferences\b/.test(definition) && !markers.includes('FK')) failures.push(`ER lacks FK marker: ${table}.${column}`);
+    if (/\bprimary\s+key\b/.test(definition) && !markers.includes('PK')) failures.push(`schema inventory lacks PK marker: ${table}.${column}`);
+    if (/\bunique\b/.test(definition) && !markers.includes('UK')) failures.push(`schema inventory lacks UK marker: ${table}.${column}`);
+    if (/\breferences\b/.test(definition) && !markers.includes('FK')) failures.push(`schema inventory lacks FK marker: ${table}.${column}`);
   }
   for (const column of documented.keys()) {
-    if (!columns.has(column)) failures.push(`ER column has no migration authority: ${table}.${column}`);
+    if (!columns.has(column)) failures.push(`schema inventory column has no migration authority: ${table}.${column}`);
   }
 }
-for (const table of erSchema.keys()) {
-  if (!schema.has(table)) failures.push(`ER table has no migration authority: ${table}`);
+for (const table of documentedSchema.keys()) {
+  if (!schema.has(table)) failures.push(`schema inventory table has no migration authority: ${table}`);
 }
 
 const namedArtifacts = new Set(
@@ -506,4 +501,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`DOC-SCHEMA-002 passed: ${schema.size} tables, exact ER textual/temporal types, exact financial numeric storage/nullability, structural constraints, indexes, and Java-migration triggers match the inventory`);
+console.log(`DOC-SCHEMA-002 passed: ${schema.size} tables, exact documented textual/temporal types, exact financial numeric storage/nullability, structural constraints, indexes, and Java-migration triggers match the inventory`);

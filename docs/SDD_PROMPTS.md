@@ -26,7 +26,7 @@ This contract applies to Prompts 01–12 and is not optional.
 
 - Every business/API feature is specified in Gherkin and executed with Cucumber-JUnit against Spring and PostgreSQL Testcontainers. The critical browser feature is executed with Playwright BDD or an equally direct feature-to-test adapter.
 - Every feature and scenario has a stable ID (for example `PRICE-001`) visible in the test report. Every step names a real role/actor, fixed fixture, concrete request/action, and exact observable response, row/state change, event, log, or metric. Tautologies and prose-only assertions are forbidden.
-- Infrastructure/documentation contracts use executable shell, schema, OpenAPI, Mermaid, and link tests rather than artificial Gherkin; externally observable infrastructure behavior may use Gherkin.
+- Infrastructure/documentation contracts use executable shell, `docs/architecture/schema-inventory.md`, OpenAPI, `README.md` textual architecture, and local-link tests rather than artificial Gherkin; externally observable infrastructure behavior may use Gherkin.
 - For each coherent behavior: **RED** — add the smallest meaningful test and capture the expected failure; **GREEN** — implement only enough and run the focused plus relevant regression suites; **REFACTOR** — improve design while green. Record RED/GREEN commands and concise output.
 - Use unit tests for financial/domain boundaries, Cucumber/API tests for contracts, Testcontainers for migrations/transactions/authorization, deterministic barrier-based PostgreSQL concurrency tests, component tests for UI state, and Playwright for the critical path. No sleeps in concurrency/E2E synchronization.
 - Exact financial values travel as decimal strings. Java authoritative code uses `BigDecimal`, never `float`/`double`; JavaScript never calculates authoritative financial outcomes. Use `NUMERIC(19,4)` for stored money, `NUMERIC(19,10)` for rates/intermediates where specified, `HALF_EVEN` at currency boundaries, and an injectable `Clock` for all time-dependent behavior.
@@ -64,7 +64,7 @@ An increment is accepted only with: stable scenario report IDs; RED and GREEN ou
 - Add fast pre-commit format/lint/staged-secret checks, commit-msg validation, and pre-push unit tests. Each hook must have a directly invocable CI script.
 - Add least-privilege CI with pinned actions: backend/frontend lint, typecheck, unit/integration gates, migration/Compose validation, Gitleaks and dependency scans. Missing suites fail rather than silently skip. Reserve documented CodeQL/Trivy jobs for completion in Prompt 10.
 - Create PR template, ownership/reviewer placeholder only when accurate, and requirement→feature traceability skeleton.
-- Create `docs/CONTEXT.md` as the canonical SRM domain glossary; it must define Assignor, Receivable, Product Type, Pricing Simulation, Pricing Quote, Settlement Preview, Settlement, Settlement Reversal, Settlement Ledger Entry, Asset Currency, Settlement Currency, Base Rate, Risk Spread, Pricing Term, and Exchange-Rate Pair without implementation details. Create early ADRs for modular monolith, PostgreSQL, JPA writes/SQL reads, decimals/rounding, local JWT→OIDC, immutable quote snapshots, and atomic idempotency. Add Mermaid ER source for every planned table and FK/unique/version constraint.
+- Create `docs/CONTEXT.md` as the canonical SRM domain glossary; it must define Assignor, Receivable, Product Type, Pricing Simulation, Pricing Quote, Settlement Preview, Settlement, Settlement Reversal, Settlement Ledger Entry, Asset Currency, Settlement Currency, Base Rate, Risk Spread, Pricing Term, and Exchange-Rate Pair without implementation details. Create early ADRs for modular monolith, PostgreSQL, JPA writes/SQL reads, decimals/rounding, local JWT→OIDC, immutable quote snapshots, and atomic idempotency. Add the planned tables and every FK/unique/version constraint to `docs/architecture/schema-inventory.md`, and document module and runtime boundaries textually in `README.md`.
 
 **Non-goals:** Business endpoints, financial calculations, database migrations, remote PRs, publication, and tags.
 
@@ -94,13 +94,13 @@ Feature: REPO-GIT governed local history
     And output does not print the complete canary value
 ```
 
-**Test mapping:** `FIN-GIT-001/002` → shell acceptance tests in a disposable repository. ADR/ER links → link checker, Mermaid renderer, and ER-schema consistency script. CI YAML → action/workflow linter. Architecture boundaries → ArchUnit negative fixture test.
+**Test mapping:** `FIN-GIT-001/002` → shell acceptance tests in a disposable repository. README/ADR/schema-inventory links → local-link checker and migration-to-schema-inventory consistency script. CI YAML → action/workflow linter. Architecture boundaries → ArchUnit negative fixture test.
 
 **Verification:** Focused: `make test-hooks && make validate-architecture-docs`. Regression: `make verify-fast && make validate-workflows`; also run `docker compose config` once Compose skeleton exists.
 
-**Evidence:** Hook exit/output excerpts, rendered Mermaid artifact, ADR/link/schema report, workflow permission/pinning report, changed files, and required global handoff.
+**Evidence:** Hook exit/output excerpts, README textual architecture check, ADR/local-link/schema-inventory report, workflow permission/pinning report, changed files, and required global handoff.
 
-**Commit outcomes:** Separate green commits: `chore(repo): establish governed engineering foundation`; `docs(architecture): record initial decisions and ER model`; `ci: add early quality and security gates`.
+**Commit outcomes:** Separate green commits: `chore(repo): establish governed engineering foundation`; `docs(architecture): record initial decisions and schema inventory`; `ci: add early quality and security gates`.
 
 ---
 
@@ -546,7 +546,7 @@ Feature: E2E deterministic financial path
 
 **Scope:**
 
-- Reconcile early ADR/ER with actual migrations/OpenAPI. Add C4 context/container, DDL links naming the Flyway migrations as the required DDL-scripts deliverable, permission matrix, precision examples, settlement/idempotency state and sequence diagrams, terminal reversal/ledger semantics, operations/runbook, limitations, and requirement→code/test/doc/gap traceability.
+- Reconcile early ADR/schema inventory with actual migrations/OpenAPI. Add textual context, runtime-container boundaries, settlement/idempotency flow and state to `README.md`; keep `docs/architecture/schema-inventory.md` as the detailed DDL authority; and add Flyway DDL links, permission matrix, precision examples, terminal reversal/ledger semantics, operations/runbook, limitations, and requirement→code/test/doc/gap traceability.
 - Document proposed—not implemented—1M transactions/minute evolution with workload/capacity math, partitioning, outbox/CDC, Kafka ordering/idempotent consumers, materialized reports, strong/eventual consistency boundaries, reconciliation, backpressure/DLQ/replay, SLO, DR/RPO/RTO, and staged extraction criteria.
 - Complete candid `AI_USAGE.md` using actual prompts, hallucinations/corrections, wins/costs only. README begins with full-stack start and deterministic demo, and states and justifies the chosen GitHub Flow branching strategy for this project.
 - Preserve whole-settlement terminal reversal, signed ledger, server simulation/preview, and authorization limitations prominently.
@@ -557,17 +557,17 @@ Feature: E2E deterministic financial path
 
 **Executable acceptance (documentation checks, not artificial Gherkin):**
 
-- Link and Mermaid checks render every diagram and resolve every local path.
-- Migration-to-ER schema checker finds no missing table/key/version constraint; OpenAPI lint and endpoint inventory match docs.
+- README textual-architecture and local-link checks verify the documented runtime boundaries and resolve every local path.
+- Migration-to-schema-inventory checker finds no missing table/key/version constraint; OpenAPI lint and endpoint inventory match docs.
 - Traceability checker resolves every test/doc path and finds `SETTLE-006` in feature report, CI gate, and relevant ADR.
 - Reproduction script computes/document-compares `975.61` without binary floating point.
 - Claim linter rejects ambiguous phrases such as “production-ready 1M/min” and requires status labels.
 
-**Test mapping:** `DOC-LINK-001` → link/Mermaid test; `DOC-SCHEMA-002` → migration/ER diff; `DOC-TRACE-003` → traceability schema/path resolver; `DOC-MONEY-004` → exact vector script; `DOC-CLAIM-005` → implemented/proposed claim lint.
+**Test mapping:** `DOC-LINK-001` → README textual-architecture/local-link test; `DOC-SCHEMA-002` → migration/schema-inventory diff; `DOC-TRACE-003` → traceability schema/path resolver; `DOC-MONEY-004` → exact vector script; `DOC-CLAIM-005` → implemented/proposed claim lint.
 
 **Verification:** Focused: `make validate-docs && make validate-traceability`. Regression: `make verify && make release-check`.
 
-**Evidence:** Rendered diagram index, zero-broken-link/schema/OpenAPI reports, traceability coverage, exact-vector output, claim classifications, actual AI usage references, and global handoff.
+**Evidence:** README textual-architecture report, zero-broken-local-link/schema-inventory/OpenAPI reports, traceability coverage, exact-vector output, claim classifications, actual AI usage references, and global handoff.
 
 **Commit outcomes:** `docs: reconcile architecture and staff evolution artifacts`; `docs: complete reviewer and AI usage guide`.
 
@@ -611,11 +611,11 @@ Feature: REL authorized release provenance
     And the complete tree at R1 equals R0
 ```
 
-**Test mapping:** `REL-004` → authorization checklist dry-run test and command audit; `CRISIS-002` → dedicated harmless fixture/test plus Git tree/hash assertions. Remote gate → independently accessible URL/SHA/check API verification. Tag gate → local and remote object/SHA verification.
+**Test mapping:** `REL-004` → authorization checklist dry-run test and command audit; `CRISIS-002` → **Gap**, with operational rollback documented but no disposable Git mutation proof retained. Remote gate → independently accessible URL/SHA/check API verification. Tag gate → local and remote object/SHA verification.
 
-**Verification:** Focused: locally run `git status --short`, `git diff --cached --quiet`, `make test-local-collaboration-evidence`, and `make test-crisis-evidence`. The local collaboration script captures an actual autosquash `range-diff`. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: `gh pr checks <url>`, `git show --no-patch <new-version>`, `git ls-remote --tags origin <new-version>`, and URL access checks.
+**Verification:** Focused: locally run `git status --short`, `git diff --cached --quiet`, and `make verify-fast`; inspect `docs/evidence/final-remediation-rebase.md` for the recorded autosquash hashes and range-diff. No disposable Git-history simulation is part of the release gate. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: hosted PR check APIs, `git show --no-patch <new-version>`, `git ls-remote --tags origin <new-version>`, and URL access checks.
 
-**Evidence:** Old/new rebase hashes/range-diff; crisis defect/revert hashes and failing/passing output; final clean status/empty index; actual PR/repository/release URLs and check/review conclusions when authorized; exact reviewed merge SHA; annotated/local/remote tag resolution. External evidence belongs in PR/release/final report, avoiding a circular post-tag commit.
+**Evidence:** Old/new rebase hashes/range-diff; documented incident rollback and recovery checks; final clean status/empty index; actual PR/repository/release URLs and check/review conclusions when authorized; exact reviewed merge SHA; annotated/local/remote tag resolution. External evidence belongs in PR/release/final report, avoiding a circular post-tag commit.
 
 **Commit outcome:** Use prior feature commits; before review add `docs(release): prepare authorized release evidence and notes`. Merge/tag/publication are authorized remote evidence, not source commits.
 

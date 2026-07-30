@@ -63,7 +63,7 @@ have hidden defects rather than accelerated delivery.
 - Added PostgreSQL guards for immutable quote snapshots, FX history, Settlement/Reversal history, and audit records.
 - Corrected signed ledger identity to stable deterministic UUIDs with positive Settlement and negative Reversal entries.
 - Corrected the authorization matrix, stale/cancellation browser state, Settlement idempotency-key lifecycle, and Compose reviewer credential separation.
-- Replaced string-presence checks with executable Cucumber, Playwright, PostgreSQL EXPLAIN, Mermaid/schema/OpenAPI, security, SBOM, license, CI-contract, and traceability gates.
+- Replaced string-presence checks with executable Cucumber, Playwright, PostgreSQL EXPLAIN, schema/OpenAPI, security, SBOM, license, CI-contract, and traceability gates.
 
 ## Evidence and limitations
 

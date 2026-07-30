@@ -39,14 +39,15 @@ for expected in \
   'make validate-traceability' \
   'make validate-frontend-authority' \
   'make validate-frontend-api-contract' \
-  'make test-crisis-evidence' \
   'make security-scan' \
   'make explain-statements-representative' \
   'playwright install chromium' \
   'cucumber-report' \
   'playwright-report' \
   'reporting-explain' \
-  'gitleaks/gitleaks-action@' \
+  'gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3' \
+  'GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}' \
+  'GITLEAKS_ENABLE_COMMENTS: "false"' \
   'actions/dependency-review-action@' \
   'ignore-unfixed'; do
   if [[ "$expected" == 'ignore-unfixed' ]]; then
@@ -93,7 +94,6 @@ for target in \
   'validate-frontend-authority:' \
   'validate-frontend-api-contract:' \
   'validate-traceability:' \
-  'test-crisis-evidence:' \
   'release-check:' \
   'explain-statements-representative:' \
   'verify-fast:' \
@@ -128,8 +128,7 @@ for dep in \
   'validate-docs' \
   'validate-frontend-authority' \
   'validate-frontend-api-contract' \
-  'validate-traceability' \
-  'test-crisis-evidence'; do
+  'validate-traceability'; do
   if ! printf '%s' "$release_deps" | grep -qF "$dep"; then
     echo "release-check target must depend on: $dep (found: $release_deps)" >&2
     exit 1
