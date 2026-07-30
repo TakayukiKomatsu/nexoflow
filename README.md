@@ -151,18 +151,60 @@ measured contention or scaling benefit. Sustained >70% resource use, unacceptabl
 release coupling, or a regulatory isolation boundary are valid triggers. Before
 extraction, require versioned contracts, outbox/inbox semantics, backfill and
 reconciliation, failure-mode tests, dashboards/runbooks, and an incremental
-rollback plan. The [proposed scale diagram](docs/architecture/scale-evolution.mmd)
-shows this evolution without claiming it exists.
+rollback plan. The flow above is the complete proposed scale design; no
+distributed topology is implemented in this repository.
 
-## Architecture and delivery evidence
+## Architecture
+
+### Runtime boundaries
+
+- Operators and administrators use the React + TypeScript SPA exposed by nginx.
+- nginx reverse-proxies `/api/v1` JSON requests to the Spring Boot modular
+  backend; the browser never connects directly to PostgreSQL or the FX service.
+- The backend owns financial commands and reporting. Flyway plus JDBC/JPA use
+  PostgreSQL 16 as the authoritative write store; SQL projections provide the
+  settlement statement read path.
+- The deterministic HTTP FX service is an internal reviewer fixture, not a real
+  market-data provider. H2 is test-only.
+
+The backend is deployed as one modular monolith. Identity, reference data, FX,
+assignor/receivable, pricing, settlement, reporting, and audit capabilities own
+their APIs, application services, domain policies, and adapters. Cross-module
+access goes through explicit interfaces; architecture tests reject financial
+module cycles and API/infrastructure layering violations.
+
+### Settlement state and atomic flow
+
+1. A persisted Pricing Quote is `ACTIVE` for 15 minutes. Settlement consumes it
+   as `CONSUMED`; an expired quote is rejected and consumed snapshots remain
+   immutable.
+2. A Receivable moves `REGISTERED → SETTLED` through an optimistic-version
+   update plus unique settlement item. Whole-Settlement reversal appends a
+   compensating record and moves it `SETTLED → REVERSED`, which is terminal.
+3. `POST /settlement-previews` reads ordered active quotes and receivables and
+   returns a non-persisted validation/total.
+4. `POST /settlements` starts one PostgreSQL transaction, inserts a
+   `PROCESSING` idempotency record keyed by actor, operation, key, and request
+   hash, revalidates quote expiry/status and receivable versions, transitions
+   quotes and receivables, then inserts the Settlement, items, and audit event.
+5. Success marks the idempotency record `COMPLETED` and commits all rows.
+   Conflicts, expiry, or injected failures roll back every row, including
+   `PROCESSING`. The same key and hash replays the stored result; a different
+   hash returns `409`.
+6. Settlement and reversal rows are immutable. The signed statement ledger is a
+   derived SQL read model: Settlement entries are positive, reversal entries
+   are negative, and ordering is `effective_at DESC, entry_id DESC`.
+
+Detailed storage types and constraints remain in the
+[schema inventory](docs/architecture/schema-inventory.md); HTTP operations
+remain in the [API endpoint inventory](docs/architecture/api-endpoints.md).
+
+### Delivery evidence
 
 - [Reviewer runbook](docs/RUNBOOK.md) and [permission matrix](docs/PERMISSION_MATRIX.md)
 - [Requirement traceability](docs/REQUIREMENT_TRACEABILITY.md)
 - [Domain glossary](docs/CONTEXT.md) and [Git workflow](docs/GIT_WORKFLOW.md)
-- [ER diagram](docs/architecture/er-diagram.mmd)
 - [DDL/schema inventory](docs/architecture/schema-inventory.md) and [API endpoint inventory](docs/architecture/api-endpoints.md)
-- [C4 context](docs/architecture/c4-context.mmd) and [C4 container](docs/architecture/c4-container.mmd)
-- [Settlement state](docs/architecture/settlement-state.mmd) and [atomic/idempotent sequence](docs/architecture/settlement-sequence.mmd)
 - [Architecture decisions](docs/adr)
 - [Cucumber scenarios](backend/src/integrationTest/resources/features/srm_acceptance.feature) and generated `backend/build/reports/cucumber.json`
 - [Playwright critical path](frontend/e2e/operator-critical-path.spec.ts) and generated `frontend/playwright-report/`

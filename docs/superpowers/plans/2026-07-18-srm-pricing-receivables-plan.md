@@ -200,7 +200,7 @@ git commit -m "refactor(pricing): move risk behavior into strategies"
 - Modify: `backend/src/main/java/com/srm/creditengine/pricing/application/PricingService.java`
 - Modify: `backend/src/main/java/com/srm/creditengine/pricing/application/AuthoritativePricingService.java`
 - Modify: `backend/src/main/java/com/srm/creditengine/pricing/api/PricingController.java`
-- Modify: `docs/architecture/er-diagram.mmd` only after runtime proof
+- Modify: `docs/architecture/schema-inventory.md` only after runtime proof
 - Test: `backend/src/test/java/com/srm/creditengine/pricing/application/PricingQuoteSnapshotTest.java`
 - Create: `backend/src/integrationTest/java/com/srm/creditengine/pricing/PricingQuotePostgresIntegrationTest.java`
 

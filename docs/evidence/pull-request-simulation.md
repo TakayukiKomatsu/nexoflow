@@ -57,7 +57,7 @@ All Compose services capable of running Flyway receive the optional override.
 
 Completed idempotency records may be deleted by the documented retention process;
 in-flight records and identity-defining mutations remain protected. The schema
-inventory, diagrams, ADRs, runbook, and PostgreSQL evidence describe these exact
+inventory, README architecture, ADRs, runbook, and PostgreSQL evidence describe these exact
 semantics.
 
 ## Rollback

@@ -114,7 +114,7 @@ Run in this order; each target maps directly to a `Makefile` recipe.
 | `make explain-statements-representative` | Boots the real backend/Flyway chain, seeds 10,000 representative rows, and runs selective assignor, asset-currency, settlement-currency, product-type, and combined plans from the production SQL template; not a production-scale benchmark | `docs/evidence/reporting-explain.txt` |
 | `make license-check` | Backend and frontend production dependency allowlists | `backend/build/reports/dependency-license/`, `frontend/license-report.json` |
 | `make security-scan` | Full-history/content Gitleaks; Trivy filesystem, secrets, and runtime images; immutable image digests; CycloneDX SBOM; license gate | `build/security/` |
-| `make validate-docs` | Links, required docs, Mermaid rendering, migration/ER consistency, OpenAPI reachability, and prohibited-claim checks | Command result and rendered `backend/build/mermaid/` |
+| `make validate-docs` | Links, required README architecture text, migration/schema consistency, OpenAPI reachability, and prohibited-claim checks | Command result |
 | `make validate-traceability` | Every stable SDD scenario ID resolves to an exact matrix row and executable artifact | Command result |
 | `make release-check` | Aggregate of local quality, log-redaction, build, runtime, acceptance, performance-evidence, security, docs, and traceability gates | All evidence above |
 
@@ -167,7 +167,7 @@ Gates 1–5 have executable local or CI evidence. Cucumber covers the stable bac
 - **`make test-ui-features` failure**: inspect `frontend/playwright-report/` and `frontend/test-results/`; Playwright startup or cleanup failures are failures, not skipped evidence.
 - **Representative EXPLAIN failure**: inspect the command output before the artifact. The gate fails if the real backend does not apply every repository Flyway migration, a current reporting index is absent, the shared SQL-template markers drift, or any assignor/asset-currency/settlement-currency/product-type case is empty or non-selective. Inspect `docs/evidence/reporting-explain.txt` only after a successful current run. PostgreSQL may legitimately choose sequential scans, and this remains query-shape—not production-capacity—proof.
 - **`make security-scan` failure**: generated reports are under `build/security/`. Every secret finding and every HIGH/CRITICAL vulnerability with a published fix fails the gate. Any accepted unfixed CVE requires a specific, owned, expiring `.trivyignore.yaml` entry; blanket `ignore-unfixed` policy is forbidden.
-- **Documentation or traceability failure**: run `make validate-docs` and `make validate-traceability` separately. Fix the source, path, scenario mapping, or diagram; do not weaken the validator.
+- **Documentation or traceability failure**: run `make validate-docs` and `make validate-traceability` separately. Fix the source, path, scenario mapping, architecture text, or schema inventory; do not weaken the validator.
 - **`make release-check` failure**: the aggregate stops on the first failed or blocked sub-gate. A local aggregate does not execute or authorize CodeQL, a remote push, pull request, tag, or release.
 
 ## 5. Seeding and resetting fixtures

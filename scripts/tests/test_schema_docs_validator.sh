@@ -10,7 +10,6 @@ run_validator() {
   local java_dir="$2"
   SRM_SCHEMA_SQL_DIR="$sql_dir" \
   SRM_SCHEMA_JAVA_DIR="$java_dir" \
-  SRM_SCHEMA_ER_DOCUMENT="$fixtures/er-diagram.mmd" \
   SRM_SCHEMA_INVENTORY_DOCUMENT="$fixtures/schema-inventory.md" \
     node "$validator"
 }
@@ -56,7 +55,7 @@ if run_validator "$fixtures/sql-type-mutated" "$fixtures/java-valid" >"$type_fai
   echo "schema validator accepted drift from exact decimal to floating-point storage" >&2
   exit 1
 fi
-grep -Fq 'ER type mismatch: children.money migration double_precision, ER decimal_19_4' "$type_failure"
+grep -Fq 'schema inventory type mismatch: children.money migration double_precision, inventory decimal_19_4' "$type_failure"
 
 if run_validator "$fixtures/sql-nullability-mutated" "$fixtures/java-valid" >"$nullability_failure" 2>&1; then
   echo "schema validator accepted nullable financial storage drift" >&2
@@ -68,7 +67,7 @@ if run_validator "$fixtures/sql-alter-type-mutated" "$fixtures/java-valid" >"$al
   echo "schema validator accepted a later migration changing exact decimal storage" >&2
   exit 1
 fi
-grep -Fq 'ER type mismatch: children.money migration double_precision, ER decimal_19_4' "$alter_type_failure"
+grep -Fq 'schema inventory type mismatch: children.money migration double_precision, inventory decimal_19_4' "$alter_type_failure"
 grep -Fq 'schema inventory documents absent financial column: children.numeric(money:numeric(19,4):not-null)' "$alter_type_failure"
 
 if run_validator "$fixtures/sql-alter-nullability-mutated" "$fixtures/java-valid" >"$alter_nullability_failure" 2>&1; then
@@ -87,19 +86,18 @@ if run_validator "$fixtures/sql-varchar-width-mutated" "$fixtures/java-valid" >"
   echo "schema validator accepted a later migration changing a varchar length bound" >&2
   exit 1
 fi
-grep -Fq 'ER type mismatch: children.code migration varchar_21, ER varchar_20' "$varchar_width_failure"
+grep -Fq 'schema inventory type mismatch: children.code migration varchar_21, inventory varchar_20' "$varchar_width_failure"
 
 if run_validator "$fixtures/sql-timestamp-type-mutated" "$fixtures/java-valid" >"$timestamp_type_failure" 2>&1; then
   echo "schema validator accepted timestamp-with-time-zone drift" >&2
   exit 1
 fi
-grep -Fq 'ER type mismatch: children.occurred_at migration timestamp, ER timestamptz' "$timestamp_type_failure"
+grep -Fq 'schema inventory type mismatch: children.occurred_at migration timestamp, inventory timestamptz' "$timestamp_type_failure"
 
 sed 's/`children_code_unique`/`children_code_unique`, `fabricated_index`/' \
   "$fixtures/schema-inventory.md" >"$stale_artifact_inventory"
 if SRM_SCHEMA_SQL_DIR="$fixtures/sql-valid" \
   SRM_SCHEMA_JAVA_DIR="$fixtures/java-valid" \
-  SRM_SCHEMA_ER_DOCUMENT="$fixtures/er-diagram.mmd" \
   SRM_SCHEMA_INVENTORY_DOCUMENT="$stale_artifact_inventory" \
     node "$validator" >"$stale_artifact_failure" 2>&1; then
   echo "schema validator accepted a fabricated named artifact" >&2

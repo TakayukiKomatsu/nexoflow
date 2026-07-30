@@ -23,7 +23,7 @@ The objective was not to build a distributed production platform in 3–4 days. 
 ### Staff-level artifacts
 
 - Architecture Decision Records (ADRs)
-- C4 context and container diagrams
+- Textual context and runtime-container boundaries in `README.md`
 - Explicit Git workflow and incident rollback procedure
 - Evolution design for 1 million transactions per minute
 - Event-driven architecture proposal
@@ -73,7 +73,7 @@ These are documented as evolution paths rather than simulated with unnecessary c
 - Conventional Commits
 - Pre-commit hooks
 - OpenAPI-generated or contract-aligned frontend client
-- Mermaid diagrams stored as source
+- Text architecture and schema documentation stored as Markdown
 
 ---
 
@@ -341,7 +341,7 @@ Important constraints and indexes:
 - Optimistic version on receivables
 - Foreign keys for all financial relationships
 - PostgreSQL immutability triggers protect exchange-rate, quote, settlement, settlement-item, reversal, and audit history; quote lifecycle permits only `ACTIVE` → `CONSUMED` without changing snapshot values.
-- Flyway migrations V1–V23 are the schema authority; [`architecture/er-diagram.mmd`](architecture/er-diagram.mmd) mirrors those tables and the derived ledger identity.
+- Flyway migrations V1–V23 are the schema authority; [`architecture/schema-inventory.md`](architecture/schema-inventory.md) records every final table/column type, constraint, index, and trigger.
 
 ---
 
@@ -464,7 +464,7 @@ Milestones 0–6 are implemented locally with evidence in [`REQUIREMENT_TRACEABI
 
 - Finalize glossary and assumptions
 - Create ADRs
-- Create C4 diagrams
+- Document context and runtime boundaries in `README.md`
 - Define API contracts and error model
 - Define ER model and migration plan
 
