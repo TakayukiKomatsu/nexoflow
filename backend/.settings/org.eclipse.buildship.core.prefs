@@ -1,0 +1,13 @@
+arguments=--init-script /Users/takayuki/.cache/nvim/jdtls/config_458aa00f771c7f35ffac4a818a6723590497787469b72173d5ee324a3c0c3441/org.eclipse.osgi/59/0/.cp/gradle/init/init.gradle
+auto.sync=false
+build.scans.enabled=false
+connection.gradle.distribution=GRADLE_DISTRIBUTION(WRAPPER)
+connection.project.dir=
+eclipse.preferences.version=1
+gradle.user.home=
+java.home=/Users/takayuki/.local/share/nvim/nvim-java/packages/openjdk/25/jdk-25.0.2.jdk/Contents/Home
+jvm.arguments=
+offline.mode=false
+override.workspace.settings=true
+show.console.view=true
+show.executions.view=true
