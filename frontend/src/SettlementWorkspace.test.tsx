@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -163,7 +164,7 @@ describe("UI-SETTLE-004 retry-safe settlement intent", () => {
         /Create one or more quotes before requesting settlement/i,
       ),
     ).toBeInTheDocument();
-    expect(statementRequests).toBe(2);
+    await waitFor(() => expect(statementRequests).toBe(2));
   });
 
   it("reuses the persisted key and submits quote IDs only after a lost response", async () => {
