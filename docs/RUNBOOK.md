@@ -61,6 +61,41 @@ The six deterministic reference-rate rows with Flyway-owned stable IDs retain
 their authored UTC literals. After V23, all persisted instants use
 `timestamp with time zone` and no longer depend on the session zone.
 
+### Incident rollback and restore
+
+This repository does not control production traffic, deployments, or backup
+infrastructure. Before a release, the operator must map the following steps to
+the hosting platform, name the incident owner, and record the image digest,
+database backup identifier, and rollback decision.
+
+1. Stop new writes at the ingress or deployment layer. Preserve backend,
+   PostgreSQL, and correlation-ID logs before replacing any runtime.
+2. Confirm that the latest pre-release PostgreSQL backup has been restored into
+   an isolated database and checked before treating it as recoverable.
+3. Choose one recovery path:
+   - For an application-only defect, deploy the last known-good immutable image
+     against the current compatible schema.
+   - If V23 started and its schema must be rolled back, keep writers stopped and
+     restore the verified pre-V23 backup. Never hand-edit Flyway history or run
+     an improvised reverse migration.
+   - For suspected data corruption, restore into an isolated database first;
+     do not overwrite the affected database until the incident owner has
+     preserved evidence and approved the restore point.
+4. Check `/actuator/health/liveness`, then
+   `/actuator/health/readiness`. Readiness must report `UP` with PostgreSQL
+   reachable before any traffic resumes.
+5. Confirm the expected Flyway version, inspect settlement and reversal ledger
+   records for the affected correlation IDs, and run a read-only reporting
+   query for the affected assignor or receivable. Do not use settlement,
+   reversal, fixture, or reset endpoints as health checks.
+6. Re-enable writers gradually, monitor error codes and bounded metrics, and
+   retain the incident timeline, backup/restore evidence, deployed digest, and
+   validation results.
+
+`docker compose down -v` is only the local reset command described in
+[Seeding and resetting fixtures](#5-seeding-and-resetting-fixtures); it is not
+a production rollback mechanism.
+
 ## 2. Verification suite
 
 Run in this order; each target maps directly to a `Makefile` recipe.

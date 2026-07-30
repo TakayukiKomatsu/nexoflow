@@ -40,11 +40,12 @@ release-related status remains **Pending hosted evidence**.
 
 ## Incident rollback
 
-Application and database rollback follows the operational steps in
-[`RUNBOOK.md`](RUNBOOK.md), including writer shutdown, verified backup and
-restore, migration compatibility, health checks, and post-recovery validation.
-CI does not create or rewrite Git history to simulate an incident; hosted checks
-verify the shipped system and documentation rather than a disposable repository.
+Application and database rollback follows the decision sequence and safety
+boundaries in [`RUNBOOK.md`](RUNBOOK.md#incident-rollback-and-restore),
+including write isolation, verified backup prerequisites, migration-compatible
+recovery paths, health checks, and post-recovery validation. CI does not create
+or rewrite Git history to simulate an incident; hosted checks verify the
+shipped system and documentation rather than a disposable repository.
 
 ## Deliberate deviation: settlement lock ordering
 
