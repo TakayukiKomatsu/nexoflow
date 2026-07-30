@@ -1,6 +1,6 @@
-.PHONY: test-java-wrapper test-hooks test-security-scan-script test-container-build-inputs test-local-collaboration-evidence test-crisis-evidence-contract test-reporting-evidence-contract test-unit test-runtime test-coverage verify-unit build install-hooks verify-fast validate-workflows validate-architecture-docs smoke-compose fixtures-e2e verify-readiness-recovery verify-compose test-log-redaction smoke-financial-path inspect-observability verify license-check explain-statements-representative test-api-features test-ui-features e2e-fixed security-scan validate-docs validate-frontend-authority validate-frontend-api-contract test-frontend-api-contract-clean validate-traceability test-crisis-evidence release-check
+.PHONY: test-java-wrapper test-hooks test-security-scan-script test-container-build-inputs test-crisis-evidence-contract test-reporting-evidence-contract test-unit test-runtime test-coverage verify-unit build install-hooks verify-fast validate-workflows validate-architecture-docs smoke-compose fixtures-e2e verify-readiness-recovery verify-compose test-log-redaction smoke-financial-path inspect-observability verify license-check explain-statements-representative test-api-features test-ui-features e2e-fixed security-scan validate-docs validate-frontend-authority validate-frontend-api-contract test-frontend-api-contract-clean validate-traceability test-crisis-evidence release-check
 
-verify-fast: test-java-wrapper test-hooks test-security-scan-script test-container-build-inputs test-local-collaboration-evidence test-crisis-evidence-contract test-reporting-evidence-contract test-frontend-api-contract-clean test-unit
+verify-fast: test-java-wrapper test-hooks test-security-scan-script test-container-build-inputs test-crisis-evidence-contract test-reporting-evidence-contract test-frontend-api-contract-clean test-unit
 	./scripts/tests/test_frontend_quality.sh
 	./scripts/tests/test_architecture_docs.sh
 	./scripts/tests/test_ci_workflow.sh
@@ -24,9 +24,6 @@ test-security-scan-script:
 
 test-container-build-inputs:
 	./scripts/tests/test_container_build_inputs.sh
-
-test-local-collaboration-evidence:
-	./scripts/tests/test_local_collaboration_evidence_contract.sh
 
 test-crisis-evidence-contract:
 	./scripts/tests/test_crisis_evidence_contract.sh

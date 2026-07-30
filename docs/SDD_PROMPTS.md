@@ -613,7 +613,7 @@ Feature: REL authorized release provenance
 
 **Test mapping:** `REL-004` → authorization checklist dry-run test and command audit; `CRISIS-002` → dedicated harmless fixture/test plus Git tree/hash assertions. Remote gate → independently accessible URL/SHA/check API verification. Tag gate → local and remote object/SHA verification.
 
-**Verification:** Focused: locally run `git status --short`, `git diff --cached --quiet`, `make test-local-collaboration-evidence`, and `make test-crisis-evidence`. The local collaboration script captures an actual autosquash `range-diff`. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: `gh pr checks <url>`, `git show --no-patch <new-version>`, `git ls-remote --tags origin <new-version>`, and URL access checks.
+**Verification:** Focused: locally run `git status --short`, `git diff --cached --quiet`, and `make test-crisis-evidence`; inspect `docs/evidence/final-remediation-rebase.md` for the recorded autosquash hashes and range-diff. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: hosted PR check APIs, `git show --no-patch <new-version>`, `git ls-remote --tags origin <new-version>`, and URL access checks.
 
 **Evidence:** Old/new rebase hashes/range-diff; crisis defect/revert hashes and failing/passing output; final clean status/empty index; actual PR/repository/release URLs and check/review conclusions when authorized; exact reviewed merge SHA; annotated/local/remote tag resolution. External evidence belongs in PR/release/final report, avoiding a circular post-tag commit.
 

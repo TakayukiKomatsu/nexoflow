@@ -40,7 +40,6 @@ This document separates human authority and deterministic engineering tools from
 | Documentation | `make validate-docs` | Link, Mermaid, schema, OpenAPI, and claim-validation results |
 | Scenario mapping | `make validate-traceability` | Exact SDD ID → source/command validation |
 | Crisis/revert | `make test-crisis-evidence` | Disposable local branch/hash/recovery output |
-| Local PR/rebase | `make test-local-collaboration-evidence` | Disposable remote-free PR description/ref, actual interactive autosquash, range-diff, and fast-forward output |
 | Aggregate local gate | `make release-check` | All local build, runtime, acceptance, security, docs, and crisis evidence above |
 
 Generated artifacts can be stale. A reviewer should pair each artifact with the current command result and inspect failures rather than accepting file presence.

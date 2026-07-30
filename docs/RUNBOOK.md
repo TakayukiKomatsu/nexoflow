@@ -81,7 +81,6 @@ Run in this order; each target maps directly to a `Makefile` recipe.
 | `make validate-docs` | Links, required docs, Mermaid rendering, migration/ER consistency, OpenAPI reachability, and prohibited-claim checks | Command result and rendered `backend/build/mermaid/` |
 | `make validate-traceability` | Every stable SDD scenario ID resolves to an exact matrix row and executable artifact | Command result |
 | `make test-crisis-evidence` | Disposable local regression/revert proof without touching publication branches | Temporary clone output |
-| `make test-local-collaboration-evidence` | Remote-free local PR description/ref, real interactive autosquash, range-diff, review checks, and fast-forward proof | Disposable clone output |
 | `make release-check` | Aggregate of local quality, log-redaction, build, runtime, acceptance, performance-evidence, security, docs, traceability, and crisis gates | All evidence above |
 
 Docker-dependent targets exit with explicit `BLOCKED` rather than a false pass when Docker is unavailable. CodeQL is a separate pinned GitHub Actions job; it is not represented as a local scan.

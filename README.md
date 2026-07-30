@@ -67,18 +67,19 @@ but the initial hosted publication was a direct push to `main` at
 That direct-main publication deviated from the intended PR-before-main rule; this
 cleanup returns the repository to a reviewable pull-request flow.
 
-`make test-local-collaboration-evidence` proves branch, PR-description,
-interactive-autosquash, `range-diff`, and fast-forward mechanics inside a
-remote-free disposable clone. It remains local simulation and does not claim a
-hosted PR, reviewer approval, protected-branch checks, or publication. The public
-[Nexoflow repository](https://github.com/TakayukiKomatsu/nexoflow) exists, and
-hosted CI [run `30502414061`](https://github.com/TakayukiKomatsu/nexoflow/actions/runs/30502414061)
-completed with failure because its Ubuntu runner lacked the `zsh` required by
-the Java wrapper. Historical merge commits `f7e0cf5` and `1b3f8a8` are retained,
-and the existing local annotated `v1.0.0` tag points to `af898ef`; it remains
-historical and has not been moved or reused. No hosted green run, pull request,
-reviewer approval, new release tag, or public release exists. The detailed
-policy and crisis procedure are in the
+The public [Nexoflow repository](https://github.com/TakayukiKomatsu/nexoflow)
+and hosted [cleanup pull request #1](https://github.com/TakayukiKomatsu/nexoflow/pull/1)
+exist. Initial hosted CI
+[run `30502414061`](https://github.com/TakayukiKomatsu/nexoflow/actions/runs/30502414061)
+failed for two distinct reasons: Verify encountered missing Git identity in a
+disposable collaboration simulation, while License compliance and security scan
+could not execute the Java wrapper because Ubuntu lacked `zsh`. The wrapper is now
+portable, and the brittle local Git-history simulation has been removed from the
+quality gate. No hosted green run, reviewer approval, merged PR, new release tag,
+or public release has been observed yet. Historical merge commits `f7e0cf5` and
+`1b3f8a8` remain. The existing local annotated `v1.0.0` tag points to `af898ef`;
+it is unchanged historical evidence.
+The detailed policy and crisis procedure are in the
 [Git workflow](docs/GIT_WORKFLOW.md).
 
 ## Proposed evolution to 1M transactions/minute

@@ -11,17 +11,6 @@ This project's intended **GitHub Flow** uses short-lived `feature/<topic>` branc
 - A pull request records scope, tests, security results, migrations, rollback notes, and residual risks. Required checks and review must pass before merge.
 - Release tags and repository publication require the explicit authorization gates in SDD 12.
 
-## Executable local collaboration evidence
-
-`make test-local-collaboration-evidence` creates a disposable clone with no
-remote, opens a short-lived `feature/local-pr-simulation` branch, records a
-review-ready PR description and local PR ref, and runs review checks. It then
-performs a real unpublished `git rebase -i --autosquash`, validates the old and
-new ranges with `git range-diff`, and fast-forwards the reviewed head into the
-clone's `main`. This proves local branch, review-description, clean-history, and
-merge mechanics; it is explicitly **not** evidence of a hosted PR, reviewer
-approval, protected-branch checks, or publication.
-
 ## Hosted publication status and history shape
 
 The assignment remediation was autosquashed and integrated before publication;
@@ -37,15 +26,17 @@ That direct-main publication deviated from the intended PR-before-main rule. Thi
 cleanup returns the repository to a reviewable pull-request flow.
 
 Hosted CI [run `30502414061`](https://github.com/TakayukiKomatsu/nexoflow/actions/runs/30502414061)
-completed with failure. Its Ubuntu runner could not execute
-`scripts/with-java21.sh` because the wrapper required `zsh`; the Verify, License
-compliance, and security-scan jobs therefore failed before the full gate ran.
-This cleanup branch makes the wrapper portable, but no hosted green run has been
-observed yet. No hosted pull request, reviewer approval, new release tag, or
-public release exists. Historical merge commits `f7e0cf5` and `1b3f8a8` remain
-part of the unrevised project history. `v1.0.0` at `af898ef` remains historical
-and is not evidence of a new hosted release. The release-related status remains
-**Pending hosted evidence**.
+completed with failure. Verify encountered missing Git identity in a disposable
+collaboration simulation; License compliance and security scan separately failed
+because Ubuntu lacked the `zsh` required by `scripts/with-java21.sh`. The wrapper
+is now portable, and the brittle local Git-history simulation has been removed
+from the quality gate. Hosted
+[cleanup pull request #1](https://github.com/TakayukiKomatsu/nexoflow/pull/1)
+is open, but no hosted green run, reviewer approval, merge, new release tag, or
+public release has been observed. Historical merge commits `f7e0cf5` and
+`1b3f8a8` remain part of the unrevised project history. `v1.0.0` at `af898ef`
+remains historical and is not evidence of a new hosted release. The
+release-related status remains **Pending hosted evidence**.
 
 ## Crisis exercise
 
