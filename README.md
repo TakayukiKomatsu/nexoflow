@@ -8,7 +8,9 @@ SRM Credit Engine is a modular-monolith exercise for pricing and settling BRL/US
 
 **Executable evidence:** twelve Cucumber scenarios cover authorization, FX resilience, pricing, quote immutability, settlement concurrency/rollback, reversal/ledger behavior, and observability (`make test-api-features`, report: `backend/build/reports/cucumber.json`). Playwright E2E-001 drives the financial operator path through a real browser, backend, and PostgreSQL (`make test-ui-features`, report: `frontend/playwright-report/index.html`). `make explain-statements-representative` captures a PostgreSQL 16 plan for a representative 10,000-row Settlement dataset at `docs/evidence/reporting-explain.txt`; this is not production-scale or 1M-transactions/minute proof. `make release-check` aggregates the local release gates.
 
-**Deliberate limitations:** local signed JWT/BCrypt rather than external OIDC, deterministic mock rather than real market FX data, no refresh tokens, no FX triangulation, no product-type or user-management API, and no Kubernetes/Terraform/microservice runtime. No remote is configured, so hosted pull requests, publication, protected-branch checks, and a remote release remain unverified and authorization-gated. An existing local annotated `v1.0.0` tag points to `af898ef`; it predates the current remediation and is historical local evidence, not proof that this HEAD was reviewed, published, or released. It has not been moved or reused; any authorized future release must select a new version and exact reviewed SHA. Branch `fix/assignment-completion` will be autosquashed before its first push; this demonstrates disciplined unpublished-branch rebasing and does not claim the repository's entire history is linear. Historical merge commits `f7e0cf5` and `1b3f8a8` are retained. Hosted pull-request, CI, and release evidence remains absent until Task 6.
+**Deliberate limitations:** local signed JWT/BCrypt rather than external OIDC, deterministic mock rather than real market FX data, no refresh tokens, no FX triangulation, no product-type or user-management API, and no Kubernetes/Terraform/microservice runtime.
+
+**Hosted publication state:** the public [Nexoflow repository](https://github.com/TakayukiKomatsu/nexoflow) exists. The assignment remediation was autosquashed and integrated before publication, and the initial publication was a direct push to `main` at [`3a01ab7`](https://github.com/TakayukiKomatsu/nexoflow/commit/3a01ab7c97aa9730fb29f4d58e3b84fb8a478cfe). Hosted CI [run `30502414061`](https://github.com/TakayukiKomatsu/nexoflow/actions/runs/30502414061) completed with failure: the Ubuntu runner could not execute the Java wrapper because it required `zsh`, causing the Verify, License compliance, and security-scan jobs to fail before the full gate ran. This cleanup branch makes that wrapper portable, but no hosted green run has been observed yet. No hosted pull request, reviewer approval, new release tag, or public release exists. `v1.0.0` at `af898ef` remains historical evidence; it has not been moved or reused and does not prove that the published SHA was reviewed or released.
 
 ## Run locally
 
@@ -53,21 +55,31 @@ Install local hooks once with `make install-hooks`. The pre-push hook runs the s
 
 ## GitHub Flow rationale
 
-This repository uses GitHub Flow: one releasable `main` plus short-lived
+This repository's intended GitHub Flow uses one releasable `main` plus short-lived
 `feature/<topic>` or `fix/<topic>` branches. It fits a small, time-boxed delivery
 better than Git Flow because there are no long-lived release/develop branches to
-synchronize, while pull-request review and required checks still protect the
-integration branch. Commits use Conventional Commits; unpublished fixups are
-autosquashed before first push, and reviewed/shared branches are never rebased or
-force-pushed. `make test-local-collaboration-evidence` proves the branch,
-PR-description, interactive autosquash, `range-diff`, and fast-forward mechanics
-inside a remote-free disposable clone. It does not claim a hosted PR or review.
-The detailed policy and crisis procedure are in the [Git workflow](docs/GIT_WORKFLOW.md).
-`fix/assignment-completion` will be autosquashed with `git rebase -i --autosquash` before
-its first push, demonstrating disciplined unpublished-branch rebasing; the repository does
-not claim its entire history is linear. Historical merge commits `f7e0cf5` and `1b3f8a8`
-are retained; `v1.0.0` is a historical local tag at `af898ef` and no current release tag
-exists. Hosted pull-request, CI, and release evidence remains absent until Task 6.
+synchronize. The policy requires pull-request review and required checks before
+integration into `main`; reviewed/shared branches are never rebased or force-pushed.
+
+The assignment remediation was autosquashed and integrated before publication,
+but the initial hosted publication was a direct push to `main` at
+[`3a01ab7`](https://github.com/TakayukiKomatsu/nexoflow/commit/3a01ab7c97aa9730fb29f4d58e3b84fb8a478cfe).
+That direct-main publication deviated from the intended PR-before-main rule; this
+cleanup returns the repository to a reviewable pull-request flow.
+
+`make test-local-collaboration-evidence` proves branch, PR-description,
+interactive-autosquash, `range-diff`, and fast-forward mechanics inside a
+remote-free disposable clone. It remains local simulation and does not claim a
+hosted PR, reviewer approval, protected-branch checks, or publication. The public
+[Nexoflow repository](https://github.com/TakayukiKomatsu/nexoflow) exists, and
+hosted CI [run `30502414061`](https://github.com/TakayukiKomatsu/nexoflow/actions/runs/30502414061)
+completed with failure because its Ubuntu runner lacked the `zsh` required by
+the Java wrapper. Historical merge commits `f7e0cf5` and `1b3f8a8` are retained,
+and the existing local annotated `v1.0.0` tag points to `af898ef`; it remains
+historical and has not been moved or reused. No hosted green run, pull request,
+reviewer approval, new release tag, or public release exists. The detailed
+policy and crisis procedure are in the
+[Git workflow](docs/GIT_WORKFLOW.md).
 
 ## Proposed evolution to 1M transactions/minute
 

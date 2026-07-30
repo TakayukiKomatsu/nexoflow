@@ -1,7 +1,0 @@
-spring:
-  main:
-    web-application-type: none
-
-srm:
-  clock:
-    fixed-instant: 2030-01-15T12:00:00Z

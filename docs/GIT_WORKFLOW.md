@@ -1,6 +1,6 @@
 # Git workflow
 
-This project uses **GitHub Flow**: short-lived `feature/<topic>` branches are rebased only while unpublished, reviewed through pull requests, and merged into protected `main` after required checks pass. This fits a small delivery team because it keeps one releasable integration branch without the long-lived coordination overhead of Git Flow.
+This project's intended **GitHub Flow** uses short-lived `feature/<topic>` branches, rebases them only while unpublished, and requires pull-request review and required checks before integration into `main`. This fits a small delivery team because it keeps one releasable integration branch without the long-lived coordination overhead of Git Flow. The initial publication described below deviated from the PR-before-main rule.
 
 ## Rules
 
@@ -22,18 +22,30 @@ clone's `main`. This proves local branch, review-description, clean-history, and
 merge mechanics; it is explicitly **not** evidence of a hosted PR, reviewer
 approval, protected-branch checks, or publication.
 
-## Current branch status and history shape
+## Hosted publication status and history shape
 
-`fix/assignment-completion` is an unpublished branch that will be autosquashed with
-`git rebase -i --autosquash` before its first push; rebase evidence is captured in
-`docs/evidence/final-remediation-rebase.md`. This repository demonstrates disciplined
-unpublished-branch rebasing; it does not claim that every historical integration was
-linear.
+The assignment remediation was autosquashed and integrated before publication;
+rebase evidence is captured in
+`docs/evidence/final-remediation-rebase.md`. This demonstrates disciplined
+unpublished-branch rebasing; it does not claim that every historical integration
+was linear.
 
-Historical merge commits `f7e0cf5` and `1b3f8a8` are retained as part of the real
-project history and have not been rewritten. `v1.0.0` is a historical local tag at
-`af898ef`; no current release tag exists. Hosted pull-request, CI, and release
-evidence remains absent until Task 6.
+The public [Nexoflow repository](https://github.com/TakayukiKomatsu/nexoflow)
+exists. Its initial publication was a direct push to `main` at
+[`3a01ab7`](https://github.com/TakayukiKomatsu/nexoflow/commit/3a01ab7c97aa9730fb29f4d58e3b84fb8a478cfe).
+That direct-main publication deviated from the intended PR-before-main rule. This
+cleanup returns the repository to a reviewable pull-request flow.
+
+Hosted CI [run `30502414061`](https://github.com/TakayukiKomatsu/nexoflow/actions/runs/30502414061)
+completed with failure. Its Ubuntu runner could not execute
+`scripts/with-java21.sh` because the wrapper required `zsh`; the Verify, License
+compliance, and security-scan jobs therefore failed before the full gate ran.
+This cleanup branch makes the wrapper portable, but no hosted green run has been
+observed yet. No hosted pull request, reviewer approval, new release tag, or
+public release exists. Historical merge commits `f7e0cf5` and `1b3f8a8` remain
+part of the unrevised project history. `v1.0.0` at `af898ef` remains historical
+and is not evidence of a new hosted release. The release-related status remains
+**Pending hosted evidence**.
 
 ## Crisis exercise
 
