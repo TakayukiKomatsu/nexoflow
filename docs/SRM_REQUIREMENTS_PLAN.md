@@ -24,11 +24,11 @@ The objective was not to build a distributed production platform in 3–4 days. 
 
 - Architecture Decision Records (ADRs)
 - C4 context and container diagrams
-- Explicit Git workflow and crisis/hotfix simulation
+- Explicit Git workflow and incident rollback procedure
 - Evolution design for 1 million transactions per minute
 - Event-driven architecture proposal
 - Data partitioning, caching, and consistency analysis
-- Executable local acceptance, security, documentation, and crisis/revert evidence
+- Executable local acceptance, security, and documentation evidence
 
 ### Explicitly not implemented
 
@@ -458,7 +458,7 @@ Microservice boundaries would be extracted only when measured scale or team owne
 
 ## 12. Ordered delivery plan
 
-Milestones 0–6 are implemented locally with evidence in [`REQUIREMENT_TRACEABILITY.md`](REQUIREMENT_TRACEABILITY.md). Milestone 7's local operations, documentation, security, and crisis/revert evidence is implemented. A historical local annotated `v1.0.0` already points to `af898ef`; it predates the current remediation and has not been moved or reused. No remote is configured, so hosted collaboration/publication and any new release tag remain blocked pending explicit human authorization of the exact reviewed SHA and a new version.
+Milestones 0–6 are implemented locally with evidence in [`REQUIREMENT_TRACEABILITY.md`](REQUIREMENT_TRACEABILITY.md). Milestone 7's local operations, documentation, and security evidence is implemented; its disposable Git-history simulations were removed because they were CI-brittle and did not exercise production behavior. The public repository and cleanup pull request exist, while hosted green CI, reviewer approval, merge, and any new release tag remain pending. Historical local annotated `v1.0.0` still points to `af898ef` and has not been moved or reused.
 
 ### Milestone 0 — Specification and architecture
 

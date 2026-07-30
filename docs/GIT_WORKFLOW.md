@@ -38,14 +38,13 @@ public release has been observed. Historical merge commits `f7e0cf5` and
 remains historical and is not evidence of a new hosted release. The
 release-related status remains **Pending hosted evidence**.
 
-## Crisis exercise
+## Incident rollback
 
-`make test-crisis-evidence` clones the release candidate into a disposable
-repository, renames that clone's current branch to `main`, commits a harmless
-fixture regression, proves the fixture fails, and reverts it. The script then
-runs `make verify-fast` and proves the complete reverted tree equals the release
-candidate tree. The real repository's `main` is never changed; the branch name
-is intentionally realistic only inside the throwaway clone.
+Application and database rollback follows the operational steps in
+[`RUNBOOK.md`](RUNBOOK.md), including writer shutdown, verified backup and
+restore, migration compatibility, health checks, and post-recovery validation.
+CI does not create or rewrite Git history to simulate an incident; hosted checks
+verify the shipped system and documentation rather than a disposable repository.
 
 ## Deliberate deviation: settlement lock ordering
 

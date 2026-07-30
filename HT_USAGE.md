@@ -39,8 +39,7 @@ This document separates human authority and deterministic engineering tools from
 | Security/SBOM/licenses | `make security-scan` | Generated `build/security/` reports, image digests, and `sbom.cdx.json` |
 | Documentation | `make validate-docs` | Link, Mermaid, schema, OpenAPI, and claim-validation results |
 | Scenario mapping | `make validate-traceability` | Exact SDD ID → source/command validation |
-| Crisis/revert | `make test-crisis-evidence` | Disposable local branch/hash/recovery output |
-| Aggregate local gate | `make release-check` | All local build, runtime, acceptance, security, docs, and crisis evidence above |
+| Aggregate local gate | `make release-check` | All local build, runtime, acceptance, security, and documentation evidence above |
 
 Generated artifacts can be stale. A reviewer should pair each artifact with the current command result and inspect failures rather than accepting file presence.
 

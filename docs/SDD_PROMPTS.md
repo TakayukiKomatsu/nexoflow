@@ -611,11 +611,11 @@ Feature: REL authorized release provenance
     And the complete tree at R1 equals R0
 ```
 
-**Test mapping:** `REL-004` → authorization checklist dry-run test and command audit; `CRISIS-002` → dedicated harmless fixture/test plus Git tree/hash assertions. Remote gate → independently accessible URL/SHA/check API verification. Tag gate → local and remote object/SHA verification.
+**Test mapping:** `REL-004` → authorization checklist dry-run test and command audit; `CRISIS-002` → **Gap**, with operational rollback documented but no disposable Git mutation proof retained. Remote gate → independently accessible URL/SHA/check API verification. Tag gate → local and remote object/SHA verification.
 
-**Verification:** Focused: locally run `git status --short`, `git diff --cached --quiet`, and `make test-crisis-evidence`; inspect `docs/evidence/final-remediation-rebase.md` for the recorded autosquash hashes and range-diff. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: hosted PR check APIs, `git show --no-patch <new-version>`, `git ls-remote --tags origin <new-version>`, and URL access checks.
+**Verification:** Focused: locally run `git status --short`, `git diff --cached --quiet`, and `make verify-fast`; inspect `docs/evidence/final-remediation-rebase.md` for the recorded autosquash hashes and range-diff. No disposable Git-history simulation is part of the release gate. Regression: before any authorized remote action run `make release-check`. Authorized evidence only: hosted PR check APIs, `git show --no-patch <new-version>`, `git ls-remote --tags origin <new-version>`, and URL access checks.
 
-**Evidence:** Old/new rebase hashes/range-diff; crisis defect/revert hashes and failing/passing output; final clean status/empty index; actual PR/repository/release URLs and check/review conclusions when authorized; exact reviewed merge SHA; annotated/local/remote tag resolution. External evidence belongs in PR/release/final report, avoiding a circular post-tag commit.
+**Evidence:** Old/new rebase hashes/range-diff; documented incident rollback and recovery checks; final clean status/empty index; actual PR/repository/release URLs and check/review conclusions when authorized; exact reviewed merge SHA; annotated/local/remote tag resolution. External evidence belongs in PR/release/final report, avoiding a circular post-tag commit.
 
 **Commit outcome:** Use prior feature commits; before review add `docs(release): prepare authorized release evidence and notes`. Merge/tag/publication are authorized remote evidence, not source commits.
 

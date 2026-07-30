@@ -35,7 +35,7 @@ make verify-fast       # local unit, hook, frontend-quality, architecture, and C
 make release-check     # complete local acceptance and release aggregate; requires Docker
 ```
 
-Focused evidence commands are documented in the [reviewer runbook](docs/RUNBOOK.md). `make release-check` builds both applications, exercises PostgreSQL/Testcontainers and Compose, runs Cucumber and Playwright, captures representative SQL evidence, executes security/license/SBOM gates, validates documentation/traceability, and proves the disposable crisis/revert workflow.
+Focused evidence commands are documented in the [reviewer runbook](docs/RUNBOOK.md). `make release-check` builds both applications, exercises PostgreSQL/Testcontainers and Compose, runs Cucumber and Playwright, captures representative SQL evidence, executes security/license/SBOM gates, and validates documentation and traceability.
 
 ## Reviewer Compose runtime
 
