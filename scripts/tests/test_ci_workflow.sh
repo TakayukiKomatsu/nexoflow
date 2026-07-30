@@ -46,7 +46,9 @@ for expected in \
   'cucumber-report' \
   'playwright-report' \
   'reporting-explain' \
-  'gitleaks/gitleaks-action@' \
+  'gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3' \
+  'GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}' \
+  'GITLEAKS_ENABLE_COMMENTS: "false"' \
   'actions/dependency-review-action@' \
   'ignore-unfixed'; do
   if [[ "$expected" == 'ignore-unfixed' ]]; then
