@@ -3,7 +3,8 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 output_file="$(mktemp)"
-trap 'rm -f "$output_file"' EXIT
+detached_source="$(mktemp -d)"
+trap 'rm -f "$output_file"; rm -rf "$detached_source"' EXIT
 
 "$repo_root/scripts/test-local-collaboration-evidence.sh" > "$output_file" 2>&1 \
   || { cat "$output_file" >&2; exit 1; }
@@ -16,6 +17,17 @@ for marker in \
   grep -Fq "$marker" "$output_file" \
     || { echo "local collaboration evidence missing marker: $marker" >&2; cat "$output_file" >&2; exit 1; }
 done
+git clone --shared --quiet "$repo_root" "$detached_source"
+git -C "$detached_source" checkout --detach --quiet
+git -C "$detached_source" for-each-ref --format='delete %(refname)' refs/heads \
+  | git -C "$detached_source" update-ref --stdin
+cp "$repo_root/scripts/test-local-collaboration-evidence.sh" \
+  "$detached_source/scripts/test-local-collaboration-evidence.sh"
+"$detached_source/scripts/test-local-collaboration-evidence.sh" > "$output_file" 2>&1 \
+  || { cat "$output_file" >&2; exit 1; }
+grep -Fq 'COLLAB-LOCAL-001 passed: local PR branch was reviewed and fast-forwarded into disposable main' "$output_file" \
+  || { echo "detached-source collaboration evidence did not complete" >&2; cat "$output_file" >&2; exit 1; }
+
 
 review_record="$repo_root/docs/evidence/pull-request-simulation.md"
 [[ -s "$review_record" ]] \

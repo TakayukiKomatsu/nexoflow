@@ -16,7 +16,7 @@ trap cleanup EXIT
 
 git -C "$repo_root" clone --local --shared --quiet "$repo_root" "$clone_dir"
 git -C "$clone_dir" remote remove origin
-git -C "$clone_dir" branch -M main
+git -C "$clone_dir" checkout -B main --quiet
 BASE_SHA="$(git -C "$clone_dir" rev-parse HEAD)"
 
 git -C "$clone_dir" checkout -b feature/local-pr-simulation --quiet
